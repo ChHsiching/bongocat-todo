@@ -198,5 +198,19 @@
         "notFound": "Không tìm thấy tệp cấu hình chính của mô hình, vui lòng xác nhận các tệp mô hình có đầy đủ không."
       }
     }
+  },
+  "plugins": {
+    "todo": {
+      "labels": {
+        "menuItem": "Việc cần làm",
+        "windowTitle": "Việc cần làm",
+        "placeholderBanner": "Giao diện giữ chỗ (T1 tracer bullet); sẽ tinh chỉnh phong cách vẽ tay trong T2",
+        "inputPlaceholder": "Thêm một việc cần làm mới…",
+        "addButton": "Thêm",
+        "deleteButton": "Xóa",
+        "emptyHint": "Chưa có việc cần làm nào, thêm một việc đi~",
+        "closeButton": "Đóng"
+      }
+    }
   }
 }

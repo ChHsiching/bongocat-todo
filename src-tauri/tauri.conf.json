@@ -33,6 +33,22 @@
         "minWidth": 800,
         "minHeight": 600,
         "skipTaskbar": true
+      },
+      {
+        "label": "todo",
+        "url": "index.html/#/todo",
+        "title": "待办",
+        "visible": false,
+        "transparent": false,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": true,
+        "minWidth": 320,
+        "minHeight": 400,
+        "width": 380,
+        "height": 560
       }
     ],
     "security": {

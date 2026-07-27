@@ -6,10 +6,12 @@ import { useI18n } from 'vue-i18n'
 import { WINDOW_LABEL } from '@/constants'
 import { showWindow } from '@/plugins/window'
 import { useCatStore } from '@/stores/cat'
+import { useMenuBusStore } from '@/stores/menuBus'
 import { isMac } from '@/utils/platform'
 
 export function useAppMenu() {
   const catStore = useCatStore()
+  const menuBus = useMenuBusStore()
   const { t } = useI18n()
 
   const getScaleMenuItems = async () => {
@@ -89,6 +91,16 @@ export function useAppMenu() {
         text: t('composables.useAppMenu.labels.opacity'),
         items: await getOpacityMenuItems(),
       }),
+      // 插件登记的菜单项（菜单总线 D1），全追加不改原有逻辑
+      ...menuBus.items.length > 0
+        ? [
+            PredefinedMenuItem.new({ item: 'Separator' }),
+            ...menuBus.items.map(item => MenuItem.new({
+              text: item.label(),
+              action: item.action,
+            })),
+          ]
+        : [],
     ])
   }
 

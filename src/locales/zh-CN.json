@@ -198,5 +198,19 @@
         "notFound": "未找到模型主配置文件，请确认模型文件是否完整。"
       }
     }
+  },
+  "plugins": {
+    "todo": {
+      "labels": {
+        "menuItem": "待办",
+        "windowTitle": "待办",
+        "placeholderBanner": "占位 UI（T1 tracer bullet），T2 精化为手绘风",
+        "inputPlaceholder": "新建一条待办…",
+        "addButton": "添加",
+        "deleteButton": "删除",
+        "emptyHint": "还没有待办，新建一条吧～",
+        "closeButton": "关闭"
+      }
+    }
   }
 }
