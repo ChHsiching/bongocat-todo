@@ -67,13 +67,46 @@ onMounted(async () => {
 })
 
 /**
- * 主面板形态打开：先 setSize 再 show，避免 1 帧 resize 闪烁。
+ * 主面板形态打开：贴猫正上方（水平居中对齐猫）→ setSize → show → 渐显。
+ *
+ * 锚点是猫（main 窗口）而非鼠标——和快速新建一致，跟随桌宠更符合直觉。
+ * 水平：面板中心对齐猫中心，clamp 到屏内（不溢左右边）。
+ * 垂直：在猫正上方留 8px 间距；上方放不下则翻到猫下方；最后 clamp 到屏内。
  * show 走 showWindow（复用 App.vue 的 SHOW_WINDOW handler → Rust show_window 命令，
  * 不直接调 core:window:show，避免新增 capability 权限）。
- * show 后下一帧触发渐显。
  */
 useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
   await appWindow.setSize(FULL_SIZE)
+
+  const monitors = await availableMonitors()
+  const catWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
+  let x = monitors[0]?.position.x ?? 0
+  let y = (monitors[0]?.position.y ?? 0) + 40
+
+  if (catWindow) {
+    const catPos = await catWindow.outerPosition()
+    const catSize = await catWindow.outerSize()
+    // 猫所在显示器（退化取第一块）
+    const monitor = monitors.find(m =>
+      catPos.x >= m.position.x && catPos.x < m.position.x + m.size.width
+      && catPos.y >= m.position.y && catPos.y < m.position.y + m.size.height,
+    ) ?? monitors[0]
+
+    if (monitor) {
+      // 水平：面板中心对齐猫中心
+      x = catPos.x + Math.round(catSize.width / 2 - FULL_SIZE.width / 2)
+      // 垂直：猫正上方留 8px
+      y = catPos.y - FULL_SIZE.height - 8
+      // 上方放不下 → 翻到猫下方
+      if (y < monitor.position.y)
+        y = catPos.y + catSize.height + 8
+      // clamp 到屏内
+      x = Math.max(monitor.position.x, Math.min(x, monitor.position.x + monitor.size.width - FULL_SIZE.width))
+      y = Math.max(monitor.position.y, Math.min(y, monitor.position.y + monitor.size.height - FULL_SIZE.height))
+    }
+  }
+
+  await appWindow.setPosition(new PhysicalPosition(x, y))
   mode.value = 'panel'
   shown.value = false
   showWindow(WINDOW_LABEL.TODO)
