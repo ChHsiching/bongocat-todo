@@ -3,10 +3,19 @@
  *
  * - @font-face：851 手写杂字体，从 public/fonts 加载，vite 不内联（28MB），font-display:swap 不阻塞首屏。
  * - CSS 变量：粉墨水系色板（CONTEXT.md「设计探索决策」）。todo 面板根元素挂 class 即继承。
- * - 暗色模式：html.dark 下覆盖变量值。不碰 antd 全局 token，靠 ConfigProvider 继承 + 自定义变量。
+ *
+ * 注意：本面板无暗色模式（设计稿 panel.html 只有亮色态）。不跟随系统暗色。
  *
  * @see docs/designs/todo-panel-exploration/panel.html 视觉事实来源
  */
+
+/* todo 窗口透明：html/body/#app 全透明，只留 SVG 纸张本身可见（纸张外直接透出桌面）。
+   必须 !important 覆盖 uno preflight / antdv reset 可能设的背景。 */
+html,
+body,
+#app {
+  background: transparent !important;
+}
 
 @font-face {
   font-family: 'Handwriting851';
@@ -17,7 +26,7 @@
   font-display: swap;
 }
 
-/* ── 粉墨水系色板（亮色，默认）── */
+/* ── 粉墨水系色板（设计稿唯一的亮色态）── */
 .todo-handdrawn {
   --paper: #ffffff;
   --paper-shadow: #f0e8de;
@@ -30,27 +39,12 @@
   --blue: #9bc4e0;
   --red-ink: #d4654a;
 
-  /* 背景外（窗口透明区）用桌宠场景的暖底 */
-  background: #ede4d3;
+  /* 窗口透明（transparent:true），纸张外直接透出桌面，无纯色边 */
+  background: transparent;
   color: var(--ink);
   font-family:
     'Handwriting851',
     -apple-system,
     'PingFang SC',
     sans-serif;
-}
-
-/* ── 暗色模式：html.dark 下覆盖色板（不自己处理 isDark 逻辑，靠上游 watch 加的 class）── */
-html.dark .todo-handdrawn {
-  --paper: #2a2420;
-  --paper-shadow: #15110e;
-  --ink: #f0e6da;
-  --ink-soft: #c4b5a0;
-  --ink-faint: #8a7560;
-  --pink: #f4a8a0;
-  --pink-deep: #e88880;
-  --orange: #f5c26b;
-  --blue: #9bc4e0;
-  --red-ink: #e07a5f;
-  background: #1a1612;
 }

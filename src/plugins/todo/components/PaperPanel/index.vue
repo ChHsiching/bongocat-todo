@@ -141,9 +141,10 @@
    但 SVG <use>/fill 的 id 引用在 scoped 下仍正常（id 是文档级的，vue scoped 给元素加 data-v 不影响 id 解析）。*/
 .paper-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 400px;
 }
 
 .paper-bg {
@@ -158,6 +159,10 @@
 .paper-content {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   padding: 26px 22px 22px;
 }
 </style>

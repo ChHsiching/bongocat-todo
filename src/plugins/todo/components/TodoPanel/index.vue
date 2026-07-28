@@ -61,8 +61,11 @@ function handleCancelAdd() {
 
 <template>
   <PaperPanel>
-    <!-- 标题区 -->
-    <div class="panel-header">
+    <!-- 标题区（可拖拽移动窗口；子元素 pointer-events:none 让拖拽穿透，按钮单独恢复） -->
+    <div
+      class="panel-header"
+      data-tauri-drag-region
+    >
       <div class="panel-title-row">
         <PawLogo />
         <span class="panel-title">{{ t('plugins.todo.labels.windowTitle') }}</span>
@@ -73,7 +76,7 @@ function handleCancelAdd() {
         type="button"
         @click="emit('close')"
       >
-        <!-- 手绘 ×（两条曲线交叉） -->
+        <!-- 手绘 ×：两段顺滑弧线交叉，像钢笔一笔画下来带自然弧度 -->
         <svg
           fill="none"
           height="22"
@@ -83,60 +86,68 @@ function handleCancelAdd() {
           viewBox="0 0 24 24"
           width="22"
         >
-          <path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18" />
-          <path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18" />
+          <!-- 左上→右下：顺滑大弧，控制点偏离直线向左下 -->
+          <path d="M 6 6 Q 9.5 13 19 19" />
+          <!-- 右上→左下：顺滑大弧，控制点偏离直线向左上 -->
+          <path d="M 18 6 Q 8.5 10 5 18" />
         </svg>
       </button>
     </div>
 
-    <!-- 待办分组 -->
+    <!-- 中间可滚动区：列表内容超出时在此滚动，不撑破黑框 -->
+    <div class="panel-scroll">
+      <!-- 待办分组 -->
+      <div
+        v-if="pendingTodos.length"
+        class="section-label"
+      >
+        <span>{{ t('plugins.todo.labels.sectionPending') }} · {{ pendingTodos.length }}</span>
+        <WaveDivider />
+      </div>
+
+      <div class="todo-list">
+        <TodoItem
+          v-for="todo in pendingTodos"
+          :key="todo.id"
+          :todo="todo"
+          @remove="emit('remove', $event)"
+          @toggle="emit('toggle', $event)"
+        />
+      </div>
+
+      <!-- 已完成分组 -->
+      <div
+        v-if="completedTodos.length"
+        class="section-label"
+      >
+        <span>{{ t('plugins.todo.labels.sectionCompleted') }}</span>
+        <WaveDivider />
+      </div>
+
+      <div class="todo-list">
+        <TodoItem
+          v-for="todo in completedTodos"
+          :key="todo.id"
+          :todo="todo"
+          @remove="emit('remove', $event)"
+          @toggle="emit('toggle', $event)"
+        />
+      </div>
+
+      <!-- 空状态 -->
+      <div
+        v-if="!todos.length"
+        class="empty-hint"
+      >
+        {{ t('plugins.todo.labels.emptyHint') }}
+      </div>
+    </div>
+
+    <!-- 底部新建区（固定，不随列表滚动；空白区可拖拽移动窗口） -->
     <div
-      v-if="pendingTodos.length"
-      class="section-label"
+      class="panel-footer"
+      data-tauri-drag-region
     >
-      <span>{{ t('plugins.todo.labels.sectionPending') }} · {{ pendingTodos.length }}</span>
-      <WaveDivider />
-    </div>
-
-    <div class="todo-list">
-      <TodoItem
-        v-for="todo in pendingTodos"
-        :key="todo.id"
-        :todo="todo"
-        @remove="emit('remove', $event)"
-        @toggle="emit('toggle', $event)"
-      />
-    </div>
-
-    <!-- 已完成分组 -->
-    <div
-      v-if="completedTodos.length"
-      class="section-label"
-    >
-      <span>{{ t('plugins.todo.labels.sectionCompleted') }}</span>
-      <WaveDivider />
-    </div>
-
-    <div class="todo-list">
-      <TodoItem
-        v-for="todo in completedTodos"
-        :key="todo.id"
-        :todo="todo"
-        @remove="emit('remove', $event)"
-        @toggle="emit('toggle', $event)"
-      />
-    </div>
-
-    <!-- 空状态 -->
-    <div
-      v-if="!todos.length"
-      class="empty-hint"
-    >
-      {{ t('plugins.todo.labels.emptyHint') }}
-    </div>
-
-    <!-- 底部新建区 -->
-    <div class="panel-footer">
       <!-- 内联展开输入 -->
       <div
         v-if="showAddInput"
@@ -168,16 +179,19 @@ function handleCancelAdd() {
 
 <style scoped>
 .panel-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 22px;
 }
 
+/* 标题行也参与拖拽：子内容不拦截鼠标，让 drag-region 生效 */
 .panel-title-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  pointer-events: none;
 }
 
 .panel-title {
@@ -192,6 +206,7 @@ function handleCancelAdd() {
   justify-content: center;
   width: 24px;
   height: 24px;
+  margin-right: 8px;
   padding: 0;
   background: none;
   border: none;
@@ -224,6 +239,19 @@ function handleCancelAdd() {
   flex-direction: column;
 }
 
+/* 中间滚动区：超出黑框在此滚动，隐藏滚动条 */
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 隐藏滚动条（webkit + firefox）*/
+  scrollbar-width: none;
+}
+
+.panel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .empty-hint {
   padding: 32px 0;
   text-align: center;
@@ -232,6 +260,7 @@ function handleCancelAdd() {
 }
 
 .panel-footer {
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   margin-top: 18px;
@@ -266,6 +295,7 @@ function handleCancelAdd() {
   border-radius: 12px;
   font-family: inherit;
   font-size: 16px;
+  font-weight: 600;
   color: var(--ink);
 }
 
