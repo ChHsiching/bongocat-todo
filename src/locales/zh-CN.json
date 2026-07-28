@@ -218,7 +218,11 @@
         "emptyHint": "还没有待办，新建一条吧～",
         "closeButton": "关闭",
         "reminderTitle": "待办到期提醒",
-        "reminderBody": "「{title}」到点啦"
+        "reminderBody": "「{title}」到点啦",
+        "quickAddMenuItem": "快速新建",
+        "miniPlaceholder": "写点什么…",
+        "miniSaved": "已添加",
+        "miniDateLabel": "到期日期"
       }
     }
   }

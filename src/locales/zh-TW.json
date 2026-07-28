@@ -218,7 +218,11 @@
         "emptyHint": "還沒有待辦，新增一條吧～",
         "closeButton": "關閉",
         "reminderTitle": "待辦到期提醒",
-        "reminderBody": "「{title}」到點啦"
+        "reminderBody": "「{title}」到點啦",
+        "quickAddMenuItem": "快速新增",
+        "miniPlaceholder": "寫點什麼…",
+        "miniSaved": "已新增",
+        "miniDateLabel": "到期日期"
       }
     }
   }

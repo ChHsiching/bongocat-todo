@@ -218,7 +218,11 @@
         "emptyHint": "Ainda não há tarefas. Adicione uma!",
         "closeButton": "Fechar",
         "reminderTitle": "Lembrete de tarefa vencida",
-        "reminderBody": "「{title}」 está vencida"
+        "reminderBody": "「{title}」 está vencida",
+        "quickAddMenuItem": "Adicionar rápido",
+        "miniPlaceholder": "Escreva algo…",
+        "miniSaved": "Adicionado",
+        "miniDateLabel": "Data de vencimento"
       }
     }
   }

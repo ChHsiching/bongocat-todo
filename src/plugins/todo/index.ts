@@ -1,9 +1,10 @@
 import type { useI18n } from 'vue-i18n'
 
+import { emit } from '@tauri-apps/api/event'
+
 import type { MenuItemDescriptor, useMenuBusStore } from '@/stores/menuBus'
 
-import { WINDOW_LABEL } from '@/constants'
-import { showWindow } from '@/plugins/window'
+import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 
 import type { useDeviceStore } from './stores/device'
 import type { useTodoStore } from './stores/todo'
@@ -49,12 +50,21 @@ export async function setupTodoPlugin({ todoStore, deviceStore, menuBus, t, wind
     await startReminder(todoStore, t)
   }
 
+  // 「待办」/「快速新建」都用专用事件（非通用 SHOW_WINDOW），让 todo 页面
+  // 在 show 之前先 setSize + setPosition，避免「先 show 再 resize」的 1 帧闪烁。
+  // 两菜单项共存在 menuBus，由 useAppMenu 消费。
   const todoMenuItems: MenuItemDescriptor[] = [
     {
       id: 'todo',
       label: () => t('plugins.todo.labels.menuItem'),
       icon: 'i-solar:clipboard-list-bold',
-      action: () => showWindow(WINDOW_LABEL.TODO),
+      action: () => emit(LISTEN_KEY.SHOW_TODO_FULL),
+    },
+    {
+      id: 'todo-quick-add',
+      label: () => t('plugins.todo.labels.quickAddMenuItem'),
+      icon: 'i-solar:add-circle-bold',
+      action: () => emit(LISTEN_KEY.SHOW_TODO_MINI),
     },
   ]
 

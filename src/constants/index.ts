@@ -10,6 +10,10 @@ export const LISTEN_KEY = {
   GAMEPAD_CHANGED: 'gamepad-changed',
   START_MOTION: 'start-motion',
   SET_EXPRESSION: 'set-expression',
+  /** todo 窗口以主面板形态（380×560）打开，由「待办」菜单项触发。 */
+  SHOW_TODO_FULL: 'show-todo-full',
+  /** todo 窗口以迷你输入窗形态（280×110）打开，定位到光标附近，由「快速新建」菜单项触发。 */
+  SHOW_TODO_MINI: 'show-todo-mini',
 }
 
 export const INVOKE_KEY = {

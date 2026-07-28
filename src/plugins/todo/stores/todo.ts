@@ -44,8 +44,18 @@ export const useTodoStore = defineStore('todo', () => {
     return todos.value.filter(todo => todo.deletedAt === undefined)
   })
 
-  /** 新建 todo。deviceId 由调用方（设备层）注入。 */
-  const createTodo = (title: string, deviceId: string, now: number = Date.now()): Todo => {
+  /**
+   * 新建 todo。deviceId 由调用方（设备层）注入。
+   *
+   * `dueDate` 可选：迷你输入窗（T5）等支持「快速新建带到期日」的入口传入，
+   * 转换为本地午夜 timestamp（与 TodoItem 的 startOfDay 比较口径一致）。
+   */
+  const createTodo = (
+    title: string,
+    deviceId: string,
+    now: number = Date.now(),
+    dueDate?: number,
+  ): Todo => {
     const trimmed = title.trim()
 
     const todo: Todo = {
@@ -56,6 +66,10 @@ export const useTodoStore = defineStore('todo', () => {
       createdAt: now,
       updatedAt: now,
       deviceId,
+    }
+
+    if (dueDate !== undefined) {
+      todo.dueDate = dueDate
     }
 
     todos.value.push(todo)

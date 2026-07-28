@@ -45,6 +45,22 @@ describe('useTodoStore', () => {
       expect(todo.createdAt).toBeLessThanOrEqual(after)
       expect(todo.updatedAt).toBe(todo.createdAt)
     })
+
+    it('传 dueDate 时写入字段', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('给猫换水', 'dev', 100, 1_700_000_000_000)
+
+      expect(todo.dueDate).toBe(1_700_000_000_000)
+    })
+
+    it('不传 dueDate 时字段为 undefined', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('给猫换水', 'dev', 100)
+
+      expect(todo.dueDate).toBeUndefined()
+    })
   })
 
   describe('visibleTodos', () => {

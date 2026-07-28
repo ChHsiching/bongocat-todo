@@ -218,7 +218,11 @@
         "emptyHint": "Chưa có việc cần làm nào, thêm một việc đi~",
         "closeButton": "Đóng",
         "reminderTitle": "Nhắc nhở việc đến hạn",
-        "reminderBody": "「{title}」 đã đến hạn"
+        "reminderBody": "「{title}」 đã đến hạn",
+        "quickAddMenuItem": "Thêm nhanh",
+        "miniPlaceholder": "Viết gì đó…",
+        "miniSaved": "Đã thêm",
+        "miniDateLabel": "Ngày đến hạn"
       }
     }
   }
