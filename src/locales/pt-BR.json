@@ -198,5 +198,47 @@
         "notFound": "Arquivo de configuração principal do modelo não encontrado. Verifique se os arquivos do modelo estão completos."
       }
     }
+  },
+  "plugins": {
+    "todo": {
+      "labels": {
+        "menuItem": "Tarefas",
+        "windowTitle": "Tarefas",
+        "addTodoButton": "Nova tarefa",
+        "addTodoPlaceholder": "Escreva uma tarefa…",
+        "sectionPending": "Pendentes",
+        "sectionCompleted": "Concluídas",
+        "priorityHigh": "Alta",
+        "priorityMedium": "Média",
+        "priorityLow": "Baixa",
+        "dueToday": "Vence hoje",
+        "dueOverdue": "Atrasada",
+        "dueTomorrow": "Amanhã",
+        "deleteButton": "Excluir",
+        "emptyHint": "Ainda não há tarefas. Adicione uma!",
+        "closeButton": "Fechar",
+        "reminderTitle": "Lembrete de tarefa vencida",
+        "reminderBody": "「{title}」 está vencida",
+        "quickAddMenuItem": "Adicionar rápido",
+        "miniPlaceholder": "Escreva algo…",
+        "miniSaved": "Adicionado",
+        "miniDateLabel": "Data de vencimento",
+        "miniYearPh": "Ano",
+        "miniYearLabel": "Ano",
+        "miniMonthPh": "Mês",
+        "miniMonthLabel": "Mês",
+        "miniDayPh": "Dia",
+        "miniDayLabel": "Dia",
+        "miniHourPh": "Hora",
+        "miniHourLabel": "Hora",
+        "miniMinutePh": "Min",
+        "miniMinuteLabel": "Minuto",
+        "priorityPickerLabel": "Prioridade",
+        "confirmAddButton": "Adicionar",
+        "cancelAddButton": "Cancelar",
+        "dueTodayShort": "Hoje",
+        "dueOverdueShort": "Atrasado"
+      }
+    }
   }
 }

@@ -198,5 +198,47 @@
         "notFound": "Model master configuration file not found, please ensure the model files are complete."
       }
     }
+  },
+  "plugins": {
+    "todo": {
+      "labels": {
+        "menuItem": "Todo",
+        "windowTitle": "Todo",
+        "addTodoButton": "New todo",
+        "addTodoPlaceholder": "Write a todo…",
+        "sectionPending": "Pending",
+        "sectionCompleted": "Done",
+        "priorityHigh": "High",
+        "priorityMedium": "Medium",
+        "priorityLow": "Low",
+        "dueToday": "Due today",
+        "dueOverdue": "Overdue",
+        "dueTomorrow": "Tomorrow",
+        "deleteButton": "Delete",
+        "emptyHint": "No todos yet. Add one!",
+        "closeButton": "Close",
+        "reminderTitle": "Todo due reminder",
+        "reminderBody": "“{title}” is due now",
+        "quickAddMenuItem": "Quick Add",
+        "miniPlaceholder": "Write something…",
+        "miniSaved": "Added",
+        "miniDateLabel": "Due date",
+        "miniYearPh": "YYYY",
+        "miniYearLabel": "Year",
+        "miniMonthPh": "MM",
+        "miniMonthLabel": "Month",
+        "miniDayPh": "DD",
+        "miniDayLabel": "Day",
+        "miniHourPh": "HH",
+        "miniHourLabel": "Hour",
+        "miniMinutePh": "MM",
+        "miniMinuteLabel": "Minute",
+        "priorityPickerLabel": "Priority",
+        "confirmAddButton": "Add",
+        "cancelAddButton": "Cancel",
+        "dueTodayShort": "Today",
+        "dueOverdueShort": "Overdue"
+      }
+    }
   }
 }

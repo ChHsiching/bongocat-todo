@@ -198,5 +198,47 @@
         "notFound": "未找到模型主設定檔，請確認模型文件是否完整。"
       }
     }
+  },
+  "plugins": {
+    "todo": {
+      "labels": {
+        "menuItem": "待辦",
+        "windowTitle": "待辦",
+        "addTodoButton": "新增待辦",
+        "addTodoPlaceholder": "寫一條待辦…",
+        "sectionPending": "待辦",
+        "sectionCompleted": "已完成",
+        "priorityHigh": "高",
+        "priorityMedium": "中",
+        "priorityLow": "低",
+        "dueToday": "今天到期",
+        "dueOverdue": "已逾期",
+        "dueTomorrow": "明天",
+        "deleteButton": "刪除",
+        "emptyHint": "還沒有待辦，新增一條吧～",
+        "closeButton": "關閉",
+        "reminderTitle": "待辦到期提醒",
+        "reminderBody": "「{title}」到點啦",
+        "quickAddMenuItem": "快速新增",
+        "miniPlaceholder": "寫點什麼…",
+        "miniSaved": "已新增",
+        "miniDateLabel": "到期日期",
+        "miniYearPh": "年",
+        "miniYearLabel": "年",
+        "miniMonthPh": "月",
+        "miniMonthLabel": "月",
+        "miniDayPh": "日",
+        "miniDayLabel": "日",
+        "miniHourPh": "時",
+        "miniHourLabel": "時",
+        "miniMinutePh": "分",
+        "miniMinuteLabel": "分",
+        "priorityPickerLabel": "優先級",
+        "confirmAddButton": "新增",
+        "cancelAddButton": "取消",
+        "dueTodayShort": "今天",
+        "dueOverdueShort": "已逾期"
+      }
+    }
   }
 }

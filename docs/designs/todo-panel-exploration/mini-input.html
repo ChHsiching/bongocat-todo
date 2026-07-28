@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BongoCat Todo · 迷你输入窗</title>
+<style>
+  @font-face {
+    font-family: 'Handwriting851';
+    src: url('./851.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --paper: #ffffff;
+    --ink: #4a3a2e;
+    --ink-soft: #8a7560;
+    --ink-faint: #c4b5a0;
+    --pink: #f4a8a0;
+    --pink-deep: #e88880;
+    --pink-soft: #fce4db;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Handwriting851', -apple-system, 'PingFang SC', sans-serif;
+    background: #ede4d3;
+    padding: 40px 20px;
+    min-height: 100vh;
+    color: var(--ink);
+  }
+
+  .canvas-header {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    text-align: center;
+  }
+  .canvas-header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #4a3a2e;
+    margin-bottom: 8px;
+  }
+  .canvas-header p {
+    color: #8a7560;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .canvas-header .warn { color: #d4654a; font-weight: 600; }
+
+  /* 模拟桌面背景（带一只简化的桌宠占位）*/
+  .desktop-sim {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #f5f0e8 0%, #ebe4d8 100%);
+    border-radius: 20px;
+    padding: 60px 40px;
+    min-height: 400px;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid #d4c8b0;
+  }
+  .desktop-sim::before {
+    content: '桌面（示意）';
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    font-size: 13px;
+    color: #a89a8c;
+    font-weight: 600;
+  }
+
+  /* 简化桌宠占位（提示「猫在这里」）*/
+  .cat-placeholder {
+    position: absolute;
+    bottom: 60px;
+    left: 80px;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .cat-placeholder .cat-svg {
+    width: 100px;
+    height: 100px;
+    opacity: 0.8;
+  }
+  .cat-placeholder .cat-label {
+    font-size: 12px;
+    color: #a89a8c;
+  }
+
+  /* 光标位置标记 */
+  .cursor-marker {
+    position: absolute;
+    width: 12px;
+    height: 18px;
+    pointer-events: none;
+  }
+  .cursor-marker::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 12px solid #4a3a2e;
+    transform: rotate(-15deg);
+  }
+  .cursor-marker .label {
+    position: absolute;
+    top: 16px;
+    left: -20px;
+    font-size: 11px;
+    color: #a89a8c;
+    white-space: nowrap;
+  }
+
+  /* ============================================ */
+  /* 迷你输入窗                                    */
+  /* ============================================ */
+  .mini-window {
+    position: absolute;
+    width: 260px;
+    /* 高度由内容决定 */
+  }
+  .mini-window svg.frame-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .mini-window .content {
+    position: relative;
+    z-index: 1;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* 爪印小图标 */
+  .paw-mini {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* 输入区 */
+  .input-area {
+    flex: 1;
+    min-width: 0;
+  }
+  .input-text {
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 700;
+    line-height: 1.5;
+    outline: none;
+    background: transparent;
+    border: none;
+    width: 100%;
+    font-family: inherit;
+  }
+  .input-text::placeholder {
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  .input-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 18px;
+    background: var(--pink-deep);
+    vertical-align: middle;
+    margin-left: 1px;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* 状态变体区 */
+  .states-row {
+    display: flex;
+    gap: 40px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .state-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  .state-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #4a3a2e;
+  }
+  .state-desc {
+    font-size: 12px;
+    color: #8a7560;
+    text-align: center;
+    max-width: 240px;
+    line-height: 1.6;
+  }
+
+  /* 边框变体区 */
+  .variants-section {
+    max-width: 1100px;
+    margin: 60px auto 0;
+  }
+  .variants-section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #4a3a2e;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .variants-section .sub {
+    text-align: center;
+    color: #8a7560;
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+  .border-variants {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .border-variant {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  .border-variant .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a3a2e;
+  }
+  .border-variant .desc {
+    font-size: 11px;
+    color: #8a7560;
+    text-align: center;
+    max-width: 200px;
+  }
+
+  /* 保存成功反馈 */
+  .saved-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6b9c47;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .saved-indicator .check {
+    width: 18px;
+    height: 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas-header">
+  <h1>✏️ 迷你输入窗 · 快速新建</h1>
+  <p>
+    右键「快速新建」弹出的 ~260px 小窗。手绘风在极小尺寸下怎么不显得乱是核心挑战。<br>
+    <span class="warn">跟随光标弹出 · 自动聚焦 · 回车保存</span>
+  </p>
+</div>
+
+<!-- ===== 模拟桌面场景 ===== -->
+<div class="desktop-sim">
+  <!-- 桌宠占位 -->
+  <div class="cat-placeholder">
+    <svg class="cat-svg" viewBox="0 0 100 100">
+      <!-- 简化桌宠（白色椭圆 + 粉色斑点）-->
+      <ellipse cx="50" cy="55" rx="32" ry="28" fill="white" stroke="#4a3a2e" stroke-width="1.5"/>
+      <!-- 耳朵 -->
+      <path d="M 25 35 L 30 18 L 40 30 Z" fill="white" stroke="#4a3a2e" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M 75 35 L 70 18 L 60 30 Z" fill="white" stroke="#4a3a2e" stroke-width="1.5" stroke-linejoin="round"/>
+      <!-- 眼睛 -->
+      <circle cx="40" cy="50" r="2.5" fill="#4a3a2e"/>
+      <circle cx="60" cy="50" r="2.5" fill="#4a3a2e"/>
+      <!-- 脸颊粉 -->
+      <ellipse cx="33" cy="60" rx="5" ry="3" fill="#f4a8a0" opacity="0.7"/>
+      <ellipse cx="67" cy="60" rx="5" ry="3" fill="#f4a8a0" opacity="0.7"/>
+      <!-- 嘴 -->
+      <path d="M 47 62 Q 50 65 53 62" fill="none" stroke="#4a3a2e" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+    <div class="cat-label">桌宠（示意）</div>
+  </div>
+
+  <!-- 光标标记 -->
+  <div class="cursor-marker" style="top: 80px; left: 380px;">
+    <div class="label">↓ 光标在这里</div>
+  </div>
+
+  <!-- 迷你窗：空态（占位符）-->
+  <div class="mini-window" style="top: 100px; left: 360px;">
+    <svg class="frame-bg" viewBox="0 0 260 56" preserveAspectRatio="none">
+      <defs>
+        <filter id="mini-shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+          <feOffset dx="1.5" dy="3"/>
+          <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <!-- 阴影 -->
+      <path d="M 14 12 Q 16 10 20 10 L 246 12 Q 252 14 251 18 L 253 46 Q 251 52 246 52 L 18 50 Q 12 48 13 44 Z"
+            fill="#e8dcc8" opacity="0.6"/>
+      <!-- 主框（纯白 + 手绘边框）-->
+      <path d="M 12 8 Q 14 6 18 6 L 244 8 Q 250 10 249 14 L 251 42 Q 249 48 244 48 L 16 46 Q 10 44 11 40 Z"
+            fill="white"
+            stroke="#4a3a2e"
+            stroke-width="2"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+            filter="url(#mini-shadow)"/>
+    </svg>
+    <div class="content">
+      <svg class="paw-mini" viewBox="0 0 22 22">
+        <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+        <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+        <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+        <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+        <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+      </svg>
+      <div class="input-area">
+        <span class="input-text" style="color: var(--ink-faint); font-weight: 500;">写点什么...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 说明文字 -->
+  <div style="position: absolute; bottom: 20px; right: 30px; font-size: 12px; color: #a89a8c; text-align: right; line-height: 1.6;">
+    光标在哪，迷你窗就在哪弹出<br>
+    自动聚焦，直接打字，回车保存
+  </div>
+</div>
+
+<!-- ===== 三个状态 ===== -->
+<div class="states-row">
+  <!-- 状态 1：空态 -->
+  <div class="state-card">
+    <div class="state-label">① 空态</div>
+    <div class="state-desc">刚弹出，占位符提示「写点什么...」，光标已在输入框内。</div>
+    <div class="mini-window" style="position: relative; top: auto; left: auto;">
+      <svg class="frame-bg" viewBox="0 0 260 56" preserveAspectRatio="none">
+        <path d="M 14 12 Q 16 10 20 10 L 246 12 Q 252 14 251 18 L 253 46 Q 251 52 246 52 L 18 50 Q 12 48 13 44 Z"
+              fill="#e8dcc8" opacity="0.6"/>
+        <path d="M 12 8 Q 14 6 18 6 L 244 8 Q 250 10 249 14 L 251 42 Q 249 48 244 48 L 16 46 Q 10 44 11 40 Z"
+              fill="white" stroke="#4a3a2e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div class="content">
+        <svg class="paw-mini" viewBox="0 0 22 22">
+          <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+          <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+          <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+          <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+          <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+        </svg>
+        <div class="input-area">
+          <span class="input-text" style="color: var(--ink-faint); font-weight: 500;">写点什么...<span class="input-cursor"></span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 状态 2：输入中 -->
+  <div class="state-card">
+    <div class="state-label">② 输入中</div>
+    <div class="state-desc">用户正在打字。文字用 851 手写字体，光标粉色闪烁。</div>
+    <div class="mini-window" style="position: relative; top: auto; left: auto;">
+      <svg class="frame-bg" viewBox="0 0 260 56" preserveAspectRatio="none">
+        <path d="M 14 12 Q 16 10 20 10 L 246 12 Q 252 14 251 18 L 253 46 Q 251 52 246 52 L 18 50 Q 12 48 13 44 Z"
+              fill="#e8dcc8" opacity="0.6"/>
+        <path d="M 12 8 Q 14 6 18 6 L 244 8 Q 250 10 249 14 L 251 42 Q 249 48 244 48 L 16 46 Q 10 44 11 40 Z"
+              fill="white" stroke="#4a3a2e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div class="content">
+        <svg class="paw-mini" viewBox="0 0 22 22">
+          <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+          <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+          <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+          <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+          <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+        </svg>
+        <div class="input-area">
+          <span class="input-text">给猫换水<span class="input-cursor"></span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 状态 3：保存成功 -->
+  <div class="state-card">
+    <div class="state-label">③ 保存成功</div>
+    <div class="state-desc">回车后短暂显示绿色对勾，然后淡出关闭（~600ms）。</div>
+    <div class="mini-window" style="position: relative; top: auto; left: auto;">
+      <svg class="frame-bg" viewBox="0 0 260 56" preserveAspectRatio="none">
+        <path d="M 14 12 Q 16 10 20 10 L 246 12 Q 252 14 251 18 L 253 46 Q 251 52 246 52 L 18 50 Q 12 48 13 44 Z"
+              fill="#e0f0d8" opacity="0.6"/>
+        <path d="M 12 8 Q 14 6 18 6 L 244 8 Q 250 10 249 14 L 251 42 Q 249 48 244 48 L 16 46 Q 10 44 11 40 Z"
+              fill="#f6fbf2" stroke="#6b9c47" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div class="content" style="justify-content: center;">
+        <span class="saved-indicator">
+          <svg class="check" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M 3 9 Q 6 12 7 13 Q 11 7 15 4"/>
+          </svg>
+          已添加
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 边框变体对比 ===== -->
+<div class="variants-section">
+  <h2>🎨 手绘边框变体</h2>
+  <p class="sub">小尺寸下手绘边框容易显乱。这几个变体笔画粗细/不规则程度不同，选一个。</p>
+
+  <div class="border-variants">
+    <!-- 变体 A：细笔画 + 轻微不规则 -->
+    <div class="border-variant">
+      <div class="name">A · 细笔画</div>
+      <div class="mini-window" style="position: relative; top: auto; left: auto; width: 220px;">
+        <svg class="frame-bg" viewBox="0 0 220 50" preserveAspectRatio="none">
+          <path d="M 12 10 Q 14 8 17 8 L 207 9 Q 212 11 211 14 L 213 38 Q 211 44 206 44 L 15 43 Q 9 41 10 37 Z"
+                fill="white" stroke="#4a3a2e" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="content" style="padding: 10px 14px;">
+          <svg class="paw-mini" viewBox="0 0 22 22" style="width: 18px; height: 18px;">
+            <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+            <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+            <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+          </svg>
+          <span class="input-text" style="font-size: 14px; color: var(--ink-faint); font-weight: 500;">细笔画...</span>
+        </div>
+      </div>
+      <div class="desc">stroke-width 1.5，轻微不规则。最干净，但手绘感弱。</div>
+    </div>
+
+    <!-- 变体 B：中笔画 + 中等不规则（推荐）-->
+    <div class="border-variant">
+      <div class="name">B · 中笔画（推荐）</div>
+      <div class="mini-window" style="position: relative; top: auto; left: auto; width: 220px;">
+        <svg class="frame-bg" viewBox="0 0 220 50" preserveAspectRatio="none">
+          <path d="M 11 9 Q 13 6 17 6.5 Q 110 5 205 8 Q 211 10 210.5 14 Q 212 25 210 38 Q 209 44 204 44.5 Q 110 46 14 43 Q 8 41 9 37 Q 10 20 11 9 Z"
+                fill="white" stroke="#4a3a2e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="content" style="padding: 10px 14px;">
+          <svg class="paw-mini" viewBox="0 0 22 22" style="width: 18px; height: 18px;">
+            <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+            <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+            <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+          </svg>
+          <span class="input-text" style="font-size: 14px; color: var(--ink-faint); font-weight: 500;">中笔画...</span>
+        </div>
+      </div>
+      <div class="desc">stroke-width 2，四边中间有起伏。和主面板一致。</div>
+    </div>
+
+    <!-- 变体 C：粗笔画 + 明显不规则 -->
+    <div class="border-variant">
+      <div class="name">C · 粗笔画</div>
+      <div class="mini-window" style="position: relative; top: auto; left: auto; width: 220px;">
+        <svg class="frame-bg" viewBox="0 0 220 50" preserveAspectRatio="none">
+          <path d="M 10 8 Q 13 4 18 5 Q 110 3 204 7 Q 213 10 212 15 Q 214 26 211 39 Q 210 46 203 46.5 Q 110 48 13 44 Q 6 41 7 36 Q 8 18 10 8 Z"
+                fill="white" stroke="#4a3a2e" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="content" style="padding: 10px 14px;">
+          <svg class="paw-mini" viewBox="0 0 22 22" style="width: 18px; height: 18px;">
+            <ellipse cx="11" cy="15" rx="6" ry="4" fill="#f4a8a0"/>
+            <circle cx="5" cy="10" r="2.2" fill="#f4a8a0"/>
+            <circle cx="9" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="13" cy="7" r="2.2" fill="#f4a8a0"/>
+            <circle cx="17" cy="10" r="2.2" fill="#f4a8a0"/>
+          </svg>
+          <span class="input-text" style="font-size: 14px; color: var(--ink-faint); font-weight: 500;">粗笔画...</span>
+        </div>
+      </div>
+      <div class="desc">stroke-width 2.8，明显抖动。手绘感最强，但小尺寸下可能显乱。</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

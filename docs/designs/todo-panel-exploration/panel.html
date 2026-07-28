@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BongoCat Todo · v3 纯白+粉墨+851手写</title>
+<style>
+  /* ============================================ */
+  /* v3: 基于 v2 变体 I 调整                       */
+  /*   1. 纯白纸张（去米白）                       */
+  /*   2. 851 手写杂字体                           */
+  /*   3. 优先级用墨点（笔画小圈涂黑感）           */
+  /*   4. 时钟手绘风                               */
+  /* ============================================ */
+
+  /* 加载 851 手写杂字体（本地文件）*/
+  @font-face {
+    font-family: 'Handwriting851';
+    src: url('./851.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --paper: #ffffff;           /* 纯白纸张 */
+    --paper-shadow: #f0e8de;    /* 阴影色 */
+    --ink: #4a3a2e;             /* 主墨色（棕墨）*/
+    --ink-soft: #8a7560;        /* 次墨色 */
+    --ink-faint: #c4b5a0;       /* 淡墨色 */
+    --pink: #f4a8a0;            /* 桌宠脸颊粉 */
+    --pink-deep: #e88880;       /* 深粉 */
+    --orange: #f5c26b;          /* 橙黄 */
+    --blue: #9bc4e0;            /* 柔蓝 */
+    --red-ink: #d4654a;         /* 红墨（紧急）*/
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    /* 整个 body 也用 851，保持一致 */
+    font-family: 'Handwriting851', -apple-system, 'PingFang SC', sans-serif;
+    background: #ede4d3;
+    padding: 40px 20px;
+    min-height: 100vh;
+    color: var(--ink);
+  }
+
+  .canvas-header {
+    max-width: 1200px;
+    margin: 0 auto 32px;
+    text-align: center;
+  }
+  .canvas-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #4a3a2e;
+    margin-bottom: 8px;
+  }
+  .canvas-header p {
+    color: #8a7560;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .canvas-header .warn {
+    color: #d4654a;
+    font-weight: 600;
+  }
+  .canvas-header .changes {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1.5px solid #f4a8a0;
+    font-size: 13px;
+    color: #6b5d52;
+  }
+  .canvas-header .changes b { color: #d4654a; }
+
+  /* 居中显示单个面板（这次只做一个定稿方向）*/
+  .stage {
+    max-width: 420px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+  .stage h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #4a3a2e;
+  }
+  .stage .desc {
+    font-size: 14px;
+    color: #8a7560;
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  /* ============================================ */
+  /* 手绘面板                                     */
+  /* ============================================ */
+  .todo-panel {
+    width: 360px;
+    position: relative;
+  }
+
+  .todo-panel svg.panel-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .panel-content {
+    position: relative;
+    z-index: 1;
+    padding: 26px 22px 22px;
+  }
+
+  /* 标题区 */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .panel-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-paw {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .panel-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .panel-close {
+    cursor: pointer;
+    color: var(--ink-faint);
+    transition: color 0.2s;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .panel-close:hover { color: var(--ink); }
+
+  /* 分组标签 */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .section-label .underline {
+    flex: 1;
+    height: 6px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* todo 项 */
+  .todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 10px;
+    border-radius: 14px;
+    transition: background 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+  .todo-item:hover {
+    background: rgba(244, 168, 160, 0.08);
+  }
+
+  .checkbox-wrap {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    cursor: pointer;
+  }
+  .checkbox-wrap svg {
+    width: 100%;
+    height: 100%;
+    transition: all 0.2s;
+  }
+
+  .todo-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .todo-title {
+    font-size: 17px;
+    color: var(--ink);
+    line-height: 1.6;
+    word-break: break-word;
+    font-weight: 700;
+  }
+  .todo-item.done .todo-title {
+    color: var(--ink-faint);
+    text-decoration: line-through;
+    text-decoration-color: var(--ink-faint);
+  }
+  .todo-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+
+  /* 优先级墨点 + 文字 */
+  .pri {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+  }
+  .pri .ink-dot {
+    width: 14px;
+    height: 14px;
+  }
+  .pri.high { color: var(--red-ink); }
+  .pri.med { color: #c89030; }
+  .pri.low { color: #5a85b0; }
+
+  /* 到期提示 + 手绘时钟 */
+  .due {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-soft);
+  }
+  .due.urgent {
+    color: var(--red-ink);
+    font-weight: 600;
+  }
+  .due .clock-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* 底部新建区 */
+  .panel-footer {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+  }
+  .add-btn {
+    padding: 12px 28px;
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: color 0.2s;
+    font-family: inherit;
+  }
+  .add-btn:hover { color: var(--pink-deep); }
+</style>
+</head>
+<body>
+
+<div class="canvas-header">
+  <h1>🎨 v3 · 纯白 + 粉墨 + 851 手写</h1>
+  <p>
+    基于 v2 变体 I，按你的反馈做了四项调整。<br>
+    <span class="warn">看完告诉我方向对了没，再决定下一步。</span>
+  </p>
+  <div class="changes">
+    <b>改了什么：</b>① 纸张纯白（去米黄） · ② 全局用 851 手写杂字体 · ③ 优先级圆点改墨点（笔画涂黑感） · ④ 时钟手绘风
+  </div>
+</div>
+
+<div class="stage">
+  <h3>定稿方向</h3>
+  <p class="desc">纯白纸张 + 粉墨水 + 851 手写字。所有文字（标题/正文/标签）都是手写杂字体，配合手绘 SVG 边框和墨点。</p>
+
+  <div class="todo-panel" id="panel-v3">
+    <!-- ===== SVG 面板背景：纯白 + 手绘不规则边框 ===== -->
+    <svg class="panel-bg" viewBox="0 0 360 540" preserveAspectRatio="none">
+      <defs>
+        <!-- 纯白纸张的轻微纹理（极淡的颗粒，不再是米色点）-->
+        <pattern id="paper-texture-v3" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+          <rect width="40" height="40" fill="#ffffff"/>
+          <circle cx="8" cy="12" r="0.4" fill="#e8e8e8" opacity="0.5"/>
+          <circle cx="28" cy="6" r="0.3" fill="#e8e8e8" opacity="0.4"/>
+          <circle cx="18" cy="30" r="0.4" fill="#e8e8e8" opacity="0.5"/>
+          <circle cx="35" cy="25" r="0.3" fill="#e8e8e8" opacity="0.4"/>
+        </pattern>
+        <!-- 手绘阴影 -->
+        <filter id="hand-shadow-v3" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+          <feOffset dx="2" dy="4"/>
+          <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- 阴影层（错位手绘形状）-->
+      <path d="M 16 14 Q 18 12 24 13 L 338 16 Q 346 18 345 24 L 348 524 Q 346 532 338 532 L 22 528 Q 14 526 15 520 Z"
+            fill="#f0e8de" opacity="0.6"/>
+
+      <!-- 主面板（纯白底 + 手绘边框）-->
+      <path d="M 14 10 Q 16 8 22 9 L 336 12 Q 344 14 343 20 L 346 520 Q 344 528 336 528 L 20 524 Q 12 522 13 516 Z"
+            fill="url(#paper-texture-v3)"
+            stroke="#4a3a2e"
+            stroke-width="2.5"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+            filter="url(#hand-shadow-v3)"/>
+
+      <!-- 顶部装饰：手绘小波浪（粉色）-->
+      <path d="M 40 30 Q 50 26 60 30 T 80 30 T 100 30"
+            fill="none" stroke="#f4a8a0" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+      <!-- 右上角小装饰：手绘小圆圈 -->
+      <circle cx="320" cy="32" r="3" fill="none" stroke="#f4a8a0" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="330" cy="36" r="2" fill="#f4a8a0" opacity="0.5"/>
+    </svg>
+
+    <div class="panel-content">
+      <!-- ===== 标题区 ===== -->
+      <div class="panel-header">
+        <div class="panel-title-row">
+          <!-- 手绘爪印 SVG -->
+          <div class="panel-paw">
+            <svg viewBox="0 0 34 34" width="34" height="34">
+              <ellipse cx="17" cy="23" rx="9" ry="6.5" fill="#f4a8a0"/>
+              <circle cx="8" cy="15" r="3.2" fill="#f4a8a0"/>
+              <circle cx="14" cy="10" r="3.2" fill="#f4a8a0"/>
+              <circle cx="21" cy="10" r="3.2" fill="#f4a8a0"/>
+              <circle cx="27" cy="15" r="3.2" fill="#f4a8a0"/>
+            </svg>
+          </div>
+          <span class="panel-title">我的待办</span>
+        </div>
+        <div class="panel-close">
+          <!-- 手绘 ×（两条曲线交叉）-->
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18"/>
+            <path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ===== 今天分组 ===== -->
+      <div class="section-label">
+        <span>今天 · 3</span>
+        <svg class="underline" viewBox="0 0 100 6" preserveAspectRatio="none">
+          <path d="M 2 3 Q 25 1 50 3 T 98 3" fill="none" stroke="#c4b5a0" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- ===== todo 项 1：高优先级 + 今天到期 ===== -->
+      <div class="todo-item">
+        <div class="checkbox-wrap">
+          <svg viewBox="0 0 24 24">
+            <!-- 手绘 checkbox：四条边各自带轻微抖动，模拟手画的不规则 -->
+            <path d="M 3.5 5.5 Q 3 3.5 5.5 3.2 Q 11 2.8 18.5 3.5 Q 21 3.8 20.8 6 Q 21 11 20.5 18 Q 20.5 21 18 21.2 Q 12 21.5 5.5 20.8 Q 3 20.5 3.2 18 Q 3 12 3.5 5.5 Z"
+                  fill="white" stroke="#8a7560" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="todo-main">
+          <div class="todo-title">完成项目设计稿评审</div>
+          <div class="todo-meta">
+            <!-- 高优先级：红墨点 -->
+            <span class="pri high">
+              <svg class="ink-dot" viewBox="0 0 14 14">
+                <!-- 「笔画小圈涂黑」的墨点：外圈不规则 + 内部填充带笔触感 -->
+                <path d="M 7 2 Q 11 2 12 5 Q 13 7 12 9 Q 11 12 7 12 Q 3 12 2 9 Q 1 7 2 5 Q 3 2 7 2 Z"
+                      fill="#d4654a" opacity="0.25"/>
+                <path d="M 7 3.5 Q 9.5 3.5 10.5 5.5 Q 11 7 10 8.5 Q 9 10.5 7 10.5 Q 5 10.5 4 8.5 Q 3 7 3.5 5.5 Q 4.5 3.5 7 3.5 Z"
+                      fill="#d4654a"/>
+                <!-- 笔触高光（留白）-->
+                <ellipse cx="5.5" cy="5.5" rx="1.2" ry="0.8" fill="#d4654a" opacity="0.5"/>
+              </svg>
+              高
+            </span>
+            <!-- 今天到期：手绘时钟 -->
+            <span class="due urgent">
+              <svg class="clock-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <!-- 手绘时钟外圈（不规则圆）-->
+                <path d="M 7 1.5 Q 10.5 1.5 12 4 Q 13 5.5 12.5 7.5 Q 12 11 9 12 Q 7 12.5 5 12 Q 2 11 1.5 8 Q 1 6 2 4.5 Q 3 2 7 1.5 Z"/>
+                <!-- 手绘时针 + 分针（带弧度，不是直线）-->
+                <path d="M 7 7 Q 7 5 7.5 4"/>
+                <path d="M 7 7 Q 9 7 10 6.5"/>
+                <!-- 中心点 -->
+                <circle cx="7" cy="7" r="0.6" fill="currentColor" stroke="none"/>
+              </svg>
+              今天到期
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== todo 项 2：中优先级 + 明天 ===== -->
+      <div class="todo-item">
+        <div class="checkbox-wrap">
+          <svg viewBox="0 0 24 24">
+            <path d="M 3.5 5.5 Q 3 3.5 5.5 3.2 Q 11 2.8 18.5 3.5 Q 21 3.8 20.8 6 Q 21 11 20.5 18 Q 20.5 21 18 21.2 Q 12 21.5 5.5 20.8 Q 3 20.5 3.2 18 Q 3 12 3.5 5.5 Z"
+                  fill="white" stroke="#8a7560" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="todo-main">
+          <div class="todo-title">回复客户邮件</div>
+          <div class="todo-meta">
+            <!-- 中优先级：橙墨点 -->
+            <span class="pri med">
+              <svg class="ink-dot" viewBox="0 0 14 14">
+                <path d="M 7 2 Q 11 2 12 5 Q 13 7 12 9 Q 11 12 7 12 Q 3 12 2 9 Q 1 7 2 5 Q 3 2 7 2 Z"
+                      fill="#f5c26b" opacity="0.25"/>
+                <path d="M 7 3.5 Q 9.5 3.5 10.5 5.5 Q 11 7 10 8.5 Q 9 10.5 7 10.5 Q 5 10.5 4 8.5 Q 3 7 3.5 5.5 Q 4.5 3.5 7 3.5 Z"
+                      fill="#f5c26b"/>
+                <ellipse cx="5.5" cy="5.5" rx="1.2" ry="0.8" fill="#f5c26b" opacity="0.5"/>
+              </svg>
+              中
+            </span>
+            <span class="due">明天</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== todo 项 3：低优先级 ===== -->
+      <div class="todo-item">
+        <div class="checkbox-wrap">
+          <svg viewBox="0 0 24 24">
+            <path d="M 3.5 5.5 Q 3 3.5 5.5 3.2 Q 11 2.8 18.5 3.5 Q 21 3.8 20.8 6 Q 21 11 20.5 18 Q 20.5 21 18 21.2 Q 12 21.5 5.5 20.8 Q 3 20.5 3.2 18 Q 3 12 3.5 5.5 Z"
+                  fill="white" stroke="#8a7560" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="todo-main">
+          <div class="todo-title">整理本周笔记</div>
+          <div class="todo-meta">
+            <!-- 低优先级：蓝墨点 -->
+            <span class="pri low">
+              <svg class="ink-dot" viewBox="0 0 14 14">
+                <path d="M 7 2 Q 11 2 12 5 Q 13 7 12 9 Q 11 12 7 12 Q 3 12 2 9 Q 1 7 2 5 Q 3 2 7 2 Z"
+                      fill="#9bc4e0" opacity="0.25"/>
+                <path d="M 7 3.5 Q 9.5 3.5 10.5 5.5 Q 11 7 10 8.5 Q 9 10.5 7 10.5 Q 5 10.5 4 8.5 Q 3 7 3.5 5.5 Q 4.5 3.5 7 3.5 Z"
+                      fill="#9bc4e0"/>
+                <ellipse cx="5.5" cy="5.5" rx="1.2" ry="0.8" fill="#9bc4e0" opacity="0.5"/>
+              </svg>
+              低
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 已完成分组 ===== -->
+      <div class="section-label">
+        <span>已完成</span>
+        <svg class="underline" viewBox="0 0 100 6" preserveAspectRatio="none">
+          <path d="M 2 3 Q 25 1 50 3 T 98 3" fill="none" stroke="#c4b5a0" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- ===== todo 项 4：已完成 ===== -->
+      <div class="todo-item done">
+        <div class="checkbox-wrap">
+          <svg viewBox="0 0 24 24">
+            <!-- 已勾选：粉色填充 + 手绘不规则外框 + 手绘对勾 -->
+            <path d="M 3.5 5.5 Q 3 3.5 5.5 3.2 Q 11 2.8 18.5 3.5 Q 21 3.8 20.8 6 Q 21 11 20.5 18 Q 20.5 21 18 21.2 Q 12 21.5 5.5 20.8 Q 3 20.5 3.2 18 Q 3 12 3.5 5.5 Z"
+                  fill="#f4a8a0" stroke="#e88880" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+            <!-- 手绘对勾（带弧度的两段曲线）-->
+            <path d="M 6 12 Q 8 15 9 16 Q 13 10 16 7"
+                  fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="todo-main">
+          <div class="todo-title">买猫粮</div>
+        </div>
+      </div>
+
+      <!-- ===== 底部新建 ===== -->
+      <div class="panel-footer">
+        <button class="add-btn">＋ 新建待办</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详细说明 -->
+  <div style="margin-top: 24px; padding: 16px 20px; background: white; border-radius: 14px; border: 1.5px dashed #f4a8a0; max-width: 360px; font-size: 13px; color: #6b5d52; line-height: 1.8;">
+    <div style="font-weight: 700; color: #d4654a; margin-bottom: 8px;">📌 这版改了什么</div>
+    <div>① 纸张：<b>纯白</b>（原来是米白 #fff8f0）</div>
+    <div>② 字体：<b>851 手写杂字体</b>全局应用（标题/正文/标签都是手写）</div>
+    <div>③ 优先级圆点 → <b>墨点</b>（外圈不规则笔触 + 内部涂黑 + 笔触高光，像用笔画小圈涂黑）</div>
+    <div>④ 时钟 → <b>手绘风</b>（外圈不规则圆 + 时针分针带弧度 + 中心点）</div>
+  </div>
+</div>
+
+</body>
+</html>

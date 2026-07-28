@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BongoCat Todo · 缩回-蹦出动效</title>
+<style>
+  @font-face {
+    font-family: 'Handwriting851';
+    src: url('./851.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --paper: #ffffff;
+    --ink: #4a3a2e;
+    --ink-soft: #8a7560;
+    --pink: #f4a8a0;
+    --pink-deep: #e88880;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Handwriting851', -apple-system, 'PingFang SC', sans-serif;
+    background: #ede4d3;
+    padding: 30px 20px;
+    min-height: 100vh;
+    color: var(--ink);
+  }
+
+  .canvas-header {
+    max-width: 1100px;
+    margin: 0 auto 24px;
+    text-align: center;
+  }
+  .canvas-header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .canvas-header p {
+    color: #8a7560;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .canvas-header .warn { color: #d4654a; font-weight: 600; }
+
+  /* ============================================ */
+  /* 舞台：模拟桌宠 + 面板                         */
+  /* ============================================ */
+  .stage {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #f5f0e8 0%, #ebe4d8 100%);
+    border-radius: 20px;
+    padding: 40px;
+    min-height: 380px;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid #d4c8b0;
+  }
+
+  /* 桌宠（可被「拖动」——用按钮模拟）*/
+  .cat {
+    position: absolute;
+    width: 110px;
+    height: 110px;
+    bottom: 50px;
+    left: 60px;
+    /* 当 isDragging 时，jiggle 抖动表示被拖 */
+    transition: transform 0.15s ease-out;
+    cursor: grab;
+  }
+  .cat.dragging {
+    animation: catJiggle 0.4s ease-in-out infinite;
+    cursor: grabbing;
+  }
+  @keyframes catJiggle {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(4px, -3px) rotate(2deg); }
+    50% { transform: translate(-2px, 2px) rotate(-1deg); }
+    75% { transform: translate(3px, 1px) rotate(1deg); }
+  }
+  .cat svg { width: 100%; height: 100%; }
+
+  /* todo 面板 */
+  .todo-panel {
+    position: absolute;
+    width: 280px;
+    /* 默认位置：桌宠右侧 */
+    bottom: 60px;
+    left: 200px;
+    transform-origin: 0 100%; /* 缩回锚点：以「贴近桌宠的左下角」为原点 */
+    /* 蹦出后的入场动画用 class 触发 */
+  }
+
+  .todo-panel svg.frame-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .panel-content {
+    position: relative;
+    z-index: 1;
+    padding: 20px 18px;
+  }
+
+  .panel-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-paw {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mini-todo {
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 700;
+    padding: 6px 0;
+    border-bottom: 1px dashed #e8dcc8;
+  }
+  .mini-todo:last-child { border-bottom: none; }
+  .mini-todo .pri-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* ============================================ */
+  /* 动画状态                                     */
+  /* ============================================ */
+
+  /*
+   * 关键修复：transition 声明在基础类上，而不是 state-tucking 上。
+   * CSS transition 需要「起始状态也有 transition 声明」才能过渡。
+   * 之前 state-shown 没有 transition，所以 shown→tucking 直接跳到终态。
+   * 现在基础类统一声明，所有状态切换都能过渡。
+   * animation（蹦出）优先级高于 transition，会接管。
+   */
+  .todo-panel {
+    transition:
+      transform var(--tuck-dur, 320ms) var(--tuck-easing, cubic-bezier(0.5, 0, 0.75, 0)),
+      opacity var(--tuck-dur, 320ms) ease-in;
+  }
+
+  /* 状态：默认（显示，在桌宠右侧）*/
+  .todo-panel.state-shown {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+
+  /* 状态：缩回中（拖动开始触发）*/
+  /* 只声明终态值，transition 由基础类提供 */
+  .todo-panel.state-tucking {
+    transform: translate(-160px, 30px) scale(0.2);
+    opacity: 0;
+  }
+
+  /* 状态：已缩回（隐藏中，等桌宠拖完）*/
+  /* transition 已经跑完，这里保持终态即可 */
+  .todo-panel.state-tucked {
+    transform: translate(-160px, 30px) scale(0.2);
+    opacity: 0;
+  }
+
+  /* 状态：蹦出（拖动结束触发）*/
+  /* 用 keyframes 实现 overshoot：先冲过头再回弹 */
+  /* animation 优先级高于 transition，会接管过渡 */
+  .todo-panel.state-popping {
+    animation: popOut var(--pop-dur, 500ms) var(--pop-easing, cubic-bezier(0.34, 1.56, 0.64, 1)) forwards;
+  }
+  @keyframes popOut {
+    0% {
+      /* 起始：缩回状态（在桌宠位置，缩小，透明）*/
+      transform: translate(-160px, 30px) scale(0.2);
+      opacity: 0;
+    }
+    40% {
+      /* 冲到目标位置，但 scale 略过 1（overshoot）*/
+      transform: translate(0, 0) scale(1.08);
+      opacity: 1;
+    }
+    70% {
+      /* 回弹一点 */
+      transform: translate(0, 0) scale(0.97);
+    }
+    100% {
+      /* 定格 */
+      transform: translate(0, 0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* ============================================ */
+  /* 控制面板（调参）*/
+  /* ============================================ */
+  .controls {
+    max-width: 1000px;
+    margin: 24px auto 0;
+    background: white;
+    border-radius: 16px;
+    padding: 20px 24px;
+    border: 1.5px solid #e8dcc8;
+  }
+  .controls h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #4a3a2e;
+    margin-bottom: 14px;
+  }
+  .control-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .control-row > label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b5d52;
+    min-width: 110px;
+  }
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-group button {
+    padding: 8px 14px;
+    border: 2px solid #e8dcc8;
+    background: white;
+    color: #6b5d52;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .btn-group button:hover {
+    border-color: var(--pink);
+    color: var(--pink-deep);
+  }
+  .btn-group button.active {
+    background: var(--pink);
+    border-color: var(--pink-deep);
+    color: white;
+  }
+
+  /* 主操作按钮 */
+  .main-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1.5px dashed #e8dcc8;
+  }
+  .main-actions button {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-drag {
+    background: var(--pink);
+    color: white;
+  }
+  .btn-drag:hover { background: var(--pink-deep); }
+  .btn-drag.dragging { background: #d4654a; }
+  .btn-reset {
+    background: white;
+    color: #6b5d52;
+    border: 2px solid #e8dcc8;
+  }
+  .btn-reset:hover { border-color: var(--pink); color: var(--pink-deep); }
+
+  .status-display {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 13px;
+    color: #8a7560;
+    min-height: 20px;
+  }
+  .status-display .state-name {
+    font-weight: 700;
+    color: var(--pink-deep);
+  }
+
+  .curve-info {
+    font-size: 11px;
+    color: #a89a8c;
+    margin-left: 8px;
+  }
+
+  .hint {
+    max-width: 1000px;
+    margin: 20px auto 0;
+    padding: 14px 18px;
+    background: #fff5f0;
+    border-radius: 12px;
+    border-left: 4px solid var(--pink);
+    font-size: 13px;
+    color: #6b5d52;
+    line-height: 1.7;
+  }
+  .hint b { color: var(--pink-deep); }
+</style>
+</head>
+<body>
+
+<div class="canvas-header">
+  <h1>🎬 缩回-蹦出动效</h1>
+  <p>
+    点「开始拖拽」看面板缩进桌宠，点「结束拖拽」看面板弹回来。下面能调曲线参数。<br>
+    <span class="warn">必须实际操作感受——动效不能看静态图。</span>
+  </p>
+</div>
+
+<!-- ===== 舞台 ===== -->
+<div class="stage">
+  <!-- 桌宠 -->
+  <div class="cat" id="cat">
+    <svg viewBox="0 0 110 110">
+      <ellipse cx="55" cy="60" rx="36" ry="32" fill="white" stroke="#4a3a2e" stroke-width="1.8"/>
+      <!-- 耳朵 -->
+      <path d="M 28 38 L 33 18 L 44 32 Z" fill="white" stroke="#4a3a2e" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M 82 38 L 77 18 L 66 32 Z" fill="white" stroke="#4a3a2e" stroke-width="1.8" stroke-linejoin="round"/>
+      <!-- 眼睛 -->
+      <circle cx="44" cy="54" r="2.8" fill="#4a3a2e"/>
+      <circle cx="66" cy="54" r="2.8" fill="#4a3a2e"/>
+      <!-- 脸颊粉 -->
+      <ellipse cx="36" cy="66" rx="6" ry="3.5" fill="#f4a8a0" opacity="0.75"/>
+      <ellipse cx="74" cy="66" rx="6" ry="3.5" fill="#f4a8a0" opacity="0.75"/>
+      <!-- 嘴 -->
+      <path d="M 52 68 Q 55 72 58 68" fill="none" stroke="#4a3a2e" stroke-width="1.4" stroke-linecap="round"/>
+      <!-- 爪子 -->
+      <ellipse cx="40" cy="88" rx="7" ry="4" fill="white" stroke="#4a3a2e" stroke-width="1.5"/>
+      <ellipse cx="70" cy="88" rx="7" ry="4" fill="white" stroke="#4a3a2e" stroke-width="1.5"/>
+    </svg>
+  </div>
+
+  <!-- todo 面板 -->
+  <div class="todo-panel state-shown" id="panel">
+    <svg class="frame-bg" viewBox="0 0 280 240" preserveAspectRatio="none">
+      <defs>
+        <filter id="panel-shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+          <feOffset dx="2" dy="4"/>
+          <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path d="M 14 10 Q 16 8 22 9 L 258 12 Q 266 14 265 20 L 268 224 Q 266 232 258 232 L 20 228 Q 12 226 13 220 Z"
+            fill="#f0e8de" opacity="0.6"/>
+      <path d="M 12 8 Q 14 6 20 7 L 256 10 Q 264 12 263 18 L 266 220 Q 264 228 256 228 L 18 224 Q 10 222 11 216 Z"
+            fill="white" stroke="#4a3a2e" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"
+            filter="url(#panel-shadow)"/>
+    </svg>
+    <div class="panel-content">
+      <div class="panel-title">
+        <svg class="panel-paw" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="16" rx="6.5" ry="4.5" fill="#f4a8a0"/>
+          <circle cx="6" cy="11" r="2.4" fill="#f4a8a0"/>
+          <circle cx="10" cy="8" r="2.4" fill="#f4a8a0"/>
+          <circle cx="14" cy="8" r="2.4" fill="#f4a8a0"/>
+          <circle cx="18" cy="11" r="2.4" fill="#f4a8a0"/>
+        </svg>
+        我的待办
+      </div>
+      <div class="mini-todo"><span class="pri-dot" style="background:#d4654a"></span>完成设计稿评审</div>
+      <div class="mini-todo"><span class="pri-dot" style="background:#f5c26b"></span>回复客户邮件</div>
+      <div class="mini-todo"><span class="pri-dot" style="background:#9bc4e0"></span>整理本周笔记</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 控制面板 ===== -->
+<div class="controls">
+  <h2>🎛️ 调参（实时切换后点上面的按钮重放）</h2>
+
+  <!-- 缩回曲线 -->
+  <div class="control-row">
+    <label>缩回曲线</label>
+    <div class="btn-group" id="tuck-easing-group">
+      <button data-tuck-easing="cubic-bezier(0.5, 0, 0.75, 0)" class="active">柔和吸入<span class="curve-info">0.5,0,0.75,0</span></button>
+      <button data-tuck-easing="cubic-bezier(0.7, 0, 0.9, 0)">快速吸入<span class="curve-info">0.7,0,0.9,0</span></button>
+      <button data-tuck-easing="cubic-bezier(0.95, 0, 1, 0)">猛地吸入<span class="curve-info">0.95,0,1,0</span></button>
+      <button data-tuck-easing="ease-in">普通加速<span class="curve-info">ease-in</span></button>
+    </div>
+  </div>
+
+  <!-- 缩回时长 -->
+  <div class="control-row">
+    <label>缩回时长</label>
+    <div class="btn-group" id="tuck-dur-group">
+      <button data-tuck-dur="220ms">快 220ms</button>
+      <button data-tuck-dur="320ms" class="active">中 320ms</button>
+      <button data-tuck-dur="450ms">慢 450ms</button>
+    </div>
+  </div>
+
+  <!-- 蹦出曲线 -->
+  <div class="control-row">
+    <label>蹦出回弹</label>
+    <div class="btn-group" id="pop-easing-group">
+      <button data-pop-easing="cubic-bezier(0.34, 1.56, 0.64, 1)" class="active">中回弹<span class="curve-info">0.34,1.56,0.64,1</span></button>
+      <button data-pop-easing="cubic-bezier(0.34, 1.2, 0.64, 1)">轻回弹<span class="curve-info">0.34,1.2,0.64,1</span></button>
+      <button data-pop-easing="cubic-bezier(0.34, 2, 0.64, 1)">强回弹<span class="curve-info">0.34,2,0.64,1</span></button>
+      <button data-pop-easing="cubic-bezier(0.22, 1, 0.36, 1)">不回弹<span class="curve-info">0.22,1,0.36,1</span></button>
+    </div>
+  </div>
+
+  <!-- 蹦出时长 -->
+  <div class="control-row">
+    <label>蹦出时长</label>
+    <div class="btn-group" id="pop-dur-group">
+      <button data-pop-dur="350ms">快 350ms</button>
+      <button data-pop-dur="500ms" class="active">中 500ms</button>
+      <button data-pop-dur="700ms">慢 700ms</button>
+    </div>
+  </div>
+
+  <!-- 主操作 -->
+  <div class="main-actions">
+    <button class="btn-drag" id="btn-drag">👆 开始拖拽</button>
+    <button class="btn-reset" id="btn-reset">↺ 重置</button>
+  </div>
+
+  <div class="status-display" id="status">
+    当前状态：<span class="state-name">显示中</span>
+  </div>
+</div>
+
+<div class="hint">
+  <b>怎么用：</b>① 点上面的「开始拖拽」按钮（或直接点桌宠），面板会缩进桌宠身体里；② 再点「结束拖拽」（按钮会变字），面板从桌宠身上弹回来。<br>
+  <b>怎么挑：</b>先点几组参数组合（缩回曲线 × 蹦出回弹），找到感觉最「像被猫吸入又蹦出来」的那组，告诉我编号。
+</div>
+
+<script>
+  const cat = document.getElementById('cat')
+  const panel = document.getElementById('panel')
+  const btnDrag = document.getElementById('btn-drag')
+  const btnReset = document.getElementById('btn-reset')
+  const status = document.getElementById('status')
+
+  // 当前参数（默认值）
+  let tuckEasing = 'cubic-bezier(0.5, 0, 0.75, 0)'
+  let tuckDur = '320ms'
+  let popEasing = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+  let popDur = '500ms'
+
+  // 状态机：shown -> tucking -> tucked -> popping -> shown
+  let state = 'shown'
+
+  function applyParams() {
+    panel.style.setProperty('--tuck-easing', tuckEasing)
+    panel.style.setProperty('--tuck-dur', tuckDur)
+    panel.style.setProperty('--pop-easing', popEasing)
+    panel.style.setProperty('--pop-dur', popDur)
+  }
+
+  function setState(newState) {
+    // 清除所有状态 class
+    panel.classList.remove('state-shown', 'state-tucking', 'state-tucked', 'state-popping')
+    // 触发重排，让动画重新开始（重要）
+    void panel.offsetWidth
+    panel.classList.add('state-' + newState)
+    state = newState
+
+    // 更新状态显示
+    const stateNames = {
+      shown: '显示中',
+      tucking: '缩回中...',
+      tucked: '已藏好（拖动中）',
+      popping: '蹦出中！',
+    }
+    status.innerHTML = '当前状态：<span class="state-name">' + (stateNames[newState] || newState) + '</span>'
+  }
+
+  function startDrag() {
+    if (state === 'tucking' || state === 'tucked') return
+    applyParams()
+    cat.classList.add('dragging')
+    btnDrag.classList.add('dragging')
+    btnDrag.textContent = '✋ 结束拖拽'
+    setState('tucking')
+    // 缩回动画结束后，切到 tucked（静止隐藏）
+    setTimeout(() => {
+      if (state === 'tucking') setState('tucked')
+    }, 350)
+  }
+
+  function endDrag() {
+    if (state !== 'tucking' && state !== 'tucked') return
+    cat.classList.remove('dragging')
+    btnDrag.classList.remove('dragging')
+    btnDrag.textContent = '👆 开始拖拽'
+    applyParams()
+    setState('popping')
+    // 蹦出动画结束后，切回 shown
+    setTimeout(() => {
+      if (state === 'popping') setState('shown')
+    }, 550)
+  }
+
+  function reset() {
+    cat.classList.remove('dragging')
+    btnDrag.classList.remove('dragging')
+    btnDrag.textContent = '👆 开始拖拽'
+    setState('shown')
+  }
+
+  // 按钮事件
+  btnDrag.addEventListener('click', () => {
+    if (state === 'shown') startDrag()
+    else endDrag()
+  })
+  btnReset.addEventListener('click', reset)
+  cat.addEventListener('click', () => {
+    if (state === 'shown') startDrag()
+    else if (state === 'tucked') endDrag()
+  })
+
+  // 参数按钮事件
+  function bindGroup(groupId, paramKey, setter) {
+    const group = document.getElementById(groupId)
+    group.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('button').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+        setter(btn.dataset[paramKey])
+      })
+    })
+  }
+
+  bindGroup('tuck-easing-group', 'tuckEasing', v => { tuckEasing = v })
+  bindGroup('tuck-dur-group', 'tuckDur', v => { tuckDur = v })
+  bindGroup('pop-easing-group', 'popEasing', v => { popEasing = v })
+  bindGroup('pop-dur-group', 'popDur', v => { popDur = v })
+</script>
+
+</body>
+</html>
