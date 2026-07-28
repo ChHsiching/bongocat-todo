@@ -1,24 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import HandClock from '../HandClock/index.vue'
+import type { TodoPriority } from '@/plugins/todo'
+
+import HandDateInput from '../HandDateInput/index.vue'
 import PawLogo from '../PawLogo/index.vue'
+import PriorityPicker from '../PriorityPicker/index.vue'
 
 /**
- * 迷你输入窗（MiniInput / T5）。
+ * 迷你输入窗（MiniInput / T5，T6 补优先级选择）。
  *
  * 定位锚点是桌宠（main 窗口）上方偏右，而非光标——实测桌宠右键菜单弹出位置距光标远，
  * 跟随光标会让迷你窗出现在意料外的地方。
  *
  * 三态：idle（占位符）→ typing（用户输入）→ saved（绿色「已添加」整窗居中放大，淡出后关闭）。
- * 布局：
+ * 布局（T6 两行）：
  *   Row1 = PawLogo（拖动）+ 标题 input + 关闭×
- *   Row2 = 日历图标 + 年/月/日 input + 中间留白（拖动）+ 时:分 input + 时钟图标
+ *   Row2 = PriorityPicker（三档墨点，默认 medium）+ HandDateInput（复用 T5 的 5 个手写数字框）
  *
  * 日期时间全部手写数字输入框（无日历弹层、无 antd 依赖），皮肤完全手绘可控。
+ * T6 起日期输入抽成 HandDateInput 组件供主面板新建复用，本组件不再内联数字框逻辑。
  *
- * 拖动：猫爪、Row2 中间留白显式挂 data-tauri-drag-region；input/button 天然豁免仍可交互。
+ * 拖动：爪印、Row2/Row3 的非 input 区显式挂 data-tauri-drag-region；input/button 天然豁免。
  *
  * 关闭路径：右上角 × / Esc / 提交后淡出 timer。**不**用 input blur 或窗口失焦自动关闭
  * （前者会破坏 tab 到下一框）。
@@ -30,7 +34,7 @@ import PawLogo from '../PawLogo/index.vue'
  */
 const emit = defineEmits<{
   close: []
-  create: [title: string, dueDate?: number]
+  create: [title: string, dueDate: number | undefined, priority: TodoPriority]
 }>()
 
 const { t } = useI18n()
@@ -43,37 +47,10 @@ const fading = ref(false)
 const title = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 
-// ── 日期时间输入（纯数字字符串，空串=未填）──
-const year = ref('')
-const month = ref('')
-const day = ref('')
-const hour = ref('')
-const minute = ref('')
-
-/** 日期部分（年月日）是否完整填写。 */
-const hasDate = computed(() => year.value !== '' && month.value !== '' && day.value !== '')
-/** 时间部分（时分）是否完整填写；未填则默认 09:00。 */
-const hasTime = computed(() => hour.value !== '' && minute.value !== '')
-
-/**
- * 提交用 timestamp：日期必填（年月日都填），时间可选（未填默认 09:00）。
- * 日期/时间都未填 → undefined（无到期日的普通 todo）。
- * 用 new Date(y, m-1, d, h, m) 构造本地时间，避开 UTC 偏移。
- */
-const dueTimestamp = computed<number | undefined>(() => {
-  if (!hasDate.value)
-    return undefined
-  const y = Number(year.value)
-  const m = Number(month.value)
-  const d = Number(day.value)
-  // 合法性校验：用 Date 构造后回读对比，非法日期（如 2/30）Date 会溢出到下月。
-  const probe = new Date(y, m - 1, d)
-  if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d)
-    return undefined
-  const h = hasTime.value ? Number(hour.value) : 9
-  const min = hasTime.value ? Number(minute.value) : 0
-  return new Date(y, m - 1, d, h, min, 0, 0).getTime()
-})
+/** 新建 todo 的优先级（默认 medium）。 */
+const priority = ref<TodoPriority>('medium')
+/** 新建 todo 的截止日期 timestamp（未填日期时 undefined）。 */
+const dueDate = ref<number | undefined>(undefined)
 
 /** saved 展示时长：前半段静止显示「已添加」，后半段淡出。 */
 const SAVED_HOLD_MS = 300
@@ -96,39 +73,8 @@ function markTyping() {
   }
 }
 
-/** 数字输入框：限制只能输数字，并 clamp 到合法范围。 */
-function clampInt(value: string, min: number, max: number): string {
-  if (value === '')
-    return ''
-  const n = Number(value)
-  if (Number.isNaN(n))
-    return ''
-  return String(Math.max(min, Math.min(n, max)))
-}
-
-function onYearInput() {
-  // 年不限上限，但去掉非数字，最多 4 位
-  year.value = year.value.replace(/\D/g, '').slice(0, 4)
-  markTyping()
-}
-
-function onMonthInput() {
-  month.value = clampInt(month.value.replace(/\D/g, ''), 1, 12)
-  markTyping()
-}
-
-function onDayInput() {
-  day.value = clampInt(day.value.replace(/\D/g, ''), 1, 31)
-  markTyping()
-}
-
-function onHourInput() {
-  hour.value = clampInt(hour.value.replace(/\D/g, ''), 0, 23)
-  markTyping()
-}
-
-function onMinuteInput() {
-  minute.value = clampInt(minute.value.replace(/\D/g, ''), 0, 59)
+function onDateChange(value: number | undefined) {
+  dueDate.value = value
   markTyping()
 }
 
@@ -137,7 +83,7 @@ function handleSubmit() {
   if (!trimmed || state.value === 'saved')
     return
 
-  emit('create', trimmed, dueTimestamp.value)
+  emit('create', trimmed, dueDate.value, priority.value)
 
   state.value = 'saved'
   // 前半段静止展示「已添加」，后半段淡出，然后关闭。
@@ -179,7 +125,7 @@ function clearTimers() {
     <svg
       class="frame-bg"
       preserveAspectRatio="none"
-      viewBox="0 0 280 130"
+      viewBox="0 0 380 130"
     >
       <defs>
         <filter
@@ -204,15 +150,15 @@ function clearTimers() {
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      <!-- 阴影层 -->
+      <!-- 阴影层（按 280→380 等比缩放） -->
       <path
-        d="M 14 12 Q 16 10 20 10 L 266 12 Q 272 14 271 18 L 273 98 Q 271 104 266 104 L 18 102 Q 12 100 13 96 Z"
+        d="M 19 12 Q 21.7 10 27.1 10 L 361 12 Q 369.1 14 367.8 18 L 370.5 98 Q 367.8 104 361 104 L 24.4 102 Q 16.3 100 17.6 96 Z"
         :fill="state === 'saved' ? '#e0f0d8' : '#e8dcc8'"
         opacity="0.6"
       />
-      <!-- 主框（变体 B 中笔画：四边中间有起伏） -->
+      <!-- 主框（变体 B 中笔画；按 280→380 等比缩放，四边中间有起伏） -->
       <path
-        d="M 11 9 Q 13 6 17 6.5 Q 140 5 263 8 Q 269 10 268.5 14 Q 270 55 268 98 Q 267 104 262 104.5 Q 140 106 13 103 Q 8 101 9 97 Q 10 50 11 9 Z"
+        d="M 14.9 9 Q 17.6 6 23.1 6.5 Q 190 5 356.9 8 Q 365.1 10 364.4 14 Q 366.4 55 363.7 98 Q 362.4 104 355.6 104.5 Q 190 106 17.6 103 Q 10.9 101 12.2 97 Q 13.6 50 14.9 9 Z"
         :fill="state === 'saved' ? '#f6fbf2' : 'var(--paper)'"
         filter="url(#mini-shadow)"
         :stroke="state === 'saved' ? '#6b9c47' : 'var(--ink)'"
@@ -265,9 +211,9 @@ function clearTimers() {
         <span class="saved-text">{{ t('plugins.todo.labels.miniSaved') }}</span>
       </div>
 
-      <!-- 输入态：标题 + 日期两行。
-           可拖动区显式挂 data-tauri-drag-region（爪印、时钟、中间留白），
-           input/button 天然豁免仍可交互。布局：时钟在最左、日期框贴最右、中间留白拖动。 -->
+      <!-- 输入态：标题 + 优先级 + 日期三行。
+           可拖动区显式挂 data-tauri-drag-region（爪印、优先级行空白、日期行空白），
+           input/button 天然豁免仍可交互。 -->
       <template v-else>
         <!-- Row1：整行 drag-region（学 TodoPanel .panel-header 模式）。
              爪印设 pointer-events:none 透传给行 drag-region；title input 天然豁免仍可交互。 -->
@@ -290,79 +236,18 @@ function clearTimers() {
           >
         </div>
 
-        <!-- Row2：整行 drag-region（学 TodoPanel .panel-header 模式）。
-             日历图标/时钟图标/分隔符设 pointer-events:none 透传给行 drag-region；
-             年月日时分 input 天然豁免仍可交互。这样整行空白（input 之间）都能拖动窗口。 -->
+        <!-- Row2：优先级 + 日期时间同一行（与主面板新建区一致的紧凑布局）。
+             整行 drag-region，PriorityPicker 按钮和 HandDateInput 的 input 天然豁免可交互。
+             HandDateInput 内含左侧时钟图标，右侧不再放图标避免溢出（用户反馈）。 -->
         <div
-          class="date-row"
+          class="controls-row"
           data-tauri-drag-region
         >
-          <span class="icon-deco">
-            <HandClock />
-          </span>
-          <input
-            v-model="year"
-            class="num-input num-year"
-            inputmode="numeric"
-            :placeholder="t('plugins.todo.labels.miniYearPh')"
-            :title="t('plugins.todo.labels.miniYearLabel')"
-            type="text"
-            @input="onYearInput"
-            @keydown.enter.prevent="handleSubmit"
-            @keydown.esc.prevent="handleClose"
-          >
-          <span class="num-sep">-</span>
-          <input
-            v-model="month"
-            class="num-input num-md"
-            inputmode="numeric"
-            :placeholder="t('plugins.todo.labels.miniMonthPh')"
-            :title="t('plugins.todo.labels.miniMonthLabel')"
-            type="text"
-            @input="onMonthInput"
-            @keydown.enter.prevent="handleSubmit"
-            @keydown.esc.prevent="handleClose"
-          >
-          <span class="num-sep">-</span>
-          <input
-            v-model="day"
-            class="num-input num-md"
-            inputmode="numeric"
-            :placeholder="t('plugins.todo.labels.miniDayPh')"
-            :title="t('plugins.todo.labels.miniDayLabel')"
-            type="text"
-            @input="onDayInput"
-            @keydown.enter.prevent="handleSubmit"
-            @keydown.esc.prevent="handleClose"
-          >
-          <!-- 中间留白：行本身是 drag-region，此 div 只占位撑开间距。 -->
-          <span class="date-gap" />
-          <input
-            v-model="hour"
-            class="num-input num-md"
-            inputmode="numeric"
-            :placeholder="t('plugins.todo.labels.miniHourPh')"
-            :title="t('plugins.todo.labels.miniHourLabel')"
-            type="text"
-            @input="onHourInput"
-            @keydown.enter.prevent="handleSubmit"
-            @keydown.esc.prevent="handleClose"
-          >
-          <span class="num-sep">:</span>
-          <input
-            v-model="minute"
-            class="num-input num-md"
-            inputmode="numeric"
-            :placeholder="t('plugins.todo.labels.miniMinutePh')"
-            :title="t('plugins.todo.labels.miniMinuteLabel')"
-            type="text"
-            @input="onMinuteInput"
-            @keydown.enter.prevent="handleSubmit"
-            @keydown.esc.prevent="handleClose"
-          >
-          <span class="icon-deco">
-            <HandClock />
-          </span>
+          <PriorityPicker v-model="priority" />
+          <HandDateInput
+            class="date-row-wrap"
+            @change="onDateChange"
+          />
         </div>
       </template>
     </div>
@@ -370,7 +255,7 @@ function clearTimers() {
 </template>
 
 <style scoped>
-/* 迷你窗尺寸与窗口 setSize 一致（280×110）。透明背景透出桌面。 */
+/* 迷你窗尺寸与窗口 setSize 一致（380×130，与主面板同宽）。透明背景透出桌面。 */
 .mini-window {
   position: relative;
   width: 100%;
@@ -397,7 +282,7 @@ function clearTimers() {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   height: 100%;
   padding: 14px 18px;
@@ -408,7 +293,7 @@ function clearTimers() {
 .close-btn {
   position: absolute;
   top: 6px;
-  right: 8px;
+  right: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -462,65 +347,18 @@ function clearTimers() {
   font-weight: 500;
 }
 
-.date-row {
+/* Row2：优先级 + 日期横排，两端对齐（优先级贴左、日期贴右）。
+   整行空白可拖动（drag-region），PriorityPicker 按钮 / HandDateInput 的 input 天然豁免。 */
+.controls-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-/* 日历图标（左）+ 时钟图标（右）：装饰，pointer-events:none 透传给行 drag-region。 */
-.icon-deco {
-  display: flex;
-  align-items: center;
+/* HandDateInput 外层包裹：日期组不收缩，贴右排布。 */
+.date-row-wrap {
   flex-shrink: 0;
-  pointer-events: none;
-}
-
-/* 手写数字输入框：年/月/日/时/分统一皮肤（851 字体/加粗/粉墨色/透明无边框）。 */
-.num-input {
-  padding: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  text-align: center;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.num-input::placeholder {
-  color: var(--ink-faint);
-  font-weight: 500;
-}
-
-.num-input:focus {
-  color: var(--ink);
-}
-
-/* 年 4 位宽，月/日/时/分 2 位宽。 */
-.num-year {
-  width: 38px;
-}
-
-.num-md {
-  width: 22px;
-}
-
-/* 分隔符 - / :（装饰，透传 drag-region） */
-.num-sep {
-  flex-shrink: 0;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-faint);
-  pointer-events: none;
-}
-
-/* 中间留白：撑开日期组与时间组的间距，行本身是 drag-region 所以这里空白也能拖。 */
-.date-gap {
-  flex: 1 1 auto;
-  min-width: 12px;
 }
 
 /* saved 态：整窗上下居中放大，对勾也放大。 */

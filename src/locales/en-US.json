@@ -232,7 +232,12 @@
         "miniHourPh": "HH",
         "miniHourLabel": "Hour",
         "miniMinutePh": "MM",
-        "miniMinuteLabel": "Minute"
+        "miniMinuteLabel": "Minute",
+        "priorityPickerLabel": "Priority",
+        "confirmAddButton": "Add",
+        "cancelAddButton": "Cancel",
+        "dueTodayShort": "Today",
+        "dueOverdueShort": "Overdue"
       }
     }
   }

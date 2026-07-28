@@ -5,6 +5,8 @@ import { availableMonitors } from '@tauri-apps/api/window'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import type { TodoPriority } from '@/plugins/todo'
+
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { useDeviceStore, useTodoStore } from '@/plugins/todo'
@@ -32,8 +34,9 @@ let hideTimer: ReturnType<typeof setTimeout> | undefined
 
 /** 主面板尺寸（与 tauri.conf.json 的 todo 窗口 width/height 一致）。 */
 const FULL_SIZE = new PhysicalSize(380, 560)
-/** 迷你窗物理尺寸（含阴影余量），MiniInput 的 SVG viewBox 280×130 同口径。 */
-const MINI_SIZE = new PhysicalSize(280, 130)
+/** 迷你窗物理尺寸（含阴影余量），MiniInput 的 SVG viewBox 380×130 同口径。
+ * T6 加优先级 + 日期控件后加宽到与主面板同宽（380），保持 130 高（两行布局）。 */
+const MINI_SIZE = new PhysicalSize(380, 130)
 /** 高度阈值：低于此值判定为 mini 形态（mini 110 << 200 << panel 560）。 */
 const MINI_HEIGHT_MAX = 200
 
@@ -171,8 +174,12 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   shown.value = true
 })
 
-function handleCreate(title: string, dueDate?: number) {
-  todoStore.createTodo(title, deviceStore.deviceId, Date.now(), dueDate)
+function handleCreate(title: string, dueDate: number | undefined, priority: TodoPriority) {
+  todoStore.createTodo(title, deviceStore.deviceId, Date.now(), dueDate, priority)
+}
+
+function handleChangePriority(id: string, priority: TodoPriority) {
+  todoStore.updateTodo(id, { priority })
 }
 
 function handleToggle(id: string) {
@@ -200,6 +207,7 @@ function handleClose() {
     <TodoPanel
       v-if="mode === 'panel'"
       :todos="visibleTodos"
+      @change-priority="handleChangePriority"
       @close="handleClose"
       @create="handleCreate"
       @remove="handleRemove"

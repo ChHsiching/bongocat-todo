@@ -2,10 +2,12 @@
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { Todo } from '@/plugins/todo'
+import type { Todo, TodoPriority } from '@/plugins/todo'
 
+import HandDateInput from '../HandDateInput/index.vue'
 import PaperPanel from '../PaperPanel/index.vue'
 import PawLogo from '../PawLogo/index.vue'
+import PriorityPicker from '../PriorityPicker/index.vue'
 import TodoItem from '../TodoItem/index.vue'
 import WaveDivider from '../WaveDivider/index.vue'
 
@@ -14,18 +16,21 @@ import WaveDivider from '../WaveDivider/index.vue'
  * - 标题区：PawLogo + 标题 + 手绘关闭 X。
  * - 待办分组：未完成 todo，带 WaveDivider 分隔。
  * - 已完成分组：completed todo。
- * - 「＋ 新建待办」按钮：点击内联展开手绘风输入框，回车保存。
+ * - 「＋ 新建待办」按钮：点击内联展开手绘风输入框（标题 + 优先级选择 + 日期输入），回车保存。
  * - 空状态提示。
  *
- * 数据操作通过 props（todos）/emits（toggle/remove/create）与父解耦，父负责接 store。
+ * T6 输入控件完整化：新建区加 PriorityPicker（三档默认 medium）+ HandDateInput（复用 T5 手写数字框）。
+ *
+ * 数据操作通过 props（todos）/emits（toggle/remove/create/changePriority）与父解耦，父负责接 store。
  */
 const { todos } = defineProps<{
   todos: Todo[]
 }>()
 
 const emit = defineEmits<{
+  changePriority: [id: string, priority: TodoPriority]
   close: []
-  create: [title: string]
+  create: [title: string, dueDate: number | undefined, priority: TodoPriority]
   remove: [id: string]
   toggle: [id: string]
 }>()
@@ -37,7 +42,12 @@ const completedTodos = computed(() => todos.filter(todo => todo.completed))
 
 const showAddInput = ref(false)
 const newTitle = ref('')
+/** 新建 todo 的优先级（默认 medium）。 */
+const newPriority = ref<TodoPriority>('medium')
+/** 新建 todo 的截止日期 timestamp（未填日期时 undefined）。 */
+const newDueDate = ref<number | undefined>(undefined)
 const addInputEl = ref<HTMLInputElement | null>(null)
+const dateInputEl = ref<InstanceType<typeof HandDateInput> | null>(null)
 
 async function focusAddInput() {
   await nextTick()
@@ -48,13 +58,19 @@ function handleAdd() {
   const title = newTitle.value.trim()
   if (!title)
     return
-  emit('create', title)
-  newTitle.value = ''
-  showAddInput.value = false
+  emit('create', title, newDueDate.value, newPriority.value)
+  resetAddForm()
 }
 
 function handleCancelAdd() {
+  resetAddForm()
+}
+
+function resetAddForm() {
   newTitle.value = ''
+  newPriority.value = 'medium'
+  newDueDate.value = undefined
+  dateInputEl.value?.reset()
   showAddInput.value = false
 }
 </script>
@@ -110,6 +126,7 @@ function handleCancelAdd() {
           v-for="todo in pendingTodos"
           :key="todo.id"
           :todo="todo"
+          @change-priority="(id, priority) => emit('changePriority', id, priority)"
           @remove="emit('remove', $event)"
           @toggle="emit('toggle', $event)"
         />
@@ -129,6 +146,7 @@ function handleCancelAdd() {
           v-for="todo in completedTodos"
           :key="todo.id"
           :todo="todo"
+          @change-priority="(id, priority) => emit('changePriority', id, priority)"
           @remove="emit('remove', $event)"
           @toggle="emit('toggle', $event)"
         />
@@ -148,10 +166,10 @@ function handleCancelAdd() {
       class="panel-footer"
       data-tauri-drag-region
     >
-      <!-- 内联展开输入 -->
+      <!-- 内联展开输入：标题 + 优先级 + 日期 -->
       <div
         v-if="showAddInput"
-        class="add-input-row"
+        class="add-form"
       >
         <input
           ref="addInputEl"
@@ -159,10 +177,32 @@ function handleCancelAdd() {
           class="add-input"
           :placeholder="t('plugins.todo.labels.addTodoPlaceholder')"
           type="text"
-          @blur="handleCancelAdd"
           @keydown.enter.prevent="handleAdd"
           @keydown.esc.prevent="handleCancelAdd"
         >
+        <div class="add-controls">
+          <PriorityPicker v-model="newPriority" />
+          <HandDateInput
+            ref="dateInputEl"
+            @change="newDueDate = $event"
+          />
+        </div>
+        <div class="add-actions">
+          <button
+            class="confirm-btn"
+            type="button"
+            @click="handleAdd"
+          >
+            {{ t('plugins.todo.labels.confirmAddButton') }}
+          </button>
+          <button
+            class="cancel-btn"
+            type="button"
+            @click="handleCancelAdd"
+          >
+            {{ t('plugins.todo.labels.cancelAddButton') }}
+          </button>
+        </div>
       </div>
       <!-- 「＋ 新建待办」按钮 -->
       <button
@@ -282,8 +322,12 @@ function handleCancelAdd() {
   color: var(--pink-deep);
 }
 
-.add-input-row {
+/* 新建表单：标题输入 + 优先级/日期控件 + 确认/取消按钮。 */
+.add-form {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .add-input {
@@ -297,6 +341,7 @@ function handleCancelAdd() {
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
+  box-sizing: border-box;
 }
 
 .add-input::placeholder {
@@ -305,5 +350,48 @@ function handleCancelAdd() {
 
 .add-input:focus {
   background: color-mix(in srgb, var(--pink) 14%, var(--paper));
+}
+
+/* 优先级选择 + 日期输入横排。 */
+.add-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.add-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-btn,
+.cancel-btn {
+  padding: 6px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.confirm-btn {
+  color: var(--pink-deep);
+}
+
+.confirm-btn:hover {
+  color: var(--red-ink);
+}
+
+.cancel-btn {
+  color: var(--ink-faint);
+}
+
+.cancel-btn:hover {
+  color: var(--ink-soft);
 }
 </style>

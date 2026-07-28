@@ -232,7 +232,12 @@
         "miniHourPh": "Giờ",
         "miniHourLabel": "Giờ",
         "miniMinutePh": "Phút",
-        "miniMinuteLabel": "Phút"
+        "miniMinuteLabel": "Phút",
+        "priorityPickerLabel": "Ưu tiên",
+        "confirmAddButton": "Thêm",
+        "cancelAddButton": "Hủy",
+        "dueTodayShort": "Hôm nay",
+        "dueOverdueShort": "Quá hạn"
       }
     }
   }

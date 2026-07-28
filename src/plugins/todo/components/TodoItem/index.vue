@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { Todo } from '@/plugins/todo'
+import type { Todo, TodoPriority } from '@/plugins/todo'
+
+import { nextPriority } from '@/plugins/todo/utils/priority'
 
 import HandCheckbox from '../HandCheckbox/index.vue'
 import HandClock from '../HandClock/index.vue'
@@ -10,15 +12,17 @@ import InkDot from '../InkDot/index.vue'
 
 /**
  * Todo 项（TodoItem）：组合 HandCheckbox + InkDot + HandClock + 标题/meta。
- * - 优先级墨点：按 todo.priority 渲染红/橙/蓝。
+ * - 优先级墨点：按 todo.priority 渲染红/橙/蓝；T6 起点击墨点循环切换优先级（low→med→high→low）。
+ * - 到期文案：T6 起相对表述 + 具体时分并存（如「明天 14:30」「今天 09:00」「已逾期 7/28 14:30」）。
  * - 到期视觉：有 dueDate 且（今天/逾期）时 HandClock urgent 态（红描边）+ 红字。
- * - emit toggle/remove 给父组件操作 store。
+ * - emit toggle/remove/changePriority 给父组件操作 store。
  */
 const { todo } = defineProps<{
   todo: Todo
 }>()
 
 const emit = defineEmits<{
+  changePriority: [id: string, priority: TodoPriority]
   remove: [id: string]
   toggle: [id: string]
 }>()
@@ -37,20 +41,39 @@ const priorityLabel = computed(() => {
   }
 })
 
-/** 到期文案：今天/明天/已逾期；无 dueDate 返回 null（不渲染时钟）。 */
+/** 两位补零。 */
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+/**
+ * 到期文案（T6）：相对表述 + 具体时分并存。
+ * - 今天：`今天 14:30`
+ * - 明天：`明天 14:30`
+ * - 逾期：`已逾期 7/28 14:30`
+ * - 更远：`7/30 14:30`（相对词不够用时回退到月/日 + 时分）
+ *
+ * 所有 dueDate 都带时分（MiniInput 构造的 timestamp 精确到分钟），故一律显示 HH:mm。
+ */
 const dueLabel = computed<null | string>(() => {
   if (!todo.dueDate)
     return null
+
+  const due = new Date(todo.dueDate)
+  const hm = `${pad2(due.getHours())}:${pad2(due.getMinutes())}`
+  const md = `${due.getMonth() + 1}/${due.getDate()}`
+
   const today = startOfDay(Date.now())
-  const due = startOfDay(todo.dueDate)
-  const diffDays = Math.round((due - today) / 86400000)
+  const dueDay = startOfDay(todo.dueDate)
+  const diffDays = Math.round((dueDay - today) / 86400000)
+
   if (diffDays < 0)
-    return t('plugins.todo.labels.dueOverdue')
+    return `${t('plugins.todo.labels.dueOverdueShort')} ${md} ${hm}`
   if (diffDays === 0)
-    return t('plugins.todo.labels.dueToday')
+    return `${t('plugins.todo.labels.dueTodayShort')} ${hm}`
   if (diffDays === 1)
-    return t('plugins.todo.labels.dueTomorrow')
-  return null
+    return `${t('plugins.todo.labels.dueTomorrow')} ${hm}`
+  return `${md} ${hm}`
 })
 
 /** 到期需高亮（今天或逾期）。 */
@@ -61,6 +84,11 @@ const isUrgent = computed(() => {
   const due = startOfDay(todo.dueDate)
   return due <= today
 })
+
+/** 点击墨点循环切换优先级。 */
+function cyclePriority() {
+  emit('changePriority', todo.id, nextPriority(todo.priority))
+}
 
 function startOfDay(ts: number): number {
   const d = new Date(ts)
@@ -94,7 +122,11 @@ function startOfDay(ts: number): number {
           class="pri"
           :class="todo.priority"
         >
-          <InkDot :priority="todo.priority" />
+          <InkDot
+            :clickable="true"
+            :priority="todo.priority"
+            @click="cyclePriority"
+          />
           {{ priorityLabel }}
         </span>
 

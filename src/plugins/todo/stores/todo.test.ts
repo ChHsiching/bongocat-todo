@@ -61,6 +61,31 @@ describe('useTodoStore', () => {
 
       expect(todo.dueDate).toBeUndefined()
     })
+
+    it('传 priority 时写入字段', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('喂猫', 'dev', 100, undefined, 'high')
+
+      expect(todo.priority).toBe('high')
+    })
+
+    it('不传 priority 时默认 medium', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('喂猫', 'dev', 100)
+
+      expect(todo.priority).toBe('medium')
+    })
+
+    it('priority 与 dueDate 同时传入都写入', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('喂猫', 'dev', 100, 1_700_000_000_000, 'low')
+
+      expect(todo.priority).toBe('low')
+      expect(todo.dueDate).toBe(1_700_000_000_000)
+    })
   })
 
   describe('visibleTodos', () => {
@@ -102,6 +127,19 @@ describe('useTodoStore', () => {
       const todoStore = useTodoStore()
 
       expect(() => todoStore.updateTodo('不存在', { title: 'x' }, 100)).not.toThrow()
+    })
+
+    it('能更新优先级', () => {
+      const todoStore = useTodoStore()
+
+      const todo = todoStore.createTodo('任务', 'dev', 100)
+
+      expect(todo.priority).toBe('medium')
+
+      todoStore.updateTodo(todo.id, { priority: 'high' }, 200)
+
+      expect(todo.priority).toBe('high')
+      expect(todo.updatedAt).toBe(200)
     })
   })
 

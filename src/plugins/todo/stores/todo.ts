@@ -11,9 +11,9 @@ export interface Todo {
   title: string
   /** 是否完成 */
   completed: boolean
-  /** 优先级，Phase 1 UI 暂不暴露，默认 medium */
+  /** 优先级（low/medium/high），T6 起新建入口可选，默认 medium */
   priority: TodoPriority
-  /** 可选截止日期（时间戳 ms），Phase 1 UI 暂不暴露 */
+  /** 可选截止日期（时间戳 ms），T6 起新建入口可选 */
   dueDate?: number
   // ── Phase 2 同步预留字段（CRUD 自动赋值，UI 不暴露） ──
   /** 创建时间（ms），create 时自动赋值 */
@@ -49,12 +49,15 @@ export const useTodoStore = defineStore('todo', () => {
    *
    * `dueDate` 可选：迷你输入窗（T5）等支持「快速新建带到期日」的入口传入，
    * 转换为本地午夜 timestamp（与 TodoItem 的 startOfDay 比较口径一致）。
+   *
+   * `priority` 可选：T6 输入控件完整化后，新建入口可选优先级，默认 medium。
    */
   const createTodo = (
     title: string,
     deviceId: string,
     now: number = Date.now(),
     dueDate?: number,
+    priority: TodoPriority = 'medium',
   ): Todo => {
     const trimmed = title.trim()
 
@@ -62,7 +65,7 @@ export const useTodoStore = defineStore('todo', () => {
       id: nanoid(),
       title: trimmed,
       completed: false,
-      priority: 'medium',
+      priority,
       createdAt: now,
       updatedAt: now,
       deviceId,
