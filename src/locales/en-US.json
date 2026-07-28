@@ -216,7 +216,9 @@
         "dueTomorrow": "Tomorrow",
         "deleteButton": "Delete",
         "emptyHint": "No todos yet. Add one!",
-        "closeButton": "Close"
+        "closeButton": "Close",
+        "reminderTitle": "Todo due reminder",
+        "reminderBody": "\u201C{title}\u201D is due now"
       }
     }
   }

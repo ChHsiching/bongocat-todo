@@ -50,7 +50,7 @@ onMounted(async () => {
   await shortcutStore.$tauri.start()
   await restoreState()
   // 插件登记菜单项 + 启动其持久化（必须在 stores 启动后调用，i18n 才就绪）
-  await setupTodoPlugin({ todoStore, deviceStore, menuBus, t })
+  await setupTodoPlugin({ todoStore, deviceStore, menuBus, t, windowLabel: appWindow.label })
 })
 
 watch(() => generalStore.appearance.language, (value) => {

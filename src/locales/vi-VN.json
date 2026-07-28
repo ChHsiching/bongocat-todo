@@ -216,7 +216,9 @@
         "dueTomorrow": "Ngày mai",
         "deleteButton": "Xóa",
         "emptyHint": "Chưa có việc cần làm nào, thêm một việc đi~",
-        "closeButton": "Đóng"
+        "closeButton": "Đóng",
+        "reminderTitle": "Nhắc nhở việc đến hạn",
+        "reminderBody": "「{title}」 đã đến hạn"
       }
     }
   }

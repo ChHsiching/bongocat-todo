@@ -216,7 +216,9 @@
         "dueTomorrow": "明天",
         "deleteButton": "刪除",
         "emptyHint": "還沒有待辦，新增一條吧～",
-        "closeButton": "關閉"
+        "closeButton": "關閉",
+        "reminderTitle": "待辦到期提醒",
+        "reminderBody": "「{title}」到點啦"
       }
     }
   }

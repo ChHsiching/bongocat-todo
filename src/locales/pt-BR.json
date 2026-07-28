@@ -216,7 +216,9 @@
         "dueTomorrow": "Amanhã",
         "deleteButton": "Excluir",
         "emptyHint": "Ainda não há tarefas. Adicione uma!",
-        "closeButton": "Fechar"
+        "closeButton": "Fechar",
+        "reminderTitle": "Lembrete de tarefa vencida",
+        "reminderBody": "「{title}」 está vencida"
       }
     }
   }
