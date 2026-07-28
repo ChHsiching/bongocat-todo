@@ -163,6 +163,38 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - T3 会话 `git reset --hard 5aaa70a` 重做动效时，连带丢掉了上一轮的文档回流 commit（CONTEXT.md 踩坑清单 + ADR 侵入账单更新）。
 - **教训**：reset 前先确认 reset 点之后是否有非功能 commit（文档/配置）；文档回流应尽快 merge 到稳定基线，不要长期挂在 feature 分支末端容易被 reset。
 
+### Vue multi-arg emit 不能用 `$event[0]/$event[1]` 解包（T6 code-review 抓的真 bug）
+- **错误写法**：`@change-priority="emit('changePriority', $event[0], $event[1])"`
+- **原因**：Vue 3.5+ 编译器把 `emit(...)` 判为 inline statement，handler 编译成**单参**箭头 `$event => ...`，`$event` 只绑 emit 的**第一个参数**（id 字符串），`$event[0]/$event[1]` 变成索引字符串字符 → 点击墨点循环优先级会静默失效（updateTodo 找不到 id）。
+- **正确写法**：`@change-priority="(id, priority) => emit('changePriority', id, priority)"`（命名箭头，多参数显式声明）
+- **教训**：以后 multi-arg emit 透传一律用命名箭头，别用 `$event` 数组索引。
+
+### eslint --fix 在 Windows segfault 的可靠绕过
+- `pnpm lint` / `npx eslint` 在大目录树 + Windows 上偶发段错误（exit 0xC0000005）。
+- **可靠绕过**：`node --max-old-space-size=4096 ./node_modules/eslint/bin/eslint.js <path>`（不带 `--fix`，手动改）。
+- 比 `npx eslint <file>` 更稳定（npx 本身也会崩）。
+
+## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
+
+> 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
+
+| 组件 | 来源 | 说明 |
+|------|------|------|
+| `PaperPanel` | T2 | 纸张容器 + 极淡灰颗粒纹理，面板主容器 |
+| `PawLogo` | T2 | SVG 4 圆 + 椭圆真爪印 |
+| `HandCheckbox` | T2 | 手绘不规则方形 + 粉色填充 + 手绘对勾 |
+| `InkDot` | T2（T6 加 clickable） | 三层 path 墨点，按 priority 变色；`clickable` 模式渲染 button 可点击切换 |
+| `HandClock` | T2 | Q 曲线外圈 + 弧度时分针 + 中心点 |
+| `WaveDivider` | T2 | 手绘波浪分隔线（`Q 25 1 50 3 T 98 3`） |
+| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分 |
+| `TodoPanel` | T2（T6 增强） | 主面板：标题 + 新建区（标题+优先级+日期+确认取消）+ 列表 + footer |
+| `MiniInput` | T5（T6 复用共享组件） | 迷你快速新建窗（380px 宽），复用 HandDateInput/PriorityPicker |
+| `HandDateInput` | T6（共享） | 5 个手写数字框（年/月/日 + 时:分），focus 自动填充当前系统时间，迷你窗 + 主面板复用 |
+| `PriorityPicker` | T6 | 三档墨点横排选择器（low=蓝/medium=橙/high=红），v-model，选中加波浪下划线 |
+
+工具函数（`src/plugins/todo/utils/`）：
+- `priority.ts`：`PRIORITIES` 数组 + `priorityIndex` + `nextPriority`（循环切换）
+
 ## 设计探索决策（已定稿）
 
 ### todo 伴随面板视觉方向 — 已定稿 ✅
