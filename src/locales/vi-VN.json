@@ -222,7 +222,17 @@
         "quickAddMenuItem": "Thêm nhanh",
         "miniPlaceholder": "Viết gì đó…",
         "miniSaved": "Đã thêm",
-        "miniDateLabel": "Ngày đến hạn"
+        "miniDateLabel": "Ngày đến hạn",
+        "miniYearPh": "Năm",
+        "miniYearLabel": "Năm",
+        "miniMonthPh": "Thg",
+        "miniMonthLabel": "Tháng",
+        "miniDayPh": "Ngày",
+        "miniDayLabel": "Ngày",
+        "miniHourPh": "Giờ",
+        "miniHourLabel": "Giờ",
+        "miniMinutePh": "Phút",
+        "miniMinuteLabel": "Phút"
       }
     }
   }

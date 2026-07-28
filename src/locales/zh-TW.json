@@ -222,7 +222,17 @@
         "quickAddMenuItem": "快速新增",
         "miniPlaceholder": "寫點什麼…",
         "miniSaved": "已新增",
-        "miniDateLabel": "到期日期"
+        "miniDateLabel": "到期日期",
+        "miniYearPh": "年",
+        "miniYearLabel": "年",
+        "miniMonthPh": "月",
+        "miniMonthLabel": "月",
+        "miniDayPh": "日",
+        "miniDayLabel": "日",
+        "miniHourPh": "時",
+        "miniHourLabel": "時",
+        "miniMinutePh": "分",
+        "miniMinuteLabel": "分"
       }
     }
   }

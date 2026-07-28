@@ -7,11 +7,13 @@ import type { MenuItemDescriptor, useMenuBusStore } from '@/stores/menuBus'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 
 import type { useDeviceStore } from './stores/device'
+import type { useReminderStore } from './stores/reminderStore'
 import type { useTodoStore } from './stores/todo'
 
 import { startReminder } from './stores/reminder'
 
 export { useDeviceStore } from './stores/device'
+export { useReminderStore } from './stores/reminderStore'
 export { useTodoStore } from './stores/todo'
 export type { Todo, TodoPriority } from './stores/todo'
 
@@ -19,6 +21,7 @@ export type { Todo, TodoPriority } from './stores/todo'
 interface SetupTodoPluginArgs {
   todoStore: ReturnType<typeof useTodoStore>
   deviceStore: ReturnType<typeof useDeviceStore>
+  reminderStore: ReturnType<typeof useReminderStore>
   menuBus: ReturnType<typeof useMenuBusStore>
   t: ReturnType<typeof useI18n>['t']
   /** 当前窗口 label（用于把全局副作用限定到单一窗口，避免多窗口重复触发）。 */
@@ -39,15 +42,16 @@ interface SetupTodoPluginArgs {
  * menuBus 的 items 是响应式 ref，登记后 useAppMenu 每次构建菜单时读取最新值，
  * 因此 label 用 `() => t(...)` 延迟求值以响应语言切换。
  */
-export async function setupTodoPlugin({ todoStore, deviceStore, menuBus, t, windowLabel }: SetupTodoPluginArgs) {
+export async function setupTodoPlugin({ todoStore, deviceStore, reminderStore, menuBus, t, windowLabel }: SetupTodoPluginArgs) {
   await todoStore.$tauri.start()
   await deviceStore.$tauri.start()
+  await reminderStore.$tauri.start()
   deviceStore.init()
 
   // 到期提醒轮询只在主窗口启动（App.vue 在 main/preference/todo 三窗口都挂载，
   // 否则会起 3 个 timer、发 3 份通知）。主窗口是 app 生命周期所有者。
   if (windowLabel === WINDOW_LABEL.MAIN) {
-    await startReminder(todoStore, t)
+    await startReminder(todoStore, reminderStore, t)
   }
 
   // 「待办」/「快速新建」都用专用事件（非通用 SHOW_WINDOW），让 todo 页面

@@ -218,11 +218,21 @@
         "emptyHint": "No todos yet. Add one!",
         "closeButton": "Close",
         "reminderTitle": "Todo due reminder",
-        "reminderBody": "\u201C{title}\u201D is due now",
+        "reminderBody": "“{title}” is due now",
         "quickAddMenuItem": "Quick Add",
         "miniPlaceholder": "Write something…",
         "miniSaved": "Added",
-        "miniDateLabel": "Due date"
+        "miniDateLabel": "Due date",
+        "miniYearPh": "YYYY",
+        "miniYearLabel": "Year",
+        "miniMonthPh": "MM",
+        "miniMonthLabel": "Month",
+        "miniDayPh": "DD",
+        "miniDayLabel": "Day",
+        "miniHourPh": "HH",
+        "miniHourLabel": "Hour",
+        "miniMinutePh": "MM",
+        "miniMinuteLabel": "Minute"
       }
     }
   }

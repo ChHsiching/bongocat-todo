@@ -222,7 +222,17 @@
         "quickAddMenuItem": "Adicionar rápido",
         "miniPlaceholder": "Escreva algo…",
         "miniSaved": "Adicionado",
-        "miniDateLabel": "Data de vencimento"
+        "miniDateLabel": "Data de vencimento",
+        "miniYearPh": "Ano",
+        "miniYearLabel": "Ano",
+        "miniMonthPh": "Mês",
+        "miniMonthLabel": "Mês",
+        "miniDayPh": "Dia",
+        "miniDayLabel": "Dia",
+        "miniHourPh": "Hora",
+        "miniHourLabel": "Hora",
+        "miniMinutePh": "Min",
+        "miniMinuteLabel": "Minuto"
       }
     }
   }

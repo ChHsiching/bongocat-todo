@@ -15,7 +15,7 @@ import { useTauriListen } from './composables/useTauriListen'
 import { useWindowState } from './composables/useWindowState'
 import { LANGUAGE, LISTEN_KEY } from './constants'
 import { getAntdLocale } from './locales/index.ts'
-import { setupTodoPlugin, useDeviceStore, useTodoStore } from './plugins/todo'
+import { setupTodoPlugin, useDeviceStore, useReminderStore, useTodoStore } from './plugins/todo'
 import { hideWindow, showWindow } from './plugins/window'
 import { useAppStore } from './stores/app'
 import { useCatStore } from './stores/cat'
@@ -32,6 +32,7 @@ const shortcutStore = useShortcutStore()
 // 插件 store 必须在 setup 顶层实例化（跨 async 边界 Pinia inject 会失效）
 const todoStore = useTodoStore()
 const deviceStore = useDeviceStore()
+const reminderStore = useReminderStore()
 const menuBus = useMenuBusStore()
 const appWindow = getCurrentWebviewWindow()
 const { isRestored, restoreState } = useWindowState()
@@ -50,7 +51,7 @@ onMounted(async () => {
   await shortcutStore.$tauri.start()
   await restoreState()
   // 插件登记菜单项 + 启动其持久化（必须在 stores 启动后调用，i18n 才就绪）
-  await setupTodoPlugin({ todoStore, deviceStore, menuBus, t, windowLabel: appWindow.label })
+  await setupTodoPlugin({ todoStore, deviceStore, reminderStore, menuBus, t, windowLabel: appWindow.label })
 })
 
 watch(() => generalStore.appearance.language, (value) => {

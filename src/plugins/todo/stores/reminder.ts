@@ -3,6 +3,7 @@ import type { useI18n } from 'vue-i18n'
 import { error } from '@tauri-apps/plugin-log'
 import { requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 
+import type { useReminderStore } from './reminderStore'
 import type { Todo, useTodoStore } from './todo'
 
 /**
@@ -33,21 +34,20 @@ const POLL_INTERVAL_MS = 60_000
  *   桥接权限，OS 层仍需显式请求，否则首次 `sendNotification` 会静默失败）；
  * - 立即检查一次到期（覆盖「app 启动时已有过期 todo」）；
  * - 之后每 `POLL_INTERVAL_MS` 轮询一次；
- * - **去重**：用 `Map<todoId, lastNotifiedDueDate>` 记录「上次以哪个 dueDate 通知过」。
- *   当 todo 的 dueDate 被用户改动后，记录值与当前值不再相等 → 自然重新通知
- *   （满足 spec 要求「改 dueDate 重置后应能再次通知」）。已完成 / 已删除的 todo
- *   不会出现在 `visibleTodos`，因此不会重复通知。
+ * - **去重（跨重启持久化）**：用 reminderStore 记录「上次以哪个 dueDate 通知过」。
+ *   当 todo 的 dueDate 与记录值相等 → 跳过；不等（含无记录、用户改了 dueDate）→ 通知。
+ *   持久化让「同一条过期 todo」不会每次启动都重复通知（用户改 dueDate 后仍能重新通知，
+ *   满足 spec「改 dueDate 重置后应能再次通知」）。已完成 / 已删除的 todo 不会出现在
+ *   `visibleTodos`，因此不会重复通知。
  *
- * 必须在 todo store `$tauri.start()` 之后调用（visibleTodos 才有持久化数据）。
+ * 必须在 todo store + reminder store 都 `$tauri.start()` 之后调用（数据才加载）。
  */
 export async function startReminder(
   todoStore: ReturnType<typeof useTodoStore>,
+  reminderStore: ReturnType<typeof useReminderStore>,
   t: ReturnType<typeof useI18n>['t'],
 ): Promise<void> {
   await requestPermission()
-
-  /** 记录「该 todo 以哪个 dueDate 值通知过」；dueDate 改动即视为新事件。 */
-  const notifiedByDueDate = new Map<string, number>()
 
   const checkOnce = async () => {
     const dueTodos = findDueTodos(todoStore.visibleTodos, Date.now())
@@ -56,7 +56,7 @@ export async function startReminder(
       // dueDate 在 findDueTodos 里已断言非空
       const due = todo.dueDate as number
 
-      if (notifiedByDueDate.get(todo.id) === due) {
+      if (reminderStore.isNotified(todo.id, due)) {
         continue
       }
 
@@ -65,7 +65,7 @@ export async function startReminder(
           title: t('plugins.todo.labels.reminderTitle'),
           body: t('plugins.todo.labels.reminderBody', { title: todo.title }),
         })
-        notifiedByDueDate.set(todo.id, due)
+        reminderStore.markNotified(todo.id, due)
       } catch (err) {
         // 通知失败（如权限被拒）记录日志，避免静默吞错，便于排查「无运行时权限错误」
         await error(`todo reminder sendNotification failed for ${todo.id}: ${String(err)}`)
