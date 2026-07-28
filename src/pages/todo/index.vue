@@ -2,7 +2,7 @@
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useTauriListen } from '@/composables/useTauriListen'
@@ -19,6 +19,16 @@ const { t } = useI18n()
 const appWindow = getCurrentWebviewWindow()
 
 const visibleTodos = computed(() => todoStore.visibleTodos)
+
+/**
+ * 渐隐渐显：根元素 opacity 过渡。
+ * - 打开：show 后下一帧置 true，CSS 从 opacity:0 → 1（渐显）。
+ * - 关闭：先置 false 跑渐隐，FADE_MS 后再 hideWindow（窗口真正隐藏）。
+ * panel / mini 两形态共用同一套。
+ */
+const FADE_MS = 200
+const shown = ref(false)
+let hideTimer: ReturnType<typeof setTimeout> | undefined
 
 /** 主面板尺寸（与 tauri.conf.json 的 todo 窗口 width/height 一致）。 */
 const FULL_SIZE = new PhysicalSize(380, 560)
@@ -60,11 +70,15 @@ onMounted(async () => {
  * 主面板形态打开：先 setSize 再 show，避免 1 帧 resize 闪烁。
  * show 走 showWindow（复用 App.vue 的 SHOW_WINDOW handler → Rust show_window 命令，
  * 不直接调 core:window:show，避免新增 capability 权限）。
+ * show 后下一帧触发渐显。
  */
 useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
   await appWindow.setSize(FULL_SIZE)
   mode.value = 'panel'
+  shown.value = false
   showWindow(WINDOW_LABEL.TODO)
+  await nextTick()
+  shown.value = true
 })
 
 /**
@@ -118,7 +132,10 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   await appWindow.setSize(MINI_SIZE)
   miniKey.value++
   mode.value = 'mini'
+  shown.value = false
   showWindow(WINDOW_LABEL.TODO)
+  await nextTick()
+  shown.value = true
 })
 
 function handleCreate(title: string, dueDate?: number) {
@@ -134,12 +151,19 @@ function handleRemove(id: string) {
 }
 
 function handleClose() {
-  hideWindow(WINDOW_LABEL.TODO)
+  // 先跑渐隐，动画结束后再真正隐藏窗口
+  if (hideTimer)
+    clearTimeout(hideTimer)
+  shown.value = false
+  hideTimer = setTimeout(() => hideWindow(WINDOW_LABEL.TODO), FADE_MS)
 }
 </script>
 
 <template>
-  <div class="todo-handdrawn h-screen w-screen overflow-hidden p-3">
+  <div
+    class="todo-handdrawn fade h-screen w-screen overflow-hidden p-3"
+    :class="{ 'fade-shown': shown }"
+  >
     <TodoPanel
       v-if="mode === 'panel'"
       :todos="visibleTodos"
@@ -156,3 +180,15 @@ function handleClose() {
     />
   </div>
 </template>
+
+<style scoped>
+/* 渐隐渐显：opacity 过渡。.fade 初始 opacity:0，加 .fade-shown 后到 1。 */
+.fade {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.fade.fade-shown {
+  opacity: 1;
+}
+</style>
