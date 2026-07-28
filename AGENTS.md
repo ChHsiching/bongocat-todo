@@ -9,6 +9,17 @@
 - 合并上游：`git fetch upstream && git merge upstream/master`
 - 本仓库的新增代码尽量集中在独立目录（`src/plugins/<module>/`、`src/pages/<module>/`），对上游文件的改动保持最小且集中（详见 `docs/adr/0001-plugin-architecture-for-todo.md`）。
 
+## 分支策略
+
+**模块级长期分支**（2026-07-28 定，单人 fork + 持续接收上游）：
+
+- `master` —— **镜像上游**，只通过 `git merge upstream/master` 更新，**不直接开发**。保持随时能干净同步上游。
+- `<module>`（如 `todo`）—— **模块级长期分支**，承载该模块从始至终的所有 ticket（如 `todo` 分支含 T1-T5 + Phase 2 轮盘 UI 升级，因轮盘替换 todo 菜单呈现、强耦合）。日常开发在此分支上直接 commit。
+- 未来新模块（Android 同步等独立功能）各自开 `<module>` 分支，不堆进 `todo`。
+- 整个模块完成后再考虑 merge 回 `master`（整合点）。
+- **上游同步**：在 `master` 上 `git fetch upstream && git merge upstream/master`，再切到模块分支 `git merge master` 把上游更新带进来（冲突在模块分支解，master 始终干净）。
+- 单人开发，不需要 ticket 级 feature 分支；回滚靠 `git revert <commit>`（commit message 带 `Closes #N` 可追溯）。
+
 ## Agent skills
 
 ### Issue tracker
