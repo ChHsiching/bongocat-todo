@@ -85,6 +85,15 @@ const isUrgent = computed(() => {
   return due <= today
 })
 
+/** 已逾期（严格早于今天），用红色警告；今天到期用蓝色提示。 */
+const isOverdue = computed(() => {
+  if (!todo.dueDate)
+    return false
+  const today = startOfDay(Date.now())
+  const due = startOfDay(todo.dueDate)
+  return due < today
+})
+
 /** 点击墨点循环切换优先级。 */
 function cyclePriority() {
   emit('changePriority', todo.id, nextPriority(todo.priority))
@@ -133,9 +142,9 @@ function startOfDay(ts: number): number {
         <span
           v-if="dueLabel"
           class="due"
-          :class="{ urgent: isUrgent }"
+          :class="{ 'urgent': isOverdue, 'due-soon': isUrgent && !isOverdue }"
         >
-          <HandClock :urgent="isUrgent" />
+          <HandClock :urgent="isOverdue" />
           {{ dueLabel }}
         </span>
       </div>
@@ -245,6 +254,11 @@ html.dark .todo-item:hover {
   align-items: center;
   gap: 4px;
   color: var(--ink-soft);
+}
+
+.due.due-soon {
+  color: var(--blue);
+  font-weight: 600;
 }
 
 .due.urgent {
