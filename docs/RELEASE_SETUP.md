@@ -2,7 +2,7 @@
 
 > 这不是面向用户的文档，是**仓库所有者自己**做发版配置时的备忘。涉及签名密钥、第三方账号、GitHub Secrets——只有仓库所有者能做。
 
-本仓库的三个 workflow（`release.yml` / `upgradelink.yml` / `sync-to-codeberg.yml`）都改造自上游、指向自己，结构保留不变。以下是让它们真正跑起来要做的事。
+本仓库的两个 workflow（`release.yml` / `sync-to-codeberg.yml`）都改造自上游、指向自己，结构保留不变。以下是让它们真正跑起来要做的事。
 
 ## 1. 生成 Tauri 更新签名密钥（更新校验必需）✅ 已完成
 
@@ -20,14 +20,14 @@ pnpm tauri signer generate -w ~/.tauri/bongocat-todo.key -p "" --ci
 
 > 上游的 pubkey 已被删除——那是上游私钥对应的公钥，fork 用它无法校验你自己签的包。
 
-## 2. 注册 UpgradeLink 账号 + 创建 app（更新统计 / 灰度，企业版免费）
+## 2. ~~注册 UpgradeLink~~ — ⏭️ 已跳过（服务不可用）
 
-UpgradeLink（https://upgrade.toolsetlink.com）企业版**永久免费**，提供更新分发、灰度、统计等增值能力。本仓库 `upgradelink.yml` + `tauri.conf.json` 的第一个 updater endpoint 都依赖它。
+原计划的 UpgradeLink（更新统计/灰度）**已弃用**：
+- 后台 `backend.upgrade.toolsetlink.com` SSL 故障（TLS 握手失败，无法注册/登录），已确认为平台侧问题。
+- 官网更新记录页 404、`upgradelink-action` 文档版本混乱，停服信号明显。
+- 对个人 fork 非必需：`release.yml` 构建发版不依赖它；`tauri.conf.json` 已只留 GitHub release 直链作为 updater endpoint，app 检查更新正常工作。
 
-1. 打开 https://upgrade.toolsetlink.com → 点「后台登录」注册企业账号（**企业版永久免费**），创建一个 **Tauri 类型**的应用。
-2. 在应用详情页拿到**四样东西**：`access_key` / `access_secret` / `app_key`（应用唯一标识）和 **`tauriKey`**（Tauri 升级策略接口密钥，用于 endpoint URL——与 `app_key` 是不同的标识）。
-3. 把 **`tauriKey`** 的值粘进 `src-tauri/tauri.conf.json`，替换 updater endpoint 里的占位符 `REPLACE_WITH_YOUR_UPGRADELINK_TAURIKEY`。
-4. `access_key` / `access_secret` / `app_key` 填进 GitHub Actions secrets（见第 4 步）。
+已删除 `.github/workflows/upgradelink.yml`，不再需要 `UPGRADE_LINK_*` 三个 secrets。未来若服务恢复且确需统计/灰度，可重新加回。
 
 ## 3. 注册 Codeberg 账号 + 生成镜像 token
 
@@ -48,15 +48,12 @@ Codeberg 是本仓库的代码镜像目标（替代上游的 Gitee）。
 |--------|------|------|
 | `RELEASE_TOKEN` | release workflow 推 release / 上传产物 | 你自己的 GitHub PAT（需 `repo` 权限） |
 | `TAURI_SIGNING_PRIVATE_KEY` | release 构建时给安装包签名 | 第 1 步生成的私钥文件内容 |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 解锁私钥 | 第 1 步设的密码 |
-| `UPGRADE_LINK_ACCESS_KEY` | upgradelink workflow 上报 release | 第 2 步 |
-| `UPGRADE_LINK_ACCESS_SECRET` | 同上 | 第 2 步 |
-| `UPGRADE_LINK_APP_KEY` | 同上（标识你的 app，workflow 上报用） | 第 2 步 |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 解锁私钥 | 第 1 步设的密码（空密码填空串） |
 | `CODEBERG_TOKEN` | codeberg 镜像 workflow 推送 | 第 3 步 |
 
 ## 5. 发版
 
-secrets 配齐、pubkey/tauriKey 占位符替换后：
+secrets 配齐、pubkey 替换后：
 
 ```bash
 pnpm release      # .release-it.ts: 打 tag v${version}，after:bump 跑 scripts/release.ts
