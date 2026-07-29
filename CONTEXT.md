@@ -174,6 +174,16 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **可靠绕过**：`node --max-old-space-size=4096 ./node_modules/eslint/bin/eslint.js <path>`（不带 `--fix`，手动改）。
 - 比 `npx eslint <file>` 更稳定（npx 本身也会崩）。
 
+### 上游 release.yml 的 Node 版本已过时（T-CI 修复，勿回退）
+- **问题**：上游 `release.yml` 用 `setup-node@v4` + `node-version: 20`。GitHub runner 现默认 Node 24，导致 `pnpm install` 崩溃（`ERR_UNKNOWN_BUILTIN_MODULE`）。**这是上游 workflow 本身的问题，上游自己现在也跑不通**。
+- **修复**（`ee93b40`）：`setup-node@v4→@v5`、`node 20→24`，共 6 处替换，结构不变。
+- **勿回退**：未来 merge 上游时这一行会冲突，**按版本号策略保留我们的**（上游的也是坏的）。
+
+### master 不直接开发，任何 commit 都走分支 + no-ff merge（反复踩！）
+- **已发生 2 次**：T-CI 会话 + Phase 1 收尾，都在 master 上直接 commit 了（违反 AGENTS.md 分支策略）。
+- **教训**：**任何** commit——哪怕只是改一个参数、一行文档——都先 `git checkout -b <branch>`，在分支上 commit，再 `git checkout master && git merge --no-ff <branch>`。
+- **已 push 的违规 commit 修正成本高**（要 force push 回退 origin）。commit 前先看 `git branch --show-current` 是不是 master，是的话**停下来先建分支**。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
