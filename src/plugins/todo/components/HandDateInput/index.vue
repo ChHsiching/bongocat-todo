@@ -24,6 +24,7 @@ import HandClock from '../HandClock/index.vue'
  */
 const emit = defineEmits<{
   change: [dueDate: number | undefined]
+  enter: []
 }>()
 
 const { t } = useI18n()
@@ -148,6 +149,7 @@ defineExpose({ reset: () => {
       type="text"
       @focus="onFocusFillNow"
       @input="onYearInput"
+      @keydown.enter.prevent="emit('enter')"
     >
     <span class="num-sep">-</span>
     <input
@@ -159,6 +161,7 @@ defineExpose({ reset: () => {
       type="text"
       @focus="onFocusFillNow"
       @input="onMonthInput"
+      @keydown.enter.prevent="emit('enter')"
     >
     <span class="num-sep">-</span>
     <input
@@ -170,6 +173,7 @@ defineExpose({ reset: () => {
       type="text"
       @focus="onFocusFillNow"
       @input="onDayInput"
+      @keydown.enter.prevent="emit('enter')"
     >
     <span class="date-gap" />
     <input
@@ -181,6 +185,7 @@ defineExpose({ reset: () => {
       type="text"
       @focus="onFocusFillNow"
       @input="onHourInput"
+      @keydown.enter.prevent="emit('enter')"
     >
     <span class="num-sep">:</span>
     <input
@@ -192,6 +197,7 @@ defineExpose({ reset: () => {
       type="text"
       @focus="onFocusFillNow"
       @input="onMinuteInput"
+      @keydown.enter.prevent="emit('enter')"
     >
   </div>
 </template>

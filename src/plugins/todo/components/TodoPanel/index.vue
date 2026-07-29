@@ -66,6 +66,15 @@ function handleCancelAdd() {
   resetAddForm()
 }
 
+/** 日期框回车：标题有内容则提交，无内容则聚焦标题框。 */
+function handleDateEnter() {
+  if (newTitle.value.trim()) {
+    handleAdd()
+  } else {
+    focusAddInput()
+  }
+}
+
 function resetAddForm() {
   newTitle.value = ''
   newPriority.value = 'medium'
@@ -185,6 +194,7 @@ function resetAddForm() {
           <HandDateInput
             ref="dateInputEl"
             @change="newDueDate = $event"
+            @enter="handleDateEnter"
           />
         </div>
         <div class="add-actions">
