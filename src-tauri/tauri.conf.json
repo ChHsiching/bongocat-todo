@@ -79,7 +79,7 @@
   "plugins": {
     "updater": {
       "dangerousInsecureTransportProtocol": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxQTM0QUE2QzJEMEUzRjIKUldUeTQ5RENwa3FqOGU5L01PZGRITlNvaDhJYXRNK1JQUnBrVUV1MVg3UHFmK1Q1bU5uS000dVIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0RDZFNjM1RDA1NTJDNUEKUldSYUxGWFFOZWJXSkF1dDVmemZKVEFhZDdJSWpnQ29vbnU0RnBYLzNoQ2FpL2N0bDcvdzZFL28K",
       "endpoints": [
         "https://github.com/ChHsiching/bongocat-todo/releases/latest/download/latest.json"
       ]
