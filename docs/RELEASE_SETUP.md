@@ -4,19 +4,19 @@
 
 本仓库的三个 workflow（`release.yml` / `upgradelink.yml` / `sync-to-codeberg.yml`）都改造自上游、指向自己，结构保留不变。以下是让它们真正跑起来要做的事。
 
-## 1. 生成 Tauri 更新签名密钥（更新校验必需）
+## 1. 生成 Tauri 更新签名密钥（更新校验必需）✅ 已完成
 
 Tauri 的 updater 需要一对签名密钥：**私钥**用于 release 构建时签名安装包，**公钥**（pubkey）内嵌进 `tauri.conf.json` 供客户端校验。
 
 ```bash
-pnpm tauri signer generate -w ~/.tauri/bongocat-todo.key
-# 会输出：
-#   Private key: 写入 ~/.tauri/bongocat-todo.key
-#   Public key:  dW50cnVzdGVkIGNvbW1lbnQ6...（base64 字符串）
+# 空密码：必须用 -p "" --ci 跳过交互（交互模式会反复问密码，无法留空）
+pnpm tauri signer generate -w ~/.tauri/bongocat-todo.key -p "" --ci
+# 公钥写进 ~/.tauri/bongocat-todo.key.pub，私钥写进 .key
 ```
 
-- **公钥**：替换 `src-tauri/tauri.conf.json` 里 `plugins.updater.pubkey` 的占位符 `REPLACE_WITH_YOUR_OWN_UPDATER_PUBKEY`。
-- **私钥 + 密码**：填进 GitHub Actions secrets（见第 4 步）。
+- **公钥**：已填进 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- **私钥**：`~/.tauri/bongocat-todo.key`（空密码），填进 GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`（见第 4 步）。
+- 密码空，`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 填空串即可。
 
 > 上游的 pubkey 已被删除——那是上游私钥对应的公钥，fork 用它无法校验你自己签的包。
 
