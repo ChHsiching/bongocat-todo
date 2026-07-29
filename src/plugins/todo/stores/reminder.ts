@@ -24,8 +24,8 @@ export function findDueTodos(todos: Todo[], now: number): Todo[] {
   return todos.filter(todo => !todo.completed && todo.dueDate !== undefined && todo.dueDate <= now)
 }
 
-/** 轮询间隔（ms）。spec D6：每分钟轮询一次。 */
-const POLL_INTERVAL_MS = 60_000
+/** 轮询间隔（ms）。10s 轮询，最大延迟 10s（用户基本无感）。原 spec D6 写 60s，实测延迟体感差。 */
+const POLL_INTERVAL_MS = 10_000
 
 /**
  * 启动到期提醒轮询器（T4 副作用层）。

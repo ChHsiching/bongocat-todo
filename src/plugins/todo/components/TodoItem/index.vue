@@ -85,6 +85,15 @@ const isUrgent = computed(() => {
   return due <= today
 })
 
+/** 已逾期（严格早于今天），用红色警告；今天到期用蓝色提示。 */
+const isOverdue = computed(() => {
+  if (!todo.dueDate)
+    return false
+  const today = startOfDay(Date.now())
+  const due = startOfDay(todo.dueDate)
+  return due < today
+})
+
 /** 点击墨点循环切换优先级。 */
 function cyclePriority() {
   emit('changePriority', todo.id, nextPriority(todo.priority))
@@ -114,18 +123,15 @@ function startOfDay(ts: number): number {
         {{ todo.title }}
       </div>
 
-      <div
-        v-if="!todo.completed"
-        class="todo-meta"
-      >
+      <div class="todo-meta">
         <span
           class="pri"
           :class="todo.priority"
         >
           <InkDot
-            :clickable="true"
+            :clickable="!todo.completed"
             :priority="todo.priority"
-            @click="cyclePriority"
+            @click="!todo.completed && cyclePriority()"
           />
           {{ priorityLabel }}
         </span>
@@ -133,9 +139,9 @@ function startOfDay(ts: number): number {
         <span
           v-if="dueLabel"
           class="due"
-          :class="{ urgent: isUrgent }"
+          :class="{ 'urgent': !todo.completed && isOverdue, 'due-soon': !todo.completed && isUrgent && !isOverdue }"
         >
-          <HandClock :urgent="isUrgent" />
+          <HandClock :urgent="!todo.completed && isOverdue" />
           {{ dueLabel }}
         </span>
       </div>
@@ -245,11 +251,15 @@ html.dark .todo-item:hover {
   align-items: center;
   gap: 4px;
   color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.due.due-soon {
+  color: var(--blue);
 }
 
 .due.urgent {
   color: var(--red-ink);
-  font-weight: 600;
 }
 
 .remove-btn {

@@ -78,6 +78,15 @@ function onDateChange(value: number | undefined) {
   markTyping()
 }
 
+/** 日期框回车：标题有内容则提交，无内容则聚焦标题框。 */
+function handleDateEnter() {
+  if (title.value.trim()) {
+    handleSubmit()
+  } else {
+    titleEl.value?.focus()
+  }
+}
+
 function handleSubmit() {
   const trimmed = title.value.trim()
   if (!trimmed || state.value === 'saved')
@@ -247,6 +256,7 @@ function clearTimers() {
           <HandDateInput
             class="date-row-wrap"
             @change="onDateChange"
+            @enter="handleDateEnter"
           />
         </div>
       </template>
