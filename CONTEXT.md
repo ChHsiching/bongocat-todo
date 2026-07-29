@@ -184,6 +184,13 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **教训**：**任何** commit——哪怕只是改一个参数、一行文档——都先 `git checkout -b <branch>`，在分支上 commit，再 `git checkout master && git merge --no-ff <branch>`。
 - **已 push 的违规 commit 修正成本高**（要 force push 回退 origin）。commit 前先看 `git branch --show-current` 是不是 master，是的话**停下来先建分支**。
 
+### identifier 改变会导致 tauri-store 数据目录变化（数据"丢失"假象）
+- tauri-store/pinia 的持久化路径基于 app identifier（`tauri.conf.json` 的 `identifier`）。
+- T-CI 把 identifier 从 `com.ayangweb.BongoCat` 改成 `com.chhsiching.bongocat-todo` 后，存储目录从 `%APPDATA%/com.ayangweb.BongoCat/` 变成了 `%APPDATA%/com.chhsiching.bongocat-todo/`。
+- **症状**：手动往旧目录写持久化数据，app 读不到（面板空），因为 app 实际从新目录读。
+- **排查**：identifier 变更后，查数据文件要找**新 identifier 对应的目录**，不是旧上游的。
+- **Windows 路径**：`%APPDATA%/<identifier>/tauri-plugin-pinia/<store-id>.dev.json`（dev 模式带 `.dev` 后缀）。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
