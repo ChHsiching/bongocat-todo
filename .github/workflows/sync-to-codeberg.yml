@@ -1,0 +1,26 @@
+name: Sync GitHub Repos To Codeberg
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  repo-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync GitHub Repos To Codeberg
+        uses: cssnr/mirror-repository-action@v1
+        with:
+          host: https://codeberg.org
+          # owner 默认与 GitHub 仓库所有者一致（ChHsiching），repo 默认与源同名（bongocat-todo）
+          # 如 Codeberg 上账号/仓库名不同，取消下面两行注释并填写：
+          # owner: your-codeberg-username
+          # repo: bongocat-todo
+          create: true
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CODEBERG_TOKEN }}

@@ -20,6 +20,16 @@
 - **上游同步**：在 `master` 上 `git fetch upstream && git merge upstream/master`，再切到模块分支 `git merge master` 把上游更新带进来（冲突在模块分支解，master 始终干净）。
 - 单人开发，不需要 ticket 级 feature 分支；回滚靠 `git revert <commit>`（commit message 带 `Closes #N` 可追溯）。
 
+## 版本号策略
+
+- **fork 版本号独立于上游**：本仓库版本号不跟随上游 ayangweb/BongoCat 的 `1.x.x`，按 fork 自己的功能里程碑走。
+- **单一来源**：`package.json` 的 `version` 是唯一真值；`src-tauri/tauri.conf.json` 的 `version` 字段是 `"../package.json"`（引用），改一处即可。
+- **merge 上游时**：`package.json` 的 version 行会冲突（上游可能 bump），**保留 fork 的版本号**，不跟上游走。
+- **minor bump 对应功能里程碑**：`1.2.0` = Phase 1 todo 模块完成；后续大功能（轮盘 UI、Android 同步）各自 minor bump。patch 用于 bugfix。
+- **发版**：`pnpm release`（`.release-it.ts` 打 tag `v${version}`），tag push 触发 `release.yml` 多平台构建。
+
+
+
 ## Agent skills
 
 ### Issue tracker
