@@ -37,8 +37,25 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const pendingTodos = computed(() => todos.filter(todo => !todo.completed))
-const completedTodos = computed(() => todos.filter(todo => todo.completed))
+/** 优先级权重：high > medium > low。 */
+const priorityWeight: Record<TodoPriority, number> = { high: 0, medium: 1, low: 2 }
+
+/** 排序：优先级升序 → dueDate（无则排末尾）→ createdAt（先创建在上）。 */
+function sortTodos(a: Todo, b: Todo): number {
+  const pDiff = priorityWeight[a.priority] - priorityWeight[b.priority]
+  if (pDiff !== 0)
+    return pDiff
+  if (a.dueDate !== undefined && b.dueDate !== undefined)
+    return a.dueDate - b.dueDate
+  if (a.dueDate !== undefined)
+    return -1
+  if (b.dueDate !== undefined)
+    return 1
+  return a.createdAt - b.createdAt
+}
+
+const pendingTodos = computed(() => todos.filter(todo => !todo.completed).sort(sortTodos))
+const completedTodos = computed(() => todos.filter(todo => todo.completed).sort(sortTodos))
 
 const showAddInput = ref(false)
 const newTitle = ref('')

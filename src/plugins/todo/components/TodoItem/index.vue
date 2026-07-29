@@ -123,18 +123,15 @@ function startOfDay(ts: number): number {
         {{ todo.title }}
       </div>
 
-      <div
-        v-if="!todo.completed"
-        class="todo-meta"
-      >
+      <div class="todo-meta">
         <span
           class="pri"
           :class="todo.priority"
         >
           <InkDot
-            :clickable="true"
+            :clickable="!todo.completed"
             :priority="todo.priority"
-            @click="cyclePriority"
+            @click="!todo.completed && cyclePriority()"
           />
           {{ priorityLabel }}
         </span>
@@ -142,9 +139,9 @@ function startOfDay(ts: number): number {
         <span
           v-if="dueLabel"
           class="due"
-          :class="{ 'urgent': isOverdue, 'due-soon': isUrgent && !isOverdue }"
+          :class="{ 'urgent': !todo.completed && isOverdue, 'due-soon': !todo.completed && isUrgent && !isOverdue }"
         >
-          <HandClock :urgent="isOverdue" />
+          <HandClock :urgent="!todo.completed && isOverdue" />
           {{ dueLabel }}
         </span>
       </div>
@@ -254,16 +251,15 @@ html.dark .todo-item:hover {
   align-items: center;
   gap: 4px;
   color: var(--ink-soft);
+  font-weight: 600;
 }
 
 .due.due-soon {
   color: var(--blue);
-  font-weight: 600;
 }
 
 .due.urgent {
   color: var(--red-ink);
-  font-weight: 600;
 }
 
 .remove-btn {
