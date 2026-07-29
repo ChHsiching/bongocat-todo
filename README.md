@@ -2,7 +2,7 @@
 
 # BongoCat Todo
 
-在 [BongoCat](https://github.com/ayangweb/BongoCat) 桌宠旁边，养一只手绘风格的待办小本子。
+[BongoCat](https://github.com/ayangweb/BongoCat) 桌宠的 fork，新增了手绘风格的待办功能——右键桌宠即可打开待办面板。
 
 </div>
 
@@ -19,6 +19,10 @@
     <a href="https://github.com/ChHsiching/bongocat-todo/releases"><img src="https://img.shields.io/github/downloads/ChHsiching/bongocat-todo/total?style=flat-square"/></a>
   </p>
 </div>
+
+| 待办面板 | 快速新建 |
+| --- | --- |
+| ![待办面板](docs/screenshots/todo-panel.png) | ![快速新建](docs/screenshots/quick-add.png) |
 
 ## 简介
 
