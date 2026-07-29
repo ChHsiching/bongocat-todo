@@ -81,7 +81,7 @@
       "dangerousInsecureTransportProtocol": true,
       "pubkey": "REPLACE_WITH_YOUR_OWN_UPDATER_PUBKEY",
       "endpoints": [
-        "http://api.upgrade.toolsetlink.com/v1/tauri/upgrade?tauriKey=REPLACE_WITH_YOUR_UPGRADELINK_APP_KEY&versionName={{current_version}}&target={{target}}&arch={{arch}}&appointVersionName=&devModelKey=&devKey=",
+        "https://api.upgrade.toolsetlink.com/v1/tauri/upgrade?tauriKey=REPLACE_WITH_YOUR_UPGRADELINK_TAURIKEY&versionName={{current_version}}&target={{target}}&arch={{arch}}&appointVersionName=&devModelKey=&devKey=",
         "https://github.com/ChHsiching/bongocat-todo/releases/latest/download/latest.json"
       ]
     },
