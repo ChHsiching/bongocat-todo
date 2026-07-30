@@ -16,10 +16,12 @@
 | **插件（plugin）** | 本仓库新增的自包含模块，位于 `src/plugins/<name>/`，通过注册机制挂到 UI |
 | **菜单总线（menu bus）** | 一个 pinia store（`menuBus`），插件向其登记菜单项描述数据，`useAppMenu` 消费 |
 | **伴随窗口（companion window）** | 贴在桌宠旁边、同风格的独立 Tauri 窗口（如 todo 面板） |
-| **缩回-蹦出（tuck-and-pop）** | 伴随窗口的跟随交互：拖动桌宠时面板缩回，松手后蹦出到新位置 |
+| **缩回-蹦出（tuck-and-pop）** | ~~伴随窗口的跟随交互~~ **已废弃**（ADR 0001 D3 superseded），实际用简单渐隐渐显。保留词条供历史追溯 |
 | **Phase 1** | 菜单/插件架构 + todo 本地 MVP（无同步） |
-| **Phase 2** | 轮盘菜单 UI + Android 局域网同步 |
-| **软删除（soft delete）** | 删除时不真删，打 `deletedAt` 时间戳，供 Phase 2 同步使用 |
+| **Phase 2** | 邮件提醒器 + 桌宠气泡通知 + todo 提醒双发（详见 ADR 0002） |
+| **桌宠气泡（bubble）** | 贴桌宠正上方的轻量通知组件，5 秒自动消失（hover 暂停），最多 3 条+未读队列。邮件与 todo 到期共用 |
+| **邮件提醒器（mail notifier）** | 只监听各账号 INBOX 的 IMAP IDLE，新邮件到达时触发气泡。只读信封元数据（发件人+主题），零写操作、零正文，点击跳 webmail |
+| **软删除（soft delete）** | 删除时不真删，打 `deletedAt` 时间戳，供未来同步使用 |
 
 ## 上游架构事实（agent 必知）
 
@@ -41,6 +43,21 @@
 - 存储**复用 pinia 持久化**（零新增依赖），数据结构含 4 个 Phase 2 同步预留字段。
 - 日期提醒用 `@tauri-apps/plugin-notification`（新增依赖 + 权限）。
 - 上游接触点共 8 处，**全部是追加**，不改原有逻辑。
+
+## Phase 2 决策快照
+
+详见 `docs/adr/0002-phase2-mail-and-bubble.md`。要点：
+
+- **范围**：邮件提醒器 + 桌宠气泡通知 + todo 提醒双发。~~轮盘菜单~~已取消（D7 rejected），~~Android 同步~~推迟独立仓库（D5 同步字段不浪费）。
+- **邮件协议**：通用 IMAP IDLE 长连接（Rust `async-imap` + tokio），覆盖 Gmail/QQ/163 等，用各家专用密码绕开 OAuth 审核。
+- **凭证安全**：OS keyring（Rust `keyring` v4 `v1` feature），pinia store **不持密码**，密码走 `Entry::new(service, username)`，key=`bongocat-todo/mail/<accountId>`。
+- **连接生命周期**：Rust 后端 tokio task，绑 **app 进程**（不绑窗口，桌宠开着就有推送）。
+- **多账号**：tracer bullet 先单账号打通，多账号紧随其后，两者均为 Phase 2 必交付。数据结构从一开始是数组。
+- **邮件边界**：严格「INBOX 新邮件通知器」，只读信封（发件人+主题），零写、零正文，点击跳 webmail。
+- **设置入口**：preference 设置窗侧边栏新开一个邮件页（不新建窗口/路由侵入）。
+- **气泡通知**：桌宠正上方 / 5 秒自动消失+hover 暂停 / 最多 3 条+未读队列 / 邮件→webmail·todo→面板。邮件与 todo 共用气泡组件。
+- **todo 提醒**：双发——系统通知（D6 保留）+ 桌宠气泡（纯增量），不拆 `plugin-notification`。
+- **设计稿**：spec **之前**做（气泡 UI + 邮件设置界面），作为 spec 的 UI 输入；后端（IMAP/keyring/连接管理）靠 TDD 不依赖设计稿。
 
 ## 上游代码与视觉约定（二次分析产出，to-spec/implement 必读）
 
