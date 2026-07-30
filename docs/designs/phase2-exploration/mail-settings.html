@@ -127,7 +127,7 @@
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     overflow: hidden;
   }
-  .acc-ic svg { width: 22px; height: 22px; }
+  .acc-ic img { width: 22px; height: 22px; object-fit: contain; }
   .acc-meta { display: flex; flex-direction: column; min-width: 0; }
   .acc-addr { font-size: 14px; font-weight: 500; color: var(--text); word-break: break-all; }
   .acc-status { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
@@ -174,7 +174,7 @@
   .form-input:focus, .select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(22,119,255,0.1); }
   .input-with-icon { position: relative; }
   .input-with-icon .acc-ic { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; background: transparent; }
-  .input-with-icon .acc-ic svg { width: 16px; height: 16px; }
+  .input-with-icon .acc-ic img { width: 16px; height: 16px; }
   .input-with-icon .form-input { padding-left: 38px; }
 
   .select { display: flex; align-items: center; justify-content: space-between; cursor: pointer; min-width: 0; }
@@ -207,38 +207,9 @@
   </div>
 </div>
 
-<!-- provider logo 库（真实彩色 logo：Gmail 内联全彩 SVG，其余用真实 PNG）-->
+<!-- 提示 icon（手绘风感叹号三角，替代 emoji ⚠️；纯 path 不涉及 logo）-->
 <svg width="0" height="0" style="position:absolute">
   <defs>
-    <!-- Gmail（Iconify logos 集，真实多色 M logo，Google 官方四色）-->
-    <symbol id="ic-gmail" viewBox="0 0 256 193">
-      <path fill="#4285f4" d="M58.182 192.05V93.14L27.507 65.077L0 49.504v125.091c0 9.658 7.825 17.455 17.455 17.455z"/>
-      <path fill="#34a853" d="M197.818 192.05h40.727c9.659 0 17.455-7.826 17.455-17.455V49.505l-31.156 17.837l-27.026 25.798z"/>
-      <path fill="#ea4335" d="m58.182 93.14l-4.174-38.647l4.174-36.989L128 69.868l69.818-52.364l4.669 34.992l-4.669 40.644L128 145.504z"/>
-      <path fill="#fbbc04" d="M197.818 17.504V93.14L256 49.504V26.231c0-21.585-24.64-33.89-41.89-20.945z"/>
-      <path fill="#c5221f" d="m0 49.504l26.759 20.07L58.182 93.14V17.504L41.89 5.286C24.61-7.66 0 4.646 0 26.23z"/>
-    </symbol>
-    <!-- QQ 邮箱（真实彩色 favicon PNG）-->
-    <symbol id="ic-qq" viewBox="0 0 100 100">
-      <image href="logo-qq.png" width="0" height="100" preserveAspectRatio="xMidYMid meet" x="0" y="0" width="100" height="100"/>
-    </symbol>
-    <!-- 163 邮箱（真实彩色 favicon PNG）-->
-    <symbol id="ic-163" viewBox="0 0 100 100">
-      <image href="logo-163.png" width="0" y="0" preserveAspectRatio="xMidYMid meet" x="0" width="100" height="100"/>
-    </symbol>
-    <!-- Outlook（真实彩色 favicon PNG）-->
-    <symbol id="ic-outlook" viewBox="0 0 100 100">
-      <image href="logo-outlook.png" preserveAspectRatio="xMidYMid meet" x="0" y="0" width="100" height="100"/>
-    </symbol>
-    <!-- Proton（真实彩色 favicon PNG）-->
-    <symbol id="ic-proton" viewBox="0 0 100 100">
-      <image href="logo-proton.png" preserveAspectRatio="xMidYMid meet" x="0" y="0" width="100" height="100"/>
-    </symbol>
-    <!-- 通用邮箱（未识别时，中性信封）-->
-    <symbol id="ic-mail-default" viewBox="0 0 24 24">
-      <path fill="#8a7560" d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/>
-    </symbol>
-    <!-- 提示 icon（手绘风感叹号三角，替代 emoji ⚠️）-->
     <symbol id="ic-hint" viewBox="0 0 24 24">
       <path d="M12 2 L22 20 L2 20 Z" fill="none" stroke="#faad14" stroke-width="2" stroke-linejoin="round"/>
       <rect x="11" y="9" width="2" height="6" fill="#faad14" rx="1"/>
@@ -287,7 +258,7 @@
         <div class="acc-card">
           <div class="acc-head">
             <div class="acc-info">
-              <div class="acc-ic"><svg><use href="#ic-gmail"/></svg></div>
+              <div class="acc-ic"><img src="logo-gmail.svg" alt="Gmail"></div>
               <div class="acc-meta">
                 <span class="acc-addr">zhangsan@gmail.com</span>
                 <span class="acc-status st-ok"><span class="dot"></span>已连接 · IMAP IDLE 监听中</span>
@@ -302,7 +273,7 @@
         <div class="acc-card">
           <div class="acc-head">
             <div class="acc-info">
-              <div class="acc-ic"><svg><use href="#ic-qq"/></svg></div>
+              <div class="acc-ic"><img src="logo-qq.png" alt="QQ"></div>
               <div class="acc-meta">
                 <span class="acc-addr">12345@qq.com</span>
                 <span class="acc-status st-load"><span class="dot"></span>连接中… 正在建立 IMAP IDLE</span>
@@ -325,7 +296,7 @@
               <span class="form-label">邮箱地址</span>
               <div class="input-with-icon">
                 <!-- 输入邮箱后，左侧 logo 实时变成对应 provider -->
-                <div class="acc-ic" id="input-provider-logo"><svg><use href="#ic-mail-default"/></svg></div>
+                <div class="acc-ic" id="input-provider-logo"><img src="logo-mail-default.svg" alt="邮箱"></div>
                 <input class="form-input" id="email-input" placeholder="you@example.com" value="" oninput="detectProvider(this.value)">
               </div>
             </div>
@@ -396,29 +367,29 @@
 
   // provider 自动识别逻辑（演示用）
   const providers = {
-    'gmail.com': { logo: '#ic-gmail', imap: 'imap.gmail.com:993' },
-    'googlemail.com': { logo: '#ic-gmail', imap: 'imap.gmail.com:993' },
-    'qq.com': { logo: '#ic-qq', imap: 'imap.qq.com:993' },
-    'foxmail.com': { logo: '#ic-qq', imap: 'imap.qq.com:993' },
-    '163.com': { logo: '#ic-163', imap: 'imap.163.com:993' },
-    '126.com': { logo: '#ic-163', imap: 'imap.126.com:993' },
-    'yeah.net': { logo: '#ic-163', imap: 'imap.yeah.net:993' },
-    'outlook.com': { logo: '#ic-outlook', imap: 'outlook.office365.com:993' },
-    'hotmail.com': { logo: '#ic-outlook', imap: 'outlook.office365.com:993' },
-    'live.com': { logo: '#ic-outlook', imap: 'outlook.office365.com:993' },
-    'proton.me': { logo: '#ic-proton', imap: 'protonmail.ch:993' },
-    'protonmail.com': { logo: '#ic-proton', imap: 'protonmail.ch:993' },
+    'gmail.com': { logo: 'logo-gmail.svg', imap: 'imap.gmail.com:993' },
+    'googlemail.com': { logo: 'logo-gmail.svg', imap: 'imap.gmail.com:993' },
+    'qq.com': { logo: 'logo-qq.png', imap: 'imap.qq.com:993' },
+    'foxmail.com': { logo: 'logo-qq.png', imap: 'imap.qq.com:993' },
+    '163.com': { logo: 'logo-163.png', imap: 'imap.163.com:993' },
+    '126.com': { logo: 'logo-163.png', imap: 'imap.126.com:993' },
+    'yeah.net': { logo: 'logo-163.png', imap: 'imap.yeah.net:993' },
+    'outlook.com': { logo: 'logo-outlook.png', imap: 'outlook.office365.com:993' },
+    'hotmail.com': { logo: 'logo-outlook.png', imap: 'outlook.office365.com:993' },
+    'live.com': { logo: 'logo-outlook.png', imap: 'outlook.office365.com:993' },
+    'proton.me': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
+    'protonmail.com': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
   };
 
   function detectProvider(email) {
-    const logoEl = document.querySelector('#input-provider-logo svg use');
+    const logoEl = document.querySelector('#input-provider-logo img');
     const selectEl = document.querySelector('#imap-select span');
     const domain = email.split('@')[1]?.toLowerCase().trim();
     if (domain && providers[domain]) {
-      logoEl.setAttribute('href', providers[domain].logo);
+      logoEl.src = providers[domain].logo;
       selectEl.textContent = providers[domain].imap;
     } else {
-      logoEl.setAttribute('href', '#ic-mail-default');
+      logoEl.src = 'logo-mail-default.svg';
       selectEl.textContent = '自动识别';
     }
   }
