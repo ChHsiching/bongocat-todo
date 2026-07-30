@@ -1,0 +1,127 @@
+//! Tauri 命令层：前端调用的 `mail_*` 命令 + keyring 凭证 CRUD。
+//!
+//! 命令前缀 `plugin:mail|<name>`（见 build.rs 的 COMMANDS）。
+//! 密码**绝不**进 pinia store，只走 keyring（[`crate::manager::keyring_key`]）。
+
+use tauri::{AppHandle, Runtime, command, Manager};
+
+use crate::manager::{ConnectionManager, KEYRING_KEY_PREFIX};
+
+/// 测试 IMAP 连接（不保存任何东西，仅验证能登录 + 选 INBOX）。
+///
+/// 前端「测试并保存」按钮先调本命令，成功后才调 `mail_store_password` + `mail_connect`。
+#[command]
+pub async fn mail_test_connection(
+    imap_host: String,
+    imap_port: u16,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    // 建立 TLS 连接 + 登录 + 选 INBOX，成功即返回，不持有任何状态
+    let tls_connector = native_tls::TlsConnector::builder()
+        .build()
+        .map_err(|e| format!("TLS connector 构建失败: {e}"))?;
+
+    let tcp = tokio::net::TcpStream::connect((imap_host.as_str(), imap_port))
+        .await
+        .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
+
+    let tls = tokio_native_tls::TlsConnector::from(tls_connector);
+    let tls_stream = tls
+        .connect(&imap_host, tcp)
+        .await
+        .map_err(|e| format!("TLS 握手失败: {e}"))?;
+
+    let client = async_imap::Client::new(tls_stream);
+    let mut session = client
+        .login(&username, &password)
+        .await
+        .map_err(|(err, _)| format!("IMAP 登录失败（检查账号/授权码）: {err}"))?;
+
+    session
+        .select("INBOX")
+        .await
+        .map_err(|e| format!("选 INBOX 失败: {e}"))?;
+
+    let _ = session.logout().await;
+    Ok(())
+}
+
+/// 启动某账号的 IDLE 监听（从 keyring 取密码，spawn task）。
+#[command]
+pub async fn mail_connect<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+    imap_host: String,
+    imap_port: u16,
+    username: String,
+) -> Result<(), String> {
+    let manager = app.state::<ConnectionManager>();
+    // connect 需要 owned AppHandle（spawn 的 task 持有它），clone 一份传走，
+    // 避免与上面的 `.state()` 借用冲突。
+    manager
+        .inner()
+        .connect(app.clone(), account_id, imap_host, imap_port, username)
+        .await
+}
+
+/// 断开某账号的 IDLE 监听（取消 task）。
+#[command]
+pub async fn mail_disconnect<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+) -> Result<(), String> {
+    let manager = app.state::<ConnectionManager>();
+    manager.inner().disconnect(&account_id).await;
+    Ok(())
+}
+
+/// 存邮箱密码到 keyring（key = `bongocat-todo/mail/<accountId>`）。
+#[command]
+pub async fn mail_store_password(
+    account_id: String,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    let key = format!("{KEYRING_KEY_PREFIX}/{account_id}");
+    let entry = keyring::v1::Entry::new(&key, &username)
+        .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
+    entry
+        .set_password(&password)
+        .map_err(|e| format!("keyring 存密码失败: {e}"))
+}
+
+/// 从 keyring 读邮箱密码（一般由 Rust 内部 connect 流程用；暴露给前端供「连接前检查密码是否存在」）。
+#[command]
+pub async fn mail_get_password(
+    account_id: String,
+    username: String,
+) -> Result<Option<String>, String> {
+    let key = format!("{KEYRING_KEY_PREFIX}/{account_id}");
+    let entry = keyring::v1::Entry::new(&key, &username)
+        .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
+    match entry.get_password() {
+        Ok(p) => Ok(Some(p)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("keyring 读密码失败: {e}")),
+    }
+}
+
+/// 从 keyring 删邮箱密码（删除账号时调用）。
+///
+/// keyring v4 v1 API 的删除方法名是 `delete_credential`（非 `delete_password`）。
+#[command]
+pub async fn mail_delete_password(
+    account_id: String,
+    username: String,
+) -> Result<(), String> {
+    let key = format!("{KEYRING_KEY_PREFIX}/{account_id}");
+    let entry = keyring::v1::Entry::new(&key, &username)
+        .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
+    match entry.delete_credential() {
+        Ok(()) => Ok(()),
+        // 已不存在视为成功（幂等删除）
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keyring 删密码失败: {e}")),
+    }
+}

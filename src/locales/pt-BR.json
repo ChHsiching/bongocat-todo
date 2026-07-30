@@ -239,6 +239,36 @@
         "dueTodayShort": "Hoje",
         "dueOverdueShort": "Atrasado"
       }
+    },
+    "mail": {
+      "labels": {
+        "preferenceTitle": "E-mail",
+        "bindTitle": "Conta de E-mail",
+        "address": "Endereço de E-mail",
+        "addressPlaceholder": "ex. alice@gmail.com",
+        "imapHost": "Servidor IMAP",
+        "imapHostPlaceholder": "ex. imap.gmail.com",
+        "imapPort": "Porta",
+        "username": "Usuário",
+        "usernamePlaceholder": "Geralmente igual ao endereço de e-mail",
+        "password": "Senha de App / Código de Autorização",
+        "passwordPlaceholder": "Cole o código de autorização do e-mail",
+        "passwordHint": "Use a \"senha de app / código de autorização\" do provedor, não a senha de login. Gmail usa senhas de app, QQ/163 usam códigos IMAP.",
+        "testAndSave": "Testar e Salvar",
+        "connecting": "Conectando…",
+        "connectSuccess": "Conectado com sucesso",
+        "connectFailed": "Falha na conexão",
+        "formIncomplete": "Preencha todos os campos",
+        "removeButton": "Remover",
+        "removed": "Removido",
+        "singleAccountHint": "Apenas uma conta é suportada por enquanto; suporte a várias contas em breve.",
+        "statusLabel": "Status",
+        "statusIdle": "Ocioso",
+        "statusConnecting": "Conectando",
+        "statusConnected": "Conectado",
+        "statusError": "Erro",
+        "bubbleFrom": "De: "
+      }
     }
   }
 }

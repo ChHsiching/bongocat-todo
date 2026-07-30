@@ -14,6 +14,8 @@ export const LISTEN_KEY = {
   SHOW_TODO_FULL: 'show-todo-full',
   /** todo 窗口以迷你输入窗形态（280×110）打开，定位到光标附近，由「快速新建」菜单项触发。 */
   SHOW_TODO_MINI: 'show-todo-mini',
+  /** 桌宠气泡窗口弹气泡，由「新邮件到达」事件触发（Phase 2 邮件通知）。 */
+  SHOW_BUBBLE: 'show-bubble',
 }
 
 export const INVOKE_KEY = {
@@ -35,4 +37,6 @@ export const WINDOW_LABEL = {
   MAIN: 'main',
   PREFERENCE: 'preference',
   TODO: 'todo',
+  /** 桌宠气泡通知窗口（贴桌宠正上方，Phase 2 邮件/todo 共用）。 */
+  BUBBLE: 'bubble',
 } as const

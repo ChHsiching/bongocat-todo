@@ -239,6 +239,36 @@
         "dueTodayShort": "Today",
         "dueOverdueShort": "Overdue"
       }
+    },
+    "mail": {
+      "labels": {
+        "preferenceTitle": "Mail",
+        "bindTitle": "Mail Account",
+        "address": "Email Address",
+        "addressPlaceholder": "e.g. alice@gmail.com",
+        "imapHost": "IMAP Server",
+        "imapHostPlaceholder": "e.g. imap.gmail.com",
+        "imapPort": "Port",
+        "username": "Username",
+        "usernamePlaceholder": "Usually same as email address",
+        "password": "App Password / Auth Code",
+        "passwordPlaceholder": "Paste your mail auth code",
+        "passwordHint": "Use your mail provider's \"app password / auth code\", not your login password. Gmail uses app passwords, QQ/163 use IMAP auth codes.",
+        "testAndSave": "Test & Save",
+        "connecting": "Connecting…",
+        "connectSuccess": "Connected successfully",
+        "connectFailed": "Connection failed",
+        "formIncomplete": "Please fill in all fields",
+        "removeButton": "Remove",
+        "removed": "Removed",
+        "singleAccountHint": "Only one account is supported for now; multi-account support is coming soon.",
+        "statusLabel": "Status",
+        "statusIdle": "Idle",
+        "statusConnecting": "Connecting",
+        "statusConnected": "Connected",
+        "statusError": "Error",
+        "bubbleFrom": "From: "
+      }
     }
   }
 }

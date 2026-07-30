@@ -239,6 +239,36 @@
         "dueTodayShort": "今天",
         "dueOverdueShort": "已逾期"
       }
+    },
+    "mail": {
+      "labels": {
+        "preferenceTitle": "邮件",
+        "bindTitle": "邮箱账号",
+        "address": "邮箱地址",
+        "addressPlaceholder": "例如 alice@gmail.com",
+        "imapHost": "IMAP 服务器",
+        "imapHostPlaceholder": "例如 imap.gmail.com",
+        "imapPort": "端口",
+        "username": "用户名",
+        "usernamePlaceholder": "通常等于邮箱地址",
+        "password": "授权码 / 专用密码",
+        "passwordPlaceholder": "粘贴邮箱授权码",
+        "passwordHint": "请使用邮箱的「授权码 / 应用专用密码」，不是登录密码。Gmail 用应用专用密码，QQ/163 用 IMAP 授权码。",
+        "testAndSave": "测试并保存",
+        "connecting": "连接中…",
+        "connectSuccess": "连接成功",
+        "connectFailed": "连接失败",
+        "formIncomplete": "请填写所有字段",
+        "removeButton": "删除",
+        "removed": "已删除",
+        "singleAccountHint": "当前仅支持单账号，多账号支持即将推出。",
+        "statusLabel": "状态",
+        "statusIdle": "空闲",
+        "statusConnecting": "连接中",
+        "statusConnected": "已连接",
+        "statusError": "连接失败",
+        "bubbleFrom": "发件人："
+      }
     }
   }
 }

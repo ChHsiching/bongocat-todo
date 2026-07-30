@@ -239,6 +239,36 @@
         "dueTodayShort": "今天",
         "dueOverdueShort": "已逾期"
       }
+    },
+    "mail": {
+      "labels": {
+        "preferenceTitle": "郵件",
+        "bindTitle": "信箱帳號",
+        "address": "信箱地址",
+        "addressPlaceholder": "例如 alice@gmail.com",
+        "imapHost": "IMAP 伺服器",
+        "imapHostPlaceholder": "例如 imap.gmail.com",
+        "imapPort": "連接埠",
+        "username": "使用者名稱",
+        "usernamePlaceholder": "通常等於信箱地址",
+        "password": "授權碼 / 應用專用密碼",
+        "passwordPlaceholder": "貼上信箱授權碼",
+        "passwordHint": "請使用信箱的「授權碼 / 應用專用密碼」，不是登入密碼。Gmail 用應用專用密碼，QQ/163 用 IMAP 授權碼。",
+        "testAndSave": "測試並儲存",
+        "connecting": "連線中…",
+        "connectSuccess": "連線成功",
+        "connectFailed": "連線失敗",
+        "formIncomplete": "請填寫所有欄位",
+        "removeButton": "刪除",
+        "removed": "已刪除",
+        "singleAccountHint": "目前僅支援單一帳號，多帳號支援即將推出。",
+        "statusLabel": "狀態",
+        "statusIdle": "閒置",
+        "statusConnecting": "連線中",
+        "statusConnected": "已連線",
+        "statusError": "連線失敗",
+        "bubbleFrom": "寄件者："
+      }
     }
   }
 }

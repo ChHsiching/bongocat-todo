@@ -47,6 +47,20 @@
         "resizable": false,
         "width": 380,
         "height": 560
+      },
+      {
+        "label": "bubble",
+        "url": "index.html/#/bubble",
+        "title": "气泡",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 360,
+        "height": 60
       }
     ],
     "security": {

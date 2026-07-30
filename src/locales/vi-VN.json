@@ -239,6 +239,36 @@
         "dueTodayShort": "Hôm nay",
         "dueOverdueShort": "Quá hạn"
       }
+    },
+    "mail": {
+      "labels": {
+        "preferenceTitle": "Thư",
+        "bindTitle": "Tài khoản thư",
+        "address": "Địa chỉ email",
+        "addressPlaceholder": "vd. alice@gmail.com",
+        "imapHost": "Máy chủ IMAP",
+        "imapHostPlaceholder": "vd. imap.gmail.com",
+        "imapPort": "Cổng",
+        "username": "Tên người dùng",
+        "usernamePlaceholder": "Thường giống địa chỉ email",
+        "password": "Mật khẩu ứng dụng / Mã ủy quyền",
+        "passwordPlaceholder": "Dán mã ủy quyền thư",
+        "passwordHint": "Hãy dùng \"mật khẩu ứng dụng / mã ủy quyền\" của nhà cung cấp thư, không phải mật khẩu đăng nhập. Gmail dùng mật khẩu ứng dụng, QQ/163 dùng mã ủy quyền IMAP.",
+        "testAndSave": "Kiểm tra & Lưu",
+        "connecting": "Đang kết nối…",
+        "connectSuccess": "Kết nối thành công",
+        "connectFailed": "Kết nối thất bại",
+        "formIncomplete": "Vui lòng điền tất cả các trường",
+        "removeButton": "Xóa",
+        "removed": "Đã xóa",
+        "singleAccountHint": "Hiện chỉ hỗ trợ một tài khoản; hỗ trợ nhiều tài khoản sắp ra mắt.",
+        "statusLabel": "Trạng thái",
+        "statusIdle": "Chờ",
+        "statusConnecting": "Đang kết nối",
+        "statusConnected": "Đã kết nối",
+        "statusError": "Lỗi",
+        "bubbleFrom": "Từ: "
+      }
     }
   }
 }
