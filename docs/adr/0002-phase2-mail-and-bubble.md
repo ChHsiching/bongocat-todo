@@ -172,8 +172,21 @@ MailNotification {
 
 UI 部分（气泡 UI + 邮件列表 + 邮件设置界面）需设计稿，**在 spec 之前做**（作为 spec 的 UI 输入）。后端（IMAP/keyring/连接管理）靠 TDD 自闭环，不依赖设计稿。
 
+> ✅ **已完成（2026-07-31）**：三份设计稿全部定稿，存于 `docs/designs/phase2-exploration/`：
+> - `bubble.html` — 桌宠气泡（常驻 + 手动关闭 + 3 条上限折入列表）
+> - `mail-list.html` — 邮件列表 + 归档邮件（两个伴随面板）
+> - `mail-settings.html` — 邮件设置页（preference 侧边栏，provider logo 自动识别）
+>
+> 邮箱 logo 文件（10 个，全 RGBA 透明）同目录，清单见 CONTEXT.md「Phase 2 设计稿」段。设计稿完成意味着 `/to-spec` 的 UI 输入已就绪，可进入 spec 环节。
+
 ## Consequences
 
 - **正向**：气泡常驻 + 邮件列表形成完整的「通知中心」——未处理在气泡、历史在列表、已处理在归档，逻辑自洽；已读/归档纯本地状态，对邮箱零写，不和服务端打架；气泡共享让 todo 改造近乎零成本；凭证不落地明文，安全基线达标。
 - **负向**：Rust 侧新增 `async-imap` + TLS 库 + `keyring` 三项依赖 + 长生命周期 task 管理（断线重连/IDLE 超时/多连接池），是 Phase 1 未有的复杂度；多账号的连接池管理是独立 ticket；邮件列表 + 归档新增一个 store + 列表 UI + 右键菜单项 + 路由/窗口侵入（相比原 Phase 2 多 2-3 个 ticket 量级）。
 - **风险**：IMAP IDLE 路线是最大未知数，靠 D4 的 tracer bullet 最早验证；Rust 长连接 task 在窗口销毁/进程异常时的清理需小心处理；本地通知历史的留存时限（24h/5min）需实际使用后调参。
+
+### 实现约定：邮箱 logo 与 provider 自动识别（设计稿产出）
+
+- **provider 自动识别**：用户在添加账号表单输入邮箱后，按域名（`@` 后部分）映射到 `{ logo, imap }`。设计稿 `mail-settings.html` 内置一份域名→logo+IMAP 映射表（gmail/qq/foxmail/163/126/outlook/icloud/proton/yahoo 等），未命中域名用通用信封图标 +「自动识别」。
+- **logo 全部 RGBA 透明背景**：暗色模式下白底方块会很难看，所有 PNG logo（foxmail/163/126/qq/proton）必须处理成透明背景。来源均为官方登录页或官网 logo 裁剪，不用 favicon（favicon 常指向错误图标，如 163 favicon 实为网易「易」字、QQ favicon 指向腾讯新闻）。详见 CONTEXT.md「Phase 2 设计稿」段 logo 清单。
+- **踩坑警示**：裁剪横长 logo（官网 banner 都是「图标+文字」）只取左侧图标部分；**不要手写 node PNG 编解码器**处理像素（filter 逻辑出错导致马赛克），改用浏览器 canvas `toDataURL`。

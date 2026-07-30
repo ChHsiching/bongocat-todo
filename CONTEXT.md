@@ -273,3 +273,31 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **tuck-and-pop（已废弃）**：原方案过复杂、调试代价高（3 个回归：右键猫面板消失 / 面板定位到屏外 / 透明窗口冒原生滚动条），用户明确否决（"不想要这个动效了，只需要最普通最简单的渐隐渐显"）。设计稿 `tuck-pop-animation.html` 保留作历史参考，**不要重新提议恢复**。
 - **渐隐渐显（实际实现，T3）**：opacity 过渡 200ms ease。打开渐显、关闭渐隐（关闭先跑 200ms 渐隐再 hideWindow）。两个窗口（待办面板 + 快速新建）共用同一套 fade 状态。
 - **面板定位**：以猫为锚点（待办面板 = 猫正上方居中；快速新建 = 猫上方偏右），边缘 clamp + 翻边，不超出屏幕。
+
+### Phase 2 设计稿 — 已定稿 ✅
+
+设计稿存于 `docs/designs/phase2-exploration/`，三份 HTML 均已定稿，作为 `/to-spec` 的 UI 输入：
+
+| 文件 | 说明 |
+|------|------|
+| `bubble.html` | **桌宠气泡**：圆胖手绘气泡，贴桌宠正上方，**常驻 + 手动关闭**（非自动消失），最多 3 条 + 溢出折成「还有 N 条，查看邮件列表」，纯渐入渐出，360px 宽，font-weight 600 基线 |
+| `mail-list.html` | **邮件列表 + 归档邮件**：两个伴随面板，手绘风 + 右上角关闭按钮。邮件列表（未读/已读）+ 归档邮件（样式更淡），font-weight 600 基线 |
+| `mail-settings.html` | **邮件设置页**（preference 侧边栏）：720px 高（侧边栏不滚动），账号列表（provider logo 自动识别）+ 添加账号表单（域名→logo/IMAP 联动）+ 通知设置。遵循 antdv-next preference 规则 |
+| `851.ttf` | 851 手写杂字体（复用 todo 设计稿的同款） |
+
+**邮箱 logo 清单**（全部 **RGBA 透明背景**，适配暗色模式；provider 自动识别按邮箱域名映射）：
+
+| 文件 | 适用域名 | 来源 |
+|------|---------|------|
+| `logo-gmail.svg` | gmail.com / googlemail.com | Iconify logos 集（Google 原色 M） |
+| `logo-qq.png` | qq.com | QQ 邮箱官网真实企鹅 |
+| `logo-foxmail-icon.png` | foxmail.com | foxmail.com 官网 logo 裁剪，**只留红色 G 图标**（去掉右侧文字） |
+| `logo-163-icon.png` | 163.com / yeah.net | mail.163.com 登录页 `.header-163logo` 裁剪出左侧图标 |
+| `logo-126-icon.png` | 126.com | mail.126.com 登录页 `.header-126logo` 裁剪出左侧图标 |
+| `logo-outlook.svg` | outlook.com / hotmail.com / live.com | simple-icons + 品牌蓝 |
+| `logo-icloud.svg` | icloud.com / me.com / mac.com | simple-icons + 品牌蓝 |
+| `logo-proton.png` | proton.me / protonmail.com | proton.me favicon（白底转透明） |
+| `logo-yahoo.svg` | yahoo.com | simple-icons + 品牌紫 |
+| `logo-mail-default.svg` | 未识别域名 | 中性灰信封图标 |
+
+> ⚠️ **logo 处理踩坑**：所有 PNG 必须 RGBA 透明（暗色模式下白底会很难看）。裁剪横长 logo（如 foxmail/163/126 官网 logo 都是「图标+文字」banner）时只取左侧图标部分。**不要手写 node PNG 编解码器**处理像素——filter 逻辑极易出错导致马赛克，改用浏览器 canvas `toDataURL`。
