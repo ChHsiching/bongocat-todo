@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BongoCat Phase 2 · 邮件设置页（定稿）</title>
+<style>
+  /* ═══ 视觉规则：BongoCat preference 页原规则 ═══ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #1677ff;
+    --primary-hover: #4096ff;
+    --text: rgba(0, 0, 0, 0.88);
+    --text-2: rgba(0, 0, 0, 0.65);
+    --text-3: rgba(0, 0, 0, 0.45);
+    --border: #d9d9d9;
+    --border-2: #f0f0f0;
+    --bg-container: #fff;
+    --bg-elevated: #fff;
+    --bg-fill-q: #f5f5f5;
+    --bg-fill-t: #f0f0f0;
+    --success: #52c41a;
+    --warning: #faad14;
+    --error: #ff4d4f;
+    --radius: 8px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #d9d1c0;
+    padding: 40px 20px 80px;
+    min-height: 100vh;
+    color: var(--text);
+  }
+
+  .page-head { max-width: 1100px; margin: 0 auto 32px; text-align: center; }
+  .page-head h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #4a3a2e; }
+  .page-head p { color: #8a7560; font-size: 14px; line-height: 1.8; }
+  .page-head .rule {
+    display: inline-block; margin-top: 12px; padding: 10px 18px;
+    background: #fff; border-radius: 10px; font-size: 12px; color: #6b5d52; line-height: 1.9;
+  }
+  .page-head .rule b { color: #d4654a; }
+
+  /* ═══ preference 窗口（定稿：加高到 720px，侧边栏 6 项不滚动）═══ */
+  .pref-window {
+    max-width: 920px;
+    margin: 0 auto;
+    background: var(--bg-container);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.14);
+    display: flex;
+    height: 720px;
+  }
+
+  .sidebar {
+    width: 120px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    /* 不再 overflow:auto —— 高度足够，6 项全部可见 */
+    background: linear-gradient(to bottom, rgba(22,119,255,0.02), rgba(0,0,0,0.01));
+    padding-top: 20px;
+    border-right: 1px solid var(--border-2);
+  }
+  .sb-logo-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sb-logo {
+    width: 60px; height: 60px;
+    border: 1px solid var(--border-2); border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; background: var(--bg-container);
+    overflow: hidden;
+  }
+  .sb-logo svg { width: 46px; height: 46px; }
+  .sb-name { font-weight: 700; font-size: 13px; color: var(--text); }
+  .sb-menu { display: flex; flex-direction: column; gap: 8px; }
+  .sb-item {
+    position: relative;
+    width: 80px; height: 80px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer; border-radius: 8px; transition: all 0.2s;
+    color: var(--text-3);
+  }
+  .sb-item:hover { background: var(--bg-fill-t); }
+  .sb-item.active {
+    background: var(--bg-container); color: var(--primary); font-weight: 700;
+    box-shadow: 0 0 0 1px var(--border-2);
+  }
+  .sb-item .ic { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+  .sb-item .ic svg { width: 28px; height: 28px; }
+  .sb-item .lb { font-size: 13px; }
+  .sb-item.new .badge-new {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 9px; font-weight: 700; color: #fff;
+    background: var(--error); padding: 1px 5px; border-radius: 6px; line-height: 1.4;
+  }
+
+  .content {
+    flex: 1; overflow: auto;
+    background: var(--bg-fill-q);
+    padding: 16px;
+  }
+
+  .prolist { display: flex; flex-direction: column; gap: 8px; }
+  .prolist:not(:last-child) { margin-bottom: 16px; }
+  .prolist-title { font-size: 16px; font-weight: 500; color: var(--text); padding: 4px 0; }
+  .prolist-body { display: flex; flex-direction: column; gap: 12px; }
+
+  .proitem {
+    border: 1px solid var(--border-2); background: var(--bg-elevated); border-radius: var(--radius);
+    padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .proitem-main { display: flex; align-items: center; flex: 1; min-width: 0; }
+  .proitem-text { display: flex; flex-direction: column; }
+  .proitem-title { font-size: 14px; font-weight: 500; color: var(--text); }
+  .proitem-desc { font-size: 12px; color: var(--text-3); margin-top: 8px; line-height: 1.6; }
+
+  .acc-card { border: 1px solid var(--border-2); background: var(--bg-elevated); border-radius: var(--radius); padding: 16px; }
+  .acc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .acc-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  /* provider logo 容器：自动识别后显示对应邮箱 logo */
+  .acc-ic {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--bg-fill-t);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .acc-ic img { width: 22px; height: 22px; object-fit: contain; }
+  .acc-meta { display: flex; flex-direction: column; min-width: 0; }
+  .acc-addr { font-size: 14px; font-weight: 500; color: var(--text); word-break: break-all; }
+  .acc-status { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .st-ok { color: var(--success); } .st-ok .dot { background: var(--success); }
+  .st-load { color: var(--warning); } .st-load .dot { background: var(--warning); }
+  .acc-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .acc-detail { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); padding: 8px 0 0 48px; flex-wrap: wrap; }
+
+  .switch {
+    width: 40px; height: 22px; border-radius: 11px; background: var(--primary);
+    position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 20px;
+    width: 18px; height: 18px; border-radius: 50%; background: #fff;
+    transition: left 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .switch.off { background: rgba(0,0,0,0.25); }
+  .switch.off::after { left: 2px; }
+
+  .btn {
+    padding: 4px 15px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-container); color: var(--text);
+    transition: all 0.2s; line-height: 1.5; font-family: inherit;
+  }
+  .btn:hover { color: var(--primary); border-color: var(--primary); }
+  .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary-hover); color: #fff; }
+  .btn-text { border: none; background: transparent; color: var(--text-2); padding: 4px 8px; }
+  .btn-text:hover { color: var(--primary); background: var(--bg-fill-t); }
+  .btn-text.danger { color: var(--error); }
+  .btn-text.danger:hover { color: #ff7875; background: rgba(255,77,79,0.06); }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 13px; color: var(--text-2); }
+  .form-input, .select {
+    width: 100%; height: 32px; padding: 4px 11px;
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; background: var(--bg-container); color: var(--text);
+    outline: none; transition: border-color 0.2s; font-family: inherit;
+  }
+  .form-input:focus, .select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(22,119,255,0.1); }
+  .input-with-icon { position: relative; }
+  .input-with-icon .acc-ic { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; background: transparent; }
+  .input-with-icon .acc-ic img { width: 16px; height: 16px; }
+  .input-with-icon .form-input { padding-left: 38px; }
+
+  .select { display: flex; align-items: center; justify-content: space-between; cursor: pointer; min-width: 0; }
+
+  /* 提示框：用自制 SVG icon 替代 emoji */
+  .form-hint {
+    font-size: 12px; color: var(--text-3); line-height: 1.8; margin-top: 4px;
+    padding: 12px 14px; background: var(--bg-fill-q); border-radius: 6px;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .form-hint .hint-ic { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; }
+  .form-hint b { color: var(--error); }
+
+  .note-card {
+    max-width: 920px; margin: 24px auto 0;
+    padding: 16px 20px; background: #fff; border-radius: 12px;
+    font-size: 12px; color: #6b5d52; line-height: 1.9;
+  }
+  .note-card b { color: #d4654a; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>📧 邮件设置页 · 定稿</h1>
+  <p>preference 设置窗侧边栏新开「邮件」页。严格遵循 BongoCat 原规则。</p>
+  <div class="rule">
+    <b>定稿改动：</b>① 窗口加高到 720px（侧边栏 6 项不滚动）· ② 提示 icon 自制 SVG（非 emoji）·
+    ③ 邮箱 provider 自动识别（Gmail/QQ/163/Outlook 显示对应 logo）
+  </div>
+</div>
+
+<!-- 提示 icon（手绘风感叹号三角，替代 emoji ⚠️；纯 path 不涉及 logo）-->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="ic-hint" viewBox="0 0 24 24">
+      <path d="M12 2 L22 20 L2 20 Z" fill="none" stroke="#faad14" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="11" y="9" width="2" height="6" fill="#faad14" rx="1"/>
+      <circle cx="12" cy="17.5" r="1.1" fill="#faad14"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="pref-window">
+  <div class="sidebar">
+    <div class="sb-logo-wrap">
+      <div class="sb-logo">
+        <svg viewBox="0 0 48 48" fill="none">
+          <ellipse cx="24" cy="30" rx="17" ry="14" fill="#fff" stroke="#4a3a2e" stroke-width="2"/>
+          <path d="M 12 18 Q 9 10 15 14 Z" fill="#fff" stroke="#4a3a2e" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M 36 18 Q 39 10 33 14 Z" fill="#fff" stroke="#4a3a2e" stroke-width="2" stroke-linejoin="round"/>
+          <ellipse cx="16" cy="32" rx="3.5" ry="2.5" fill="#f4a8a0" opacity="0.7"/>
+          <ellipse cx="32" cy="32" rx="3.5" ry="2.5" fill="#f4a8a0" opacity="0.7"/>
+          <circle cx="19" cy="26" r="1.5" fill="#4a3a2e"/>
+          <circle cx="29" cy="26" r="1.5" fill="#4a3a2e"/>
+        </svg>
+      </div>
+      <span class="sb-name">BongoCat</span>
+    </div>
+    <div class="sb-menu">
+      <div class="sb-item"><div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c0-1 .5-2 0-3-.4-.8-1.2-1-2-1-1 0-2 .5-2 2 0 .8.4 1.5 1 2-1 .5-2 1.5-2 3v6c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-6c0-1.5-1-2.5-2-3 .6-.5 1-1.2 1-2 0-1.5-1-2-2-2-.8 0-1.6.2-2 1-.5 1 0 2 0 3z"/></svg></div><span class="lb">猫咪</span></div>
+      <div class="sb-item"><div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 000-1.88l2.03-1.58-2-3.46-2.39.96a7.42 7.42 0 00-1.62-.94l-.36-2.54h-4l-.36 2.54c-.59.24-1.13.55-1.62.94l-2.39-.96-2 3.46 2.03 1.58a7.49 7.49 0 000 1.88l-2.03 1.58 2 3.46 2.39-.96c.49.39 1.03.7 1.62.94l.36 2.54h4l.36-2.54c.59-.24 1.13-.55 1.62-.94l2.39.96 2-3.46-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z"/></svg></div><span class="lb">常规</span></div>
+      <div class="sb-item"><div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v4H3V3zm0 7h18v4H3v-4zm0 7h18v4H3v-4z"/></svg></div><span class="lb">模型</span></div>
+      <div class="sb-item active new">
+        <span class="badge-new">NEW</span>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm8 8.5L4.2 7h15.6L12 12.5zm0 2.3L4 9.5V17h16V9.5l-8 5.3z"/></svg></div>
+        <span class="lb">邮件</span>
+      </div>
+      <div class="sb-item"><div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 4h2v2h-2v-2zM7 8h2v2H7V8zm0 4h2v2H7v-2zm-1 6v-2h12v2H6zm13-6h-2v-2h2v2zm0-4h-2V8h2v2z"/></svg></div><span class="lb">快捷键</span></div>
+      <div class="sb-item"><div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></div><span class="lb">关于</span></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ProList: 已绑定账号（provider logo 自动识别）-->
+    <div class="prolist">
+      <div class="prolist-title">已绑定账号 · 2</div>
+      <div class="prolist-body">
+        <!-- Gmail 账号：自动识别 → 显示 Gmail logo -->
+        <div class="acc-card">
+          <div class="acc-head">
+            <div class="acc-info">
+              <div class="acc-ic"><img src="logo-gmail.svg" alt="Gmail"></div>
+              <div class="acc-meta">
+                <span class="acc-addr">zhangsan@gmail.com</span>
+                <span class="acc-status st-ok"><span class="dot"></span>已连接 · IMAP IDLE 监听中</span>
+              </div>
+            </div>
+            <div class="acc-actions"><div class="switch"></div><button class="btn-text danger">删除</button></div>
+          </div>
+          <div class="acc-detail"><span>imap.gmail.com:993</span><span>·</span><span>今日新邮件 3 条</span></div>
+        </div>
+
+        <!-- QQ 账号：自动识别 → 显示 QQ logo -->
+        <div class="acc-card">
+          <div class="acc-head">
+            <div class="acc-info">
+              <div class="acc-ic"><img src="logo-qq.png" alt="QQ"></div>
+              <div class="acc-meta">
+                <span class="acc-addr">12345@qq.com</span>
+                <span class="acc-status st-load"><span class="dot"></span>连接中… 正在建立 IMAP IDLE</span>
+              </div>
+            </div>
+            <div class="acc-actions"><div class="switch"></div><button class="btn-text danger">删除</button></div>
+          </div>
+          <div class="acc-detail"><span>imap.qq.com:993</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ProList: 添加账号（输入时实时识别 provider）-->
+    <div class="prolist">
+      <div class="prolist-title">添加账号</div>
+      <div class="prolist-body">
+        <div class="acc-card" style="padding:20px;">
+          <div class="form-grid">
+            <div class="form-row">
+              <span class="form-label">邮箱地址</span>
+              <div class="input-with-icon">
+                <!-- 输入邮箱后，左侧 logo 实时变成对应 provider -->
+                <div class="acc-ic" id="input-provider-logo"><img src="logo-mail-default.svg" alt="邮箱"></div>
+                <input class="form-input" id="email-input" placeholder="you@example.com" value="" oninput="detectProvider(this.value)">
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">授权码 / 专用密码</span>
+              <input class="form-input" type="password" placeholder="不是登录密码">
+            </div>
+          </div>
+          <div class="form-grid" style="margin-top:12px;">
+            <div class="form-row">
+              <span class="form-label">IMAP 服务器</span>
+              <div class="select" id="imap-select"><span>自动识别</span><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="opacity:0.4"><path d="M7 10l5 5 5-5z"/></svg></div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">加密方式</span>
+              <div class="select"><span>SSL/TLS</span><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="opacity:0.4"><path d="M7 10l5 5 5-5z"/></svg></div>
+            </div>
+          </div>
+          <!-- 提示：自制 SVG icon（非 emoji）-->
+          <div class="form-hint">
+            <svg class="hint-ic"><use href="#ic-hint"/></svg>
+            <div>
+              请使用邮箱服务商提供的 <b>授权码 / 专用密码</b>，不是登录密码。<br>
+              Gmail：Google 账号 → 安全 → 应用专用密码 · QQ：设置 → 账户 → IMAP/SMTP 授权码 · 163：设置客户端密码<br>
+              密码通过系统钥匙串加密存储，不会明文保存。
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+            <button class="btn">取消</button>
+            <button class="btn btn-primary">测试并连接</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ProList: 通知设置 -->
+    <div class="prolist">
+      <div class="prolist-title">通知设置</div>
+      <div class="prolist-body">
+        <div class="proitem">
+          <div class="proitem-main"><div class="proitem-text"><span class="proitem-title">新邮件气泡提醒</span></div></div>
+          <div class="switch"></div>
+        </div>
+        <div class="proitem">
+          <div class="proitem-main"><div class="proitem-text"><span class="proitem-title">气泡自动消失</span><span class="proitem-desc">关闭后气泡常驻直到点击</span></div></div>
+          <div class="switch"></div>
+        </div>
+        <div class="proitem">
+          <div class="proitem-main"><div class="proitem-text"><span class="proitem-title">仅未读邮件提醒</span><span class="proitem-desc">忽略已读邮件（通常应开启）</span></div></div>
+          <div class="switch"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="note-card">
+  <b>定稿规格：</b><br>
+  ① 窗口高度 720px，侧边栏 6 项全部可见，<b>不出现滚动条</b>。<br>
+  ② provider 自动识别：输入邮箱时实时检测域名（gmail/qq/163/outlook/...），左侧 logo 和 IMAP 服务器联动变化。<br>
+  ③ 提示 icon 为自制 SVG（感叹号三角），非 emoji。<br>
+  ④ 其余遵循 preference 原规则：ProList + ProListItem + antdv-next Switch/Button/Input + Solar 图标。
+</div>
+
+<script>
+  document.querySelectorAll('.switch').forEach(s => s.addEventListener('click', () => s.classList.toggle('off')));
+
+  // provider 自动识别逻辑（演示用）
+  const providers = {
+    'gmail.com': { logo: 'logo-gmail.svg', imap: 'imap.gmail.com:993' },
+    'googlemail.com': { logo: 'logo-gmail.svg', imap: 'imap.gmail.com:993' },
+    'qq.com': { logo: 'logo-qq.png', imap: 'imap.qq.com:993' },
+    'foxmail.com': { logo: 'logo-foxmail-icon.png', imap: 'imap.qq.com:993' },
+    '163.com': { logo: 'logo-163-icon.png', imap: 'imap.163.com:993' },
+    '126.com': { logo: 'logo-126-icon.png', imap: 'imap.126.com:993' },
+    'yeah.net': { logo: 'logo-163-icon.png', imap: 'imap.yeah.net:993' },
+    'outlook.com': { logo: 'logo-outlook.svg', imap: 'outlook.office365.com:993' },
+    'hotmail.com': { logo: 'logo-outlook.svg', imap: 'outlook.office365.com:993' },
+    'live.com': { logo: 'logo-outlook.svg', imap: 'outlook.office365.com:993' },
+    'proton.me': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
+    'protonmail.com': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
+    'icloud.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'me.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'mac.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'yahoo.com': { logo: 'logo-yahoo.svg', imap: 'imap.mail.yahoo.com:993' },
+  };
+
+  function detectProvider(email) {
+    const logoEl = document.querySelector('#input-provider-logo img');
+    const selectEl = document.querySelector('#imap-select span');
+    const domain = email.split('@')[1]?.toLowerCase().trim();
+    if (domain && providers[domain]) {
+      logoEl.src = providers[domain].logo;
+      selectEl.textContent = providers[domain].imap;
+    } else {
+      logoEl.src = 'logo-mail-default.svg';
+      selectEl.textContent = '自动识别';
+    }
+  }
+</script>
+
+</body>
+</html>

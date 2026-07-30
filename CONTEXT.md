@@ -16,10 +16,14 @@
 | **插件（plugin）** | 本仓库新增的自包含模块，位于 `src/plugins/<name>/`，通过注册机制挂到 UI |
 | **菜单总线（menu bus）** | 一个 pinia store（`menuBus`），插件向其登记菜单项描述数据，`useAppMenu` 消费 |
 | **伴随窗口（companion window）** | 贴在桌宠旁边、同风格的独立 Tauri 窗口（如 todo 面板） |
-| **缩回-蹦出（tuck-and-pop）** | 伴随窗口的跟随交互：拖动桌宠时面板缩回，松手后蹦出到新位置 |
+| **缩回-蹦出（tuck-and-pop）** | ~~伴随窗口的跟随交互~~ **已废弃**（ADR 0001 D3 superseded），实际用简单渐隐渐显。保留词条供历史追溯 |
 | **Phase 1** | 菜单/插件架构 + todo 本地 MVP（无同步） |
-| **Phase 2** | 轮盘菜单 UI + Android 局域网同步 |
-| **软删除（soft delete）** | 删除时不真删，打 `deletedAt` 时间戳，供 Phase 2 同步使用 |
+| **Phase 2** | 邮件通知中心 + 桌宠气泡通知 + todo 提醒双发（详见 ADR 0002） |
+| **桌宠气泡（bubble）** | 贴桌宠正上方的轻量通知组件，**常驻显示**，用户手动关闭/点击后消失。最多 3 条未处理，超出折入邮件列表。邮件与 todo 到期共用 |
+| **邮件提醒器（mail notifier）** | 监听各账号 INBOX 的 IMAP IDLE，新邮件到达时触发气泡。只读信封元数据（发件人+主题），对邮箱**零写操作**、零正文，点击跳 webmail |
+| **邮件列表（mail list）** | 桌宠右键菜单独立入口，本地缓存被气泡提醒过的邮件（发件人+主题）。纯本地状态（已读/归档），不碰邮箱服务端。留存规则：默认 24 小时后归档；点击标本地已读 + 5 分钟后归档 |
+| **归档邮件（archived mail）** | 桌宠右键菜单独立入口（与邮件列表并列），展示已归档邮件，样式更淡，可再次点击跳转 webmail |
+| **软删除（soft delete）** | 删除时不真删，打 `deletedAt` 时间戳，供未来同步使用 |
 
 ## 上游架构事实（agent 必知）
 
@@ -41,6 +45,22 @@
 - 存储**复用 pinia 持久化**（零新增依赖），数据结构含 4 个 Phase 2 同步预留字段。
 - 日期提醒用 `@tauri-apps/plugin-notification`（新增依赖 + 权限）。
 - 上游接触点共 8 处，**全部是追加**，不改原有逻辑。
+
+## Phase 2 决策快照
+
+详见 `docs/adr/0002-phase2-mail-and-bubble.md`。要点：
+
+- **范围**：邮件通知中心 + 桌宠气泡通知 + 邮件列表 + todo 提醒双发。~~轮盘菜单~~已取消（D7 rejected），~~Android 同步~~推迟独立仓库（D5 同步字段不浪费）。
+- **邮件协议**：通用 IMAP IDLE 长连接（Rust `async-imap` + tokio），覆盖 Gmail/QQ/163 等，用各家专用密码绕开 OAuth 审核。
+- **凭证安全**：OS keyring（Rust `keyring` v4 `v1` feature），pinia store **不持密码**，密码走 `Entry::new(service, username)`，key=`bongocat-todo/mail/<accountId>`。
+- **连接生命周期**：Rust 后端 tokio task，绑 **app 进程**（不绑窗口，桌宠开着就有推送）。
+- **多账号**：tracer bullet 先单账号打通，多账号紧随其后，两者均为 Phase 2 必交付。数据结构从一开始是数组。
+- **邮件边界（D5 superseded）**：从「瞬时通知器」升级为「本地通知中心」——只读信封元数据（发件人+主题）、对邮箱**零写操作**（已读/归档全是本地状态，不碰服务端）、零正文、点击跳 webmail。**放开**本地通知历史。
+- **邮件列表（D9）**：桌宠右键菜单两个独立入口（在待办/快速新建下面）——「邮件列表」+「归档邮件」，各自打开伴随窗口。本地缓存被气泡提醒过的邮件。留存规则：默认 24 小时后归档；点击标本地已读 + 5 分钟后归档。归档邮件窗口可再次跳转 webmail。
+- **设置入口**：preference 设置窗侧边栏新开一个邮件页（不新建窗口/路由侵入）。
+- **气泡通知（D7 改）**：桌宠正上方 / **常驻显示，用户手动关闭/点击后消失** / 最多 3 条未处理，超出折成「还有 N 条，查看邮件列表」/ 邮件→webmail·todo→面板。邮件与 todo 共用气泡组件。
+- **todo 提醒**：双发——系统通知（D6 保留）+ 桌宠气泡（纯增量），不拆 `plugin-notification`。
+- **设计稿**：spec **之前**做（气泡 UI + 邮件列表 + 邮件设置界面），作为 spec 的 UI 输入；后端（IMAP/keyring/连接管理）靠 TDD 不依赖设计稿。
 
 ## 上游代码与视觉约定（二次分析产出，to-spec/implement 必读）
 
@@ -228,7 +248,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **时钟**：手绘风。外圈不规则圆（Q 曲线，非 `<circle>`），时针分针带弧度，加中心实心点。
 - **分隔线**：手绘波浪（`Q 25 1 50 3 T 98 3`），不是直线。
 - **爪印 logo**：SVG 画的 4 圆 + 椭圆（真爪印形状），不用 emoji。
-- **文字粗细**：todo title `font-weight: 700 / 17px`（851 在小字号下显细，必须加粗）。
+- **文字粗细**：todo title `font-weight: 700 / 17px`（851 在小字号下显细，必须加粗）。**全局基线 `font-weight: 600`**，标题 700。**主次用颜色弱化**（`--ink-soft`/`--ink-faint`），**不要用细字重区分主次**——851 默认 normal 太细特别丑。
 
 ### 工程实现路径
 
@@ -253,3 +273,31 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **tuck-and-pop（已废弃）**：原方案过复杂、调试代价高（3 个回归：右键猫面板消失 / 面板定位到屏外 / 透明窗口冒原生滚动条），用户明确否决（"不想要这个动效了，只需要最普通最简单的渐隐渐显"）。设计稿 `tuck-pop-animation.html` 保留作历史参考，**不要重新提议恢复**。
 - **渐隐渐显（实际实现，T3）**：opacity 过渡 200ms ease。打开渐显、关闭渐隐（关闭先跑 200ms 渐隐再 hideWindow）。两个窗口（待办面板 + 快速新建）共用同一套 fade 状态。
 - **面板定位**：以猫为锚点（待办面板 = 猫正上方居中；快速新建 = 猫上方偏右），边缘 clamp + 翻边，不超出屏幕。
+
+### Phase 2 设计稿 — 已定稿 ✅
+
+设计稿存于 `docs/designs/phase2-exploration/`，三份 HTML 均已定稿，作为 `/to-spec` 的 UI 输入：
+
+| 文件 | 说明 |
+|------|------|
+| `bubble.html` | **桌宠气泡**：圆胖手绘气泡，贴桌宠正上方，**常驻 + 手动关闭**（非自动消失），最多 3 条 + 溢出折成「还有 N 条，查看邮件列表」，纯渐入渐出，360px 宽，font-weight 600 基线 |
+| `mail-list.html` | **邮件列表 + 归档邮件**：两个伴随面板，手绘风 + 右上角关闭按钮。邮件列表（未读/已读）+ 归档邮件（样式更淡），font-weight 600 基线 |
+| `mail-settings.html` | **邮件设置页**（preference 侧边栏）：720px 高（侧边栏不滚动），账号列表（provider logo 自动识别）+ 添加账号表单（域名→logo/IMAP 联动）+ 通知设置。遵循 antdv-next preference 规则 |
+| `851.ttf` | 851 手写杂字体（复用 todo 设计稿的同款） |
+
+**邮箱 logo 清单**（全部 **RGBA 透明背景**，适配暗色模式；provider 自动识别按邮箱域名映射）：
+
+| 文件 | 适用域名 | 来源 |
+|------|---------|------|
+| `logo-gmail.svg` | gmail.com / googlemail.com | Iconify logos 集（Google 原色 M） |
+| `logo-qq.png` | qq.com | QQ 邮箱官网真实企鹅 |
+| `logo-foxmail-icon.png` | foxmail.com | foxmail.com 官网 logo 裁剪，**只留红色 G 图标**（去掉右侧文字） |
+| `logo-163-icon.png` | 163.com / yeah.net | mail.163.com 登录页 `.header-163logo` 裁剪出左侧图标 |
+| `logo-126-icon.png` | 126.com | mail.126.com 登录页 `.header-126logo` 裁剪出左侧图标 |
+| `logo-outlook.svg` | outlook.com / hotmail.com / live.com | simple-icons + 品牌蓝 |
+| `logo-icloud.svg` | icloud.com / me.com / mac.com | simple-icons + 品牌蓝 |
+| `logo-proton.png` | proton.me / protonmail.com | proton.me favicon（白底转透明） |
+| `logo-yahoo.svg` | yahoo.com | simple-icons + 品牌紫 |
+| `logo-mail-default.svg` | 未识别域名 | 中性灰信封图标 |
+
+> ⚠️ **logo 处理踩坑**：所有 PNG 必须 RGBA 透明（暗色模式下白底会很难看）。裁剪横长 logo（如 foxmail/163/126 官网 logo 都是「图标+文字」banner）时只取左侧图标部分。**不要手写 node PNG 编解码器**处理像素——filter 逻辑极易出错导致马赛克，改用浏览器 canvas `toDataURL`。
