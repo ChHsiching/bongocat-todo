@@ -36,6 +36,8 @@
     color: var(--ink);
     padding: 40px 20px 80px;
     min-height: 100vh;
+    /* 851 字体在默认粗细下太细，基线提到 600；主次用颜色弱化而非字重 */
+    font-weight: 600;
   }
 
   .page-head { max-width: 800px; margin: 0 auto 40px; text-align: center; }
@@ -213,9 +215,9 @@
     </div>
   </div>
 
-  <!-- ═══ 归档列表（在邮件设置页查看）═══ -->
+  <!-- ═══ 归档邮件（独立右键菜单入口，独立伴随窗口）═══ -->
   <div>
-    <div style="font-size:14px;font-weight:700;color:var(--ink-soft);margin-bottom:12px;text-align:center;">② 归档列表（设置页查看，可再次跳转）</div>
+    <div style="font-size:14px;font-weight:700;color:var(--ink-soft);margin-bottom:12px;text-align:center;">② 归档邮件（右键菜单独立入口，可再次跳转 webmail）</div>
     <div class="mail-panel">
       <svg class="panel-bg" viewBox="0 0 400 360" preserveAspectRatio="none">
         <defs>
@@ -240,6 +242,9 @@
               </svg>
             </div>
             <span class="panel-title">归档邮件</span>
+          </div>
+          <div class="panel-close">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18"/><path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18"/></svg>
           </div>
         </div>
 
@@ -289,11 +294,11 @@
 </div>
 
 <div class="spec-card">
-  <b>邮件列表定稿规格：</b><br>
-  ① 视觉同源 todo 面板（851 字体 + 纯白纸 + SVG 手绘 + 粉墨水系），是伴随窗口，不走 preference antd 风。<br>
-  ② 分组：未读（红墨点标记）/ 已读（灰色，标注「N 分钟后归档」）。点击邮件 = 标本地已读 + 跳 webmail。<br>
-  ③ 留存：未读默认 24 小时后归档；点击后 5 分钟后归档。归档不删除，转入归档列表。<br>
-  ④ 归档列表在邮件设置页查看，样式更淡（opacity 0.7 + 已归档标签），可再次点击跳 webmail。<br>
+  <b>邮件列表 + 归档邮件 定稿规格：</b><br>
+  ① 视觉同源 todo 面板（851 字体加粗 + 纯白纸 + SVG 手绘 + 粉墨水系），是伴随窗口，不走 preference antd 风。<br>
+  ② 两个右键菜单独立入口：「邮件列表」（未读/已读）+「归档邮件」（已归档）。各自打开伴随窗口，都带右上角关闭按钮。<br>
+  ③ 邮件列表分组：未读（红墨点标记）/ 已读（弱化色，标注「N 分钟后归档」）。点击 = 标本地已读 + 跳 webmail。<br>
+  ④ 留存：未读默认 24 小时后归档；点击后 5 分钟后归档。归档转入「归档邮件」窗口，样式更淡（opacity 0.7 + 已归档标签），可再次跳 webmail。<br>
   ⑤ 状态全是本地（不向邮箱发 STORE），守住 D5-actual 零写约束。
 </div>
 
