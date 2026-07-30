@@ -5,7 +5,7 @@
 
 use tauri::{AppHandle, Runtime, command, Manager};
 
-use crate::manager::{ConnectionManager, KEYRING_KEY_PREFIX};
+use crate::manager::{ConnectionManager, KEYRING_KEY_PREFIX, build_imap_session};
 
 /// 测试 IMAP 连接（不保存任何东西，仅验证能登录 + 选 INBOX）。
 ///
@@ -17,32 +17,8 @@ pub async fn mail_test_connection(
     username: String,
     password: String,
 ) -> Result<(), String> {
-    // 建立 TLS 连接 + 登录 + 选 INBOX，成功即返回，不持有任何状态
-    let tls_connector = native_tls::TlsConnector::builder()
-        .build()
-        .map_err(|e| format!("TLS connector 构建失败: {e}"))?;
-
-    let tcp = tokio::net::TcpStream::connect((imap_host.as_str(), imap_port))
-        .await
-        .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
-
-    let tls = tokio_native_tls::TlsConnector::from(tls_connector);
-    let tls_stream = tls
-        .connect(&imap_host, tcp)
-        .await
-        .map_err(|e| format!("TLS 握手失败: {e}"))?;
-
-    let client = async_imap::Client::new(tls_stream);
-    let mut session = client
-        .login(&username, &password)
-        .await
-        .map_err(|(err, _)| format!("IMAP 登录失败（检查账号/授权码）: {err}"))?;
-
-    session
-        .select("INBOX")
-        .await
-        .map_err(|e| format!("选 INBOX 失败: {e}"))?;
-
+    // 复用 build_imap_session：TLS 连接 + 登录 + 选 INBOX，成功即登出返回，不持有任何状态
+    let mut session = build_imap_session(&imap_host, imap_port, &username, &password).await?;
     let _ = session.logout().await;
     Ok(())
 }

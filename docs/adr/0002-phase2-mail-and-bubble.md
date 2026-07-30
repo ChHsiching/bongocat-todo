@@ -120,6 +120,19 @@ entry.delete_password()?;
 
 **理由**：用户反馈「5 秒太短，没看清就没了」。常驻 + 手动关闭让通知不会被错过；3 条上限 + 折入列表防止常驻气泡刷屏。配合 D9 邮件列表，未处理在气泡、已处理/溢出在列表，逻辑自洽。
 
+#### D7.1. 气泡渲染方案：独立伴随窗口（T1 tracer bullet 验证回填）
+
+> **状态（2026-07-31）**：T1（ticket #11）tracer bullet 验证后回填。原 spec #10 标注此项为「待 tracer bullet 验证后回填决策结论」，现回填为 D7.1。
+
+**决策**：气泡用**独立伴随窗口** `WINDOW_LABEL.BUBBLE`（非 main 窗口内渲染），配置照抄 todo 面板（`transparent`/`decorations:false`/`skipTaskbar`/`alwaysOnTop`/`shadow:false`/`visible:false`/`resizable:false`，360×60）。
+
+**理由**：main 窗口是透明置顶且尺寸紧贴桌宠 sprite，透明区域会被 hit-test 穿透（点不到），在 main 内渲染气泡需要扩窗口高度 + 处理 `ignoreCursorEvents` 防穿透，复杂度高于独立窗口。独立窗口定位逻辑直接复用 todo 面板的 `availableMonitors` + clamp + 翻边锚点（锚点 main 窗口、水平居中、垂直正上方），无需额外窗口对齐工程。
+
+**被否决的方案**：
+- **main 窗口内渲染**（原 spec 优先项）：main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域（整气泡 + 右上角 ×）与 main 的拖拽/穿透逻辑冲突，扩窗口尺寸会影响桌宠本身交互。独立窗口隔离干净。
+
+**侵入点**：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE` + `/bubble` 路由 + `tauri.conf.json` bubble 窗口配置（追加，和 todo 窗口并列）。
+
 ### D8. todo 提醒双发（系统通知 + 气泡），不拆 D6
 
 **决策**：todo 到期时同时触发系统通知（`@tauri-apps/plugin-notification`，ADR 0001 D6 保留）+ 桌宠气泡（纯增量）。现有 `reminderStore` 触发点加一行 emit 气泡事件即可，不碰现有逻辑。

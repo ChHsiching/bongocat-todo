@@ -202,33 +202,8 @@ async fn run_idle_session<R: Runtime>(
     username: &str,
     password: &str,
 ) -> Result<(), String> {
-    // 1. 建立 TLS 连接
-    let tls_connector = native_tls::TlsConnector::builder()
-        .build()
-        .map_err(|e| format!("TLS connector 构建失败: {e}"))?;
-
-    let tcp = tokio::net::TcpStream::connect((imap_host, imap_port))
-        .await
-        .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
-
-    let tls = tokio_native_tls::TlsConnector::from(tls_connector);
-    let tls_stream = tls
-        .connect(imap_host, tcp)
-        .await
-        .map_err(|e| format!("TLS 握手失败: {e}"))?;
-
-    // 2. IMAP 登录
-    let client = async_imap::Client::new(tls_stream);
-    let mut session = client
-        .login(username, password)
-        .await
-        .map_err(|(err, _)| format!("IMAP 登录失败: {err}"))?;
-
-    // 3. 选 INBOX
-    session
-        .select("INBOX")
-        .await
-        .map_err(|e| format!("选 INBOX 失败: {e}"))?;
+    // 1-3. 建立 TLS 连接 + 登录 + 选 INBOX（与 mail_test_connection 共用）
+    let session = build_imap_session(imap_host, imap_port, username, password).await?;
 
     let _ = app.emit(
         "mail://connection-status",
@@ -247,6 +222,44 @@ async fn run_idle_session<R: Runtime>(
     // 5. 退出时登出（优雅关闭）
     let _ = session.logout().await;
     Ok(())
+}
+
+/// 建立 IMAP 会话：TLS 连接 → 登录 → 选 INBOX。
+///
+/// `mail_test_connection`（验证连通）和 `run_idle_session`（IDLE 监听）共用本函数，
+/// 避免连接序列的重复代码。返回已选 INBOX 的 Session，调用方负责后续 idle/logout。
+pub(crate) async fn build_imap_session(
+    imap_host: &str,
+    imap_port: u16,
+    username: &str,
+    password: &str,
+) -> Result<async_imap::Session<tokio_native_tls::TlsStream<tokio::net::TcpStream>>, String> {
+    let tls_connector = native_tls::TlsConnector::builder()
+        .build()
+        .map_err(|e| format!("TLS connector 构建失败: {e}"))?;
+
+    let tcp = tokio::net::TcpStream::connect((imap_host, imap_port))
+        .await
+        .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
+
+    let tls = tokio_native_tls::TlsConnector::from(tls_connector);
+    let tls_stream = tls
+        .connect(imap_host, tcp)
+        .await
+        .map_err(|e| format!("TLS 握手失败: {e}"))?;
+
+    let client = async_imap::Client::new(tls_stream);
+    let mut session = client
+        .login(username, password)
+        .await
+        .map_err(|(err, _)| format!("IMAP 登录失败: {err}"))?;
+
+    session
+        .select("INBOX")
+        .await
+        .map_err(|e| format!("选 INBOX 失败: {e}"))?;
+
+    Ok(session)
 }
 
 /// IDLE 等待循环：发起 IDLE → wait → 匹配响应 → NewData 时 fetch envelope → 重新 idle。
@@ -359,12 +372,12 @@ async fn fetch_latest_envelope(
         account_id: account_id.to_string(),
         from,
         subject,
-        arrived_at: chrono_now_ms(),
+        arrived_at: now_ms(),
     }))
 }
 
-/// 取当前时间戳（ms）。抽出来便于将来 mock。
-fn chrono_now_ms() -> i64 {
+/// 取当前 Unix 时间戳（ms）。基于 SystemTime，无 chrono 依赖。
+fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
