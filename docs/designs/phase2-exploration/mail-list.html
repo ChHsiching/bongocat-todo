@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BongoCat Phase 2 · 邮件列表（定稿）</title>
+<style>
+  /* ═══ 视觉 token（BINDING —— todo-panel-exploration/panel.html 严格抽取）
+     邮件列表是伴随窗口（同 todo 面板语义），走手绘风，不走 preference antd 风。═══ */
+  @font-face {
+    font-family: 'Handwriting851';
+    src: url('./851.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --paper: #ffffff;
+    --paper-shadow: #f0e8de;
+    --ink: #4a3a2e;
+    --ink-soft: #8a7560;
+    --ink-faint: #c4b5a0;
+    --pink: #f4a8a0;
+    --pink-deep: #e88880;
+    --orange: #f5c26b;
+    --blue: #9bc4e0;
+    --red-ink: #d4654a;
+    --canvas: #ede4d3;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Handwriting851', -apple-system, 'PingFang SC', sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    padding: 40px 20px 80px;
+    min-height: 100vh;
+  }
+
+  .page-head { max-width: 800px; margin: 0 auto 40px; text-align: center; }
+  .page-head h1 { font-size: 28px; font-weight: 700; margin-bottom: 10px; }
+  .page-head p { font-size: 14px; color: var(--ink-soft); line-height: 1.8; }
+  .page-head .ctx {
+    display: inline-block; margin-top: 14px; padding: 10px 18px;
+    background: #fff; border-radius: 12px; font-size: 13px; color: #6b5d52; line-height: 1.9; text-align: left;
+  }
+  .page-head .ctx b { color: var(--red-ink); }
+
+  .stage { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; align-items: center; }
+
+  /* ═══ 邮件列表面板（复刻 todo-panel 的纸张容器）═══ */
+  .mail-panel { width: 400px; position: relative; }
+  .mail-panel svg.panel-bg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .panel-content { position: relative; z-index: 1; padding: 24px 22px 20px; }
+
+  /* 标题区（复刻 panel-header）*/
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .panel-title-row { display: flex; align-items: center; gap: 10px; }
+  .panel-paw { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+  .panel-title { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .panel-close { cursor: pointer; color: var(--ink-faint); width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
+  .panel-close:hover { color: var(--ink); }
+
+  /* 分组标签（复刻 section-label）*/
+  .section-label {
+    display: flex; align-items: center; gap: 8px; margin: 16px 0 8px;
+    font-size: 14px; font-weight: 600; color: var(--ink-soft);
+  }
+  .section-label .underline { flex: 1; height: 6px; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* 邮件项（复刻 todo-item 结构）*/
+  .mail-item {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 10px;
+    border-radius: 14px; transition: background 0.2s; cursor: pointer; position: relative;
+  }
+  .mail-item:hover { background: rgba(244, 168, 160, 0.08); }
+
+  .mail-icon { width: 28px; height: 28px; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(155, 196, 224, 0.2); }
+  .mail-main { flex: 1; min-width: 0; }
+  .mail-from { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.5; word-break: break-word; }
+  .mail-subject { font-size: 13px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; word-break: break-word; }
+  .mail-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--ink-faint); }
+
+  /* 未读标记（墨点，复用 todo 的 ink-dot 风格）*/
+  .unread-dot { width: 10px; height: 10px; flex-shrink: 0; margin-top: 8px; }
+  .mail-item.read .mail-from { color: var(--ink-soft); font-weight: 600; }
+  .mail-item.read .mail-subject { color: var(--ink-faint); }
+
+  /* 归档项样式（更淡）*/
+  .mail-item.archived { opacity: 0.7; }
+  .archived-tag {
+    display: inline-block; padding: 1px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600; color: var(--ink-faint);
+    background: rgba(196, 181, 160, 0.2);
+  }
+
+  /* 空状态 */
+  .empty-state { text-align: center; padding: 32px 20px; color: var(--ink-faint); font-size: 14px; line-height: 1.8; }
+
+  /* 页脚提示 */
+  .panel-footer { margin-top: 16px; text-align: center; font-size: 12px; color: var(--ink-faint); line-height: 1.7; }
+
+  /* 说明卡 */
+  .spec-card {
+    max-width: 800px; margin: 40px auto 0; padding: 20px 24px;
+    background: #fff; border-radius: 14px; font-size: 13px; color: #6b5d52; line-height: 2;
+  }
+  .spec-card b { color: var(--red-ink); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>📬 邮件列表 · 定稿</h1>
+  <p>桌宠右键菜单「邮件列表」项打开的伴随窗口。视觉同源 todo 面板（手绘风）。本地通知历史，不碰邮箱服务端。</p>
+  <div class="ctx">
+    <b>入口：</b>桌宠右键菜单（待办/快速新建下面）<br>
+    <b>留存规则：</b>默认 24 小时后归档 · 点击标本地已读 + 5 分钟后归档<br>
+    <b>零写约束：</b>已读/归档全是本地状态，点击跳 webmail（不在 app 内看正文）
+  </div>
+</div>
+
+<div class="stage">
+
+  <!-- ═══ 邮件列表面板（未读 + 已读混合）═══ -->
+  <div>
+    <div style="font-size:14px;font-weight:700;color:var(--ink-soft);margin-bottom:12px;text-align:center;">① 邮件列表（未读 + 已读）</div>
+    <div class="mail-panel" id="panel-active">
+      <svg class="panel-bg" viewBox="0 0 400 480" preserveAspectRatio="none">
+        <defs>
+          <pattern id="paper-tex-mail" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+            <rect width="40" height="40" fill="#ffffff"/>
+            <circle cx="8" cy="12" r="0.4" fill="#e8e8e8" opacity="0.5"/>
+            <circle cx="28" cy="6" r="0.3" fill="#e8e8e8" opacity="0.4"/>
+            <circle cx="18" cy="30" r="0.4" fill="#e8e8e8" opacity="0.5"/>
+          </pattern>
+          <filter id="mail-shadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+            <feOffset dx="2" dy="4"/>
+            <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+            <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <path d="M 16 14 Q 18 12 24 13 L 378 16 Q 386 18 385 24 L 388 464 Q 386 472 378 472 L 22 468 Q 14 466 15 460 Z" fill="#f0e8de" opacity="0.6"/>
+        <path d="M 14 10 Q 16 8 22 9 L 376 12 Q 384 14 383 20 L 386 460 Q 384 468 376 468 L 20 464 Q 12 462 13 456 Z" fill="url(#paper-tex-mail)" stroke="#4a3a2e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" filter="url(#mail-shadow)"/>
+        <path d="M 40 30 Q 50 26 60 30 T 80 30" fill="none" stroke="#f4a8a0" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+      <div class="panel-content">
+        <!-- 标题区 -->
+        <div class="panel-header">
+          <div class="panel-title-row">
+            <div class="panel-paw">
+              <svg viewBox="0 0 32 32" width="32" height="32">
+                <rect x="4" y="8" width="24" height="17" rx="3" fill="none" stroke="#4a3a2e" stroke-width="2.2" stroke-linejoin="round"/>
+                <path d="M 5 10 Q 16 18 27 10" fill="none" stroke="#4a3a2e" stroke-width="2.2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="panel-title">邮件列表</span>
+          </div>
+          <div class="panel-close">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18"/><path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18"/></svg>
+          </div>
+        </div>
+
+        <!-- 今天分组 -->
+        <div class="section-label">
+          <span>未读 · 2</span>
+          <svg class="underline" viewBox="0 0 100 6" preserveAspectRatio="none"><path d="M 2 3 Q 25 1 50 3 T 98 3" fill="none" stroke="#c4b5a0" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+
+        <!-- 未读邮件 1 -->
+        <div class="mail-item">
+          <svg class="unread-dot" viewBox="0 0 14 14"><path d="M 7 2 Q 11 2 12 5 Q 13 7 12 9 Q 11 12 7 12 Q 3 12 2 9 Q 1 7 2 5 Q 3 2 7 2 Z" fill="#d4654a" opacity="0.25"/><path d="M 7 3.5 Q 9.5 3.5 10.5 5.5 Q 11 7 10 8.5 Q 9 10.5 7 10.5 Q 5 10.5 4 8.5 Q 3 7 3.5 5.5 Q 4.5 3.5 7 3.5 Z" fill="#d4654a"/></svg>
+          <div class="mail-main">
+            <div class="mail-from">product@notion.so</div>
+            <div class="mail-subject">Your weekly digest is ready to read</div>
+            <div class="mail-meta"><span>Gmail</span><span>·</span><span>2 分钟前</span></div>
+          </div>
+        </div>
+
+        <!-- 未读邮件 2 -->
+        <div class="mail-item">
+          <svg class="unread-dot" viewBox="0 0 14 14"><path d="M 7 2 Q 11 2 12 5 Q 13 7 12 9 Q 11 12 7 12 Q 3 12 2 9 Q 1 7 2 5 Q 3 2 7 2 Z" fill="#d4654a" opacity="0.25"/><path d="M 7 3.5 Q 9.5 3.5 10.5 5.5 Q 11 7 10 8.5 Q 9 10.5 7 10.5 Q 5 10.5 4 8.5 Q 3 7 3.5 5.5 Q 4.5 3.5 7 3.5 Z" fill="#d4654a"/></svg>
+          <div class="mail-main">
+            <div class="mail-from">李四</div>
+            <div class="mail-subject">周会纪要请查收，附件是会议录屏</div>
+            <div class="mail-meta"><span>QQ 邮箱</span><span>·</span><span>18 分钟前</span></div>
+          </div>
+        </div>
+
+        <!-- 已读分组 -->
+        <div class="section-label">
+          <span>已读 · 1</span>
+          <svg class="underline" viewBox="0 0 100 6" preserveAspectRatio="none"><path d="M 2 3 Q 25 1 50 3 T 98 3" fill="none" stroke="#c4b5a0" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+
+        <!-- 已读邮件（点击后 5 分钟内归档中）-->
+        <div class="mail-item read">
+          <div class="mail-icon" style="background:rgba(196,181,160,0.15);">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8a7560" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 4 5 Q 3 5 3 6 L 3 18 Q 3 19 4 19 L 20 19 Q 21 19 21 18 L 21 6 Q 21 5 20 5 Z"/><path d="M 4 6 L 12 12 L 20 6"/></svg>
+          </div>
+          <div class="mail-main">
+            <div class="mail-from">王五</div>
+            <div class="mail-subject">关于项目设计稿的反馈，有几个建议</div>
+            <div class="mail-meta"><span>163 邮箱</span><span>·</span><span>已读，4 分钟后归档</span></div>
+          </div>
+        </div>
+
+        <div class="panel-footer">未读默认 24 小时后归档 · 已读 5 分钟后归档</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 归档列表（在邮件设置页查看）═══ -->
+  <div>
+    <div style="font-size:14px;font-weight:700;color:var(--ink-soft);margin-bottom:12px;text-align:center;">② 归档列表（设置页查看，可再次跳转）</div>
+    <div class="mail-panel">
+      <svg class="panel-bg" viewBox="0 0 400 360" preserveAspectRatio="none">
+        <defs>
+          <filter id="arch-shadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+            <feOffset dx="2" dy="4"/>
+            <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+            <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <path d="M 16 14 Q 18 12 24 13 L 378 16 Q 386 18 385 24 L 388 344 Q 386 352 378 352 L 22 348 Q 14 346 15 340 Z" fill="#f0e8de" opacity="0.6"/>
+        <path d="M 14 10 Q 16 8 22 9 L 376 12 Q 384 14 383 20 L 386 340 Q 384 348 376 348 L 20 344 Q 12 342 13 336 Z" fill="#fff" stroke="#4a3a2e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" filter="url(#arch-shadow)"/>
+        <path d="M 40 30 Q 50 26 60 30 T 80 30" fill="none" stroke="#c4b5a0" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+      </svg>
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-title-row">
+            <div class="panel-paw">
+              <svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="#8a7560" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="10" width="20" height="16" rx="2"/>
+                <path d="M 6 14 L 16 14"/>
+              </svg>
+            </div>
+            <span class="panel-title">归档邮件</span>
+          </div>
+        </div>
+
+        <div class="section-label">
+          <span>本周归档 · 3</span>
+          <svg class="underline" viewBox="0 0 100 6" preserveAspectRatio="none"><path d="M 2 3 Q 25 1 50 3 T 98 3" fill="none" stroke="#c4b5a0" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+
+        <div class="mail-item archived">
+          <div class="mail-icon" style="background:rgba(196,181,160,0.15);">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#c4b5a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 4 5 Q 3 5 3 6 L 3 18 Q 3 19 4 19 L 20 19 Q 21 19 21 18 L 21 6 Q 21 5 20 5 Z"/><path d="M 4 6 L 12 12 L 20 6"/></svg>
+          </div>
+          <div class="mail-main">
+            <div class="mail-from">张三</div>
+            <div class="mail-subject">Re: 下周排期确认</div>
+            <div class="mail-meta"><span>Gmail</span><span>·</span><span class="archived-tag">已归档</span><span>·</span><span>昨天</span></div>
+          </div>
+        </div>
+
+        <div class="mail-item archived">
+          <div class="mail-icon" style="background:rgba(196,181,160,0.15);">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#c4b5a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 4 5 Q 3 5 3 6 L 3 18 Q 3 19 4 19 L 20 19 Q 21 19 21 18 L 21 6 Q 21 5 20 5 Z"/><path d="M 4 6 L 12 12 L 20 6"/></svg>
+          </div>
+          <div class="mail-main">
+            <div class="mail-from">newsletter@github.com</div>
+            <div class="mail-subject">Your GitHub weekly activity summary</div>
+            <div class="mail-meta"><span>Outlook</span><span>·</span><span class="archived-tag">已归档</span><span>·</span><span>3 天前</span></div>
+          </div>
+        </div>
+
+        <div class="mail-item archived">
+          <div class="mail-icon" style="background:rgba(196,181,160,0.15);">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#c4b5a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 4 5 Q 3 5 3 6 L 3 18 Q 3 19 4 19 L 20 19 Q 21 19 21 18 L 21 6 Q 21 5 20 5 Z"/><path d="M 4 6 L 12 12 L 20 6"/></svg>
+          </div>
+          <div class="mail-main">
+            <div class="mail-from">赵六</div>
+            <div class="mail-subject">关于猫粮的采购清单（过期自动归档）</div>
+            <div class="mail-meta"><span>QQ 邮箱</span><span>·</span><span class="archived-tag">已归档</span><span>·</span><span>5 天前</span></div>
+          </div>
+        </div>
+
+        <div class="panel-footer">归档项点击仍可跳转 webmail · 归档超过 30 天自动清理</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="spec-card">
+  <b>邮件列表定稿规格：</b><br>
+  ① 视觉同源 todo 面板（851 字体 + 纯白纸 + SVG 手绘 + 粉墨水系），是伴随窗口，不走 preference antd 风。<br>
+  ② 分组：未读（红墨点标记）/ 已读（灰色，标注「N 分钟后归档」）。点击邮件 = 标本地已读 + 跳 webmail。<br>
+  ③ 留存：未读默认 24 小时后归档；点击后 5 分钟后归档。归档不删除，转入归档列表。<br>
+  ④ 归档列表在邮件设置页查看，样式更淡（opacity 0.7 + 已归档标签），可再次点击跳 webmail。<br>
+  ⑤ 状态全是本地（不向邮箱发 STORE），守住 D5-actual 零写约束。
+</div>
+
+</body>
+</html>
