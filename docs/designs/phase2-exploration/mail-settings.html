@@ -250,6 +250,25 @@
 
   <div class="content">
 
+    <!-- 支持的邮箱（全部 logo 展示，供验证）-->
+    <div class="prolist">
+      <div class="prolist-title">支持的邮箱（自动识别 logo）</div>
+      <div class="prolist-body">
+        <div style="display:flex;flex-wrap:wrap;gap:12px 20px;padding:8px 4px;">
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-gmail.svg" alt="Gmail"></div><span style="font-size:13px;">Gmail</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-qq.png" alt="QQ"></div><span style="font-size:13px;">QQ 邮箱</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-qq.png" alt="Foxmail"></div><span style="font-size:13px;">Foxmail</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-163.svg" alt="163"></div><span style="font-size:13px;">163</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-163.svg" alt="126"></div><span style="font-size:13px;">126</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-outlook.svg" alt="Outlook"></div><span style="font-size:13px;">Outlook</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-outlook.svg" alt="Hotmail"></div><span style="font-size:13px;">Hotmail/Live</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-icloud.svg" alt="iCloud"></div><span style="font-size:13px;">iCloud</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-proton.png" alt="Proton"></div><span style="font-size:13px;">Proton</span></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="acc-ic" style="width:28px;height:28px;background:transparent;"><img src="logo-yahoo.svg" alt="Yahoo"></div><span style="font-size:13px;">Yahoo</span></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ProList: 已绑定账号（provider logo 自动识别）-->
     <div class="prolist">
       <div class="prolist-title">已绑定账号 · 2</div>
@@ -379,6 +398,10 @@
     'live.com': { logo: 'logo-outlook.svg', imap: 'outlook.office365.com:993' },
     'proton.me': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
     'protonmail.com': { logo: 'logo-proton.png', imap: 'protonmail.ch:993' },
+    'icloud.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'me.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'mac.com': { logo: 'logo-icloud.svg', imap: 'imap.mail.me.com:993' },
+    'yahoo.com': { logo: 'logo-yahoo.svg', imap: 'imap.mail.yahoo.com:993' },
   };
 
   function detectProvider(email) {
