@@ -325,10 +325,10 @@ async fn idle_wait_loop<R: Runtime>(
         let mut handle = session.idle();
         handle.init().await.map_err(|e| format!("IDLE init 失败: {e}"))?;
 
-        // wait_with_timeout 显式超时：IDLE 推送正常时秒级返回 NewData；
-        // 无邮件时超时返回 Timeout → 兜底 fetch 检查间隙丢的邮件 → 重新 IDLE。
-        // 30 秒平衡：保活够用（RFC 2177 建议 29min 内），兜底延迟可控。
-        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(30));
+        // wait_with_timeout 显式 10 秒超时。IDLE 推送正常时收到 NewData 立即返回；
+        // 部分邮箱（如 QQ）IDLE 推送不稳定，done→重新 init 间隙可能漏推，
+        // 10 秒 Timeout 兜底 fetch 补查漏掉的新邮件，保证体感延迟可控。
+        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(10));
         let response = wait_future.await;
 
         match response {
