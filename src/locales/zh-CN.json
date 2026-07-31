@@ -245,7 +245,7 @@
         "preferenceTitle": "邮件",
         "bindTitle": "邮箱账号",
         "address": "邮箱地址",
-        "addressPlaceholder": "例如 alice@gmail.com",
+        "addressPlaceholder": "例如 alice{'@'}gmail.com",
         "imapHost": "IMAP 服务器",
         "imapHostPlaceholder": "例如 imap.gmail.com",
         "imapPort": "端口",

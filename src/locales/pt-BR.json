@@ -245,7 +245,7 @@
         "preferenceTitle": "E-mail",
         "bindTitle": "Conta de E-mail",
         "address": "Endereço de E-mail",
-        "addressPlaceholder": "ex. alice@gmail.com",
+        "addressPlaceholder": "ex. alice{'@'}gmail.com",
         "imapHost": "Servidor IMAP",
         "imapHostPlaceholder": "ex. imap.gmail.com",
         "imapPort": "Porta",

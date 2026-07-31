@@ -245,7 +245,7 @@
         "preferenceTitle": "郵件",
         "bindTitle": "信箱帳號",
         "address": "信箱地址",
-        "addressPlaceholder": "例如 alice@gmail.com",
+        "addressPlaceholder": "例如 alice{'@'}gmail.com",
         "imapHost": "IMAP 伺服器",
         "imapHostPlaceholder": "例如 imap.gmail.com",
         "imapPort": "連接埠",

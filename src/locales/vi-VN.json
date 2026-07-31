@@ -245,7 +245,7 @@
         "preferenceTitle": "Thư",
         "bindTitle": "Tài khoản thư",
         "address": "Địa chỉ email",
-        "addressPlaceholder": "vd. alice@gmail.com",
+        "addressPlaceholder": "vd. alice{'@'}gmail.com",
         "imapHost": "Máy chủ IMAP",
         "imapHostPlaceholder": "vd. imap.gmail.com",
         "imapPort": "Cổng",
