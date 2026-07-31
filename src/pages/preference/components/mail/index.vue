@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { error } from '@tauri-apps/plugin-log'
-import { Button, Flex, Input, InputPassword, message } from 'antdv-next'
+import { Alert, Button, Flex, Input, InputPassword, message } from 'antdv-next'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import type { MailAccountStatus } from '@/plugins/mail'
+
 import { removeAccount, testAndSaveAccount, useMailAccountStore } from '@/plugins/mail'
+import { matchProvider } from '@/plugins/mail/utils/providers'
 
 const mailAccountStore = useMailAccountStore()
 const { t } = useI18n()
@@ -24,11 +27,29 @@ const boundAccount = computed(() => mailAccountStore.accounts[0])
 /** 添加表单是否可填（已有账号时禁用，引导用户先删再加）。 */
 const canAdd = computed(() => !boundAccount.value)
 
-/** 常见邮箱的 IMAP 预填（tracer bullet 简化：手动填，provider 自动识别是 T3）。 */
+/** 当前匹配到的 provider 授权码指引文案（命中内置邮箱时非空）。 */
+const providerHint = ref('')
+
+/**
+ * 邮箱地址 blur 时：同步 username + 按 provider 自动填充 IMAP 配置 + 展示授权码指引。
+ *
+ * 用户通常只知道邮箱地址，IMAP 服务器/端口/授权码来源对普通用户是门槛。
+ * 本函数做 T1 简化版 provider 识别：域名 → IMAP host/port 自动填 + 授权码获取指引。
+ * IMAP 字段自动填后仍可手动改（未知邮箱需手动填）。
+ */
 function onAddressBlur() {
-  // 邮箱地址填好后，username 默认同步（多数邮箱 username = 完整地址）
+  // username 默认同步（多数邮箱 username = 完整地址）
   if (!username.value) {
     username.value = address.value
+  }
+
+  const preset = matchProvider(address.value)
+  if (preset) {
+    imapHost.value = preset.imapHost
+    imapPort.value = preset.imapPort
+    providerHint.value = t(`plugins.mail.labels.providers.${preset.hintKey}`)
+  } else {
+    providerHint.value = ''
   }
 }
 
@@ -54,6 +75,7 @@ async function handleTestAndSave() {
     imapPort.value = 993
     username.value = ''
     password.value = ''
+    providerHint.value = ''
   } catch (err) {
     const msg = String(err)
     await error(`mail testAndSave failed: ${msg}`)
@@ -76,12 +98,16 @@ async function handleRemove() {
   }
 }
 
+const STATUS_TEXT: Record<MailAccountStatus, string> = {
+  connected: 'statusConnected',
+  connecting: 'statusConnecting',
+  error: 'statusError',
+  idle: 'statusIdle',
+}
+
 /** 账号状态对应的展示文案。 */
-function statusText(status: string): string {
-  if (status === 'connected') return t('plugins.mail.labels.statusConnected')
-  if (status === 'connecting') return t('plugins.mail.labels.statusConnecting')
-  if (status === 'error') return t('plugins.mail.labels.statusError')
-  return t('plugins.mail.labels.statusIdle')
+function statusText(status: MailAccountStatus): string {
+  return t(`plugins.mail.labels.${STATUS_TEXT[status] ?? 'statusIdle'}`)
 }
 </script>
 
@@ -136,6 +162,14 @@ function statusText(status: string): string {
           @blur="onAddressBlur"
         />
       </div>
+
+      <!-- provider 命中时展示该邮箱的授权码获取指引 -->
+      <Alert
+        v-if="providerHint"
+        class="w-full!"
+        :message="providerHint"
+        type="info"
+      />
 
       <Flex gap="middle">
         <div class="flex-1">

@@ -267,7 +267,15 @@
         "statusConnecting": "连接中",
         "statusConnected": "已连接",
         "statusError": "连接失败",
-        "bubbleFrom": "发件人："
+        "bubbleFrom": "发件人：",
+        "providers": {
+          "gmail": "Gmail：需先在 Google 账户开启两步验证，再生成「应用专用密码」。前往 myaccount.google.com → 安全 → 应用专用密码。",
+          "qq": "QQ 邮箱：登录 mail.qq.com → 设置 → 账户 → 开启 IMAP/SMTP 服务，按提示发短信获取授权码。",
+          "163": "163 邮箱：登录 mail.163.com → 设置 → POP3/SMTP/IMAP → 开启 IMAP 服务，设置客户端授权密码。",
+          "126": "126 邮箱：登录 mail.126.com → 设置 → POP3/SMTP/IMAP → 开启 IMAP 服务，设置客户端授权密码。",
+          "outlook": "Outlook/Hotmail：登录 outlook.live.com → 安全 → 启用两步验证 → 生成应用密码。",
+          "icloud": "iCloud：登录 appleid.apple.com → 账户安全 → 专用密码，生成一个用于邮件的应用专用密码。"
+        }
       }
     }
   }

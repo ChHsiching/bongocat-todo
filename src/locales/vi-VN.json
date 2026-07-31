@@ -267,7 +267,15 @@
         "statusConnecting": "Đang kết nối",
         "statusConnected": "Đã kết nối",
         "statusError": "Lỗi",
-        "bubbleFrom": "Từ: "
+        "bubbleFrom": "Từ: ",
+        "providers": {
+          "gmail": "Gmail: Bật Xác minh hai bước trong tài khoản Google trước, sau đó tạo Mật khẩu ứng dụng. Vào myaccount.google.com → Bảo mật → Mật khẩu ứng dụng.",
+          "qq": "QQ Mail: Đăng nhập mail.qq.com → Cài đặt → Tài khoản → bật dịch vụ IMAP/SMTP, làm theo hướng dẫn SMS để lấy mã ủy quyền.",
+          "163": "163 Mail: Đăng nhập mail.163.com → Cài đặt → POP3/SMTP/IMAP → bật dịch vụ IMAP, đặt mật khẩu ủy quyền máy khách.",
+          "126": "126 Mail: Đăng nhập mail.126.com → Cài đặt → POP3/SMTP/IMAP → bật dịch vụ IMAP, đặt mật khẩu ủy quyền máy khách.",
+          "outlook": "Outlook/Hotmail: Đăng nhập outlook.live.com → Bảo mật → bật xác minh hai bước → tạo mật khẩu ứng dụng.",
+          "icloud": "iCloud: Vào appleid.apple.com → Bảo mật tài khoản → mật khẩu dành riêng cho ứng dụng, tạo một mật khẩu cho Mail."
+        }
       }
     }
   }

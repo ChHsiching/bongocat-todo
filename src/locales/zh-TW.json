@@ -267,7 +267,15 @@
         "statusConnecting": "連線中",
         "statusConnected": "已連線",
         "statusError": "連線失敗",
-        "bubbleFrom": "寄件者："
+        "bubbleFrom": "寄件者：",
+        "providers": {
+          "gmail": "Gmail：需先在 Google 帳戶開啟兩步驟驗證，再產生「應用專用密碼」。前往 myaccount.google.com → 安全性 → 應用專用密碼。",
+          "qq": "QQ 信箱：登入 mail.qq.com → 設定 → 帳戶 → 開啟 IMAP/SMTP 服務，依提示發簡訊取得授權碼。",
+          "163": "163 信箱：登入 mail.163.com → 設定 → POP3/SMTP/IMAP → 開啟 IMAP 服務，設定用戶端授權密碼。",
+          "126": "126 信箱：登入 mail.126.com → 設定 → POP3/SMTP/IMAP → 開啟 IMAP 服務，設定用戶端授權密碼。",
+          "outlook": "Outlook/Hotmail：登入 outlook.live.com → 安全性 → 啟用兩步驟驗證 → 產生應用程式密碼。",
+          "icloud": "iCloud：登入 appleid.apple.com → 帳戶安全 → 專用密碼，產生用於郵件的應用專用密碼。"
+        }
       }
     }
   }

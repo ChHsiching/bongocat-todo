@@ -50,6 +50,11 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "locale:default",
-    "notification:default"
+    "notification:default",
+    "mail:allow-mail-test-connection",
+    "mail:allow-mail-connect",
+    "mail:allow-mail-disconnect",
+    "mail:allow-mail-store-password",
+    "mail:allow-mail-delete-password"
   ]
 }

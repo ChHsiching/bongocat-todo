@@ -267,7 +267,15 @@
         "statusConnecting": "Conectando",
         "statusConnected": "Conectado",
         "statusError": "Erro",
-        "bubbleFrom": "De: "
+        "bubbleFrom": "De: ",
+        "providers": {
+          "gmail": "Gmail: ative a Verificação em duas etapas na sua Conta do Google primeiro, depois gere uma Senha de app. Vá em myaccount.google.com → Segurança → Senhas de app.",
+          "qq": "QQ Mail: acesse mail.qq.com → Configurações → Conta → ative o serviço IMAP/SMTP, siga o prompt de SMS para obter o código de autorização.",
+          "163": "163 Mail: acesse mail.163.com → Configurações → POP3/SMTP/IMAP → ative o serviço IMAP, defina uma senha de autorização do cliente.",
+          "126": "126 Mail: acesse mail.126.com → Configurações → POP3/SMTP/IMAP → ative o serviço IMAP, defina uma senha de autorização do cliente.",
+          "outlook": "Outlook/Hotmail: acesse outlook.live.com → Segurança → ative a verificação em duas etapas → gere uma senha de aplicativo.",
+          "icloud": "iCloud: vá em appleid.apple.com → Segurança da conta → senhas específicas de app, gere uma para Mail."
+        }
       }
     }
   }
