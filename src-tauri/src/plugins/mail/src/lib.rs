@@ -25,7 +25,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::mail_connect,
             commands::mail_disconnect,
             commands::mail_store_password,
-            commands::mail_get_password,
             commands::mail_delete_password,
         ])
         .setup(|app, _api| {

@@ -3,7 +3,6 @@ const COMMANDS: &[&str] = &[
     "mail_connect",
     "mail_disconnect",
     "mail_store_password",
-    "mail_get_password",
     "mail_delete_password",
 ];
 

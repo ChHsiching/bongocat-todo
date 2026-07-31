@@ -67,22 +67,6 @@ pub async fn mail_store_password(
         .map_err(|e| format!("keyring 存密码失败: {e}"))
 }
 
-/// 从 keyring 读邮箱密码（一般由 Rust 内部 connect 流程用；暴露给前端供「连接前检查密码是否存在」）。
-#[command]
-pub async fn mail_get_password(
-    account_id: String,
-    username: String,
-) -> Result<Option<String>, String> {
-    let key = format!("{KEYRING_KEY_PREFIX}/{account_id}");
-    let entry = keyring::v1::Entry::new(&key, &username)
-        .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
-    match entry.get_password() {
-        Ok(p) => Ok(Some(p)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(format!("keyring 读密码失败: {e}")),
-    }
-}
-
 /// 从 keyring 删邮箱密码（删除账号时调用）。
 ///
 /// keyring v4 v1 API 的删除方法名是 `delete_credential`（非 `delete_password`）。

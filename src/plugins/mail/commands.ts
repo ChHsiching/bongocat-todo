@@ -6,7 +6,6 @@ const COMMAND = {
   CONNECT: 'plugin:mail|mail_connect',
   DISCONNECT: 'plugin:mail|mail_disconnect',
   STORE_PASSWORD: 'plugin:mail|mail_store_password',
-  GET_PASSWORD: 'plugin:mail|mail_get_password',
   DELETE_PASSWORD: 'plugin:mail|mail_delete_password',
 }
 
@@ -47,19 +46,6 @@ export function mailStorePassword(
   password: string,
 ): Promise<void> {
   return invoke(COMMAND.STORE_PASSWORD, { accountId, username, password })
-}
-
-/**
- * 从 keyring 读邮箱密码。
- *
- * @returns 密码字符串；keyring 里没存过时返回 null（Rust 把 NoEntry 映射成 None）
- */
-export async function mailGetPassword(
-  accountId: string,
-  username: string,
-): Promise<string | null> {
-  const result = await invoke<string | null>(COMMAND.GET_PASSWORD, { accountId, username })
-  return result ?? null
 }
 
 /** 从 keyring 删邮箱密码（删除账号时调用，幂等）。 */
