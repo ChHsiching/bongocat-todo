@@ -325,11 +325,11 @@ async fn idle_wait_loop<R: Runtime>(
         let mut handle = session.idle();
         handle.init().await.map_err(|e| format!("IDLE init 失败: {e}"))?;
 
-        // 用 wait_with_timeout 显式 60 秒超时，确保 future 定期返回（测 wait 是否卡死）
-        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(60));
-        log::info!("[mail] {account_id} IDLE 等待中（60s 超时）...");
+        // wait_with_timeout 显式超时：IDLE 推送正常时秒级返回 NewData；
+        // 无邮件时超时返回 Timeout → 兜底 fetch 检查间隙丢的邮件 → 重新 IDLE。
+        // 30 秒平衡：保活够用（RFC 2177 建议 29min 内），兜底延迟可控。
+        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(30));
         let response = wait_future.await;
-        log::info!("[mail] {account_id} IDLE 响应: {response:?}");
 
         match response {
             Ok(IdleResponse::NewData(_response_data)) => {
