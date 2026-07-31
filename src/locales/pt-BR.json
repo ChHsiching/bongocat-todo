@@ -262,6 +262,16 @@
         "removeButton": "Remover",
         "removed": "Removido",
         "singleAccountHint": "Apenas uma conta é suportada por enquanto; suporte a várias contas em breve.",
+        "proxy": "Proxy",
+        "proxyPlaceholder": "127.0.0.1:7890",
+        "proxyHint": "Caixas de e-mail não acessíveis diretamente (ex. Gmail) precisam de proxy. Insira o mixed-port do Clash/mihomo (geralmente 7890). Deixe vazio para conexão direta.",
+        "errTlsBlocked": "Conexão interrompida: falha no handshake TLS. Se seu provedor de proxy/VPN bloqueia portas de e-mail (993), mude para um nó que suporte portas de e-mail. Caixas nacionais (QQ/163) não precisam de proxy.",
+        "errAuthFailed": "Login falhou: código de autorização ou senha de app incorreta. Certifique-se de não estar usando a senha de login e de que o serviço IMAP está ativado nas configurações do e-mail.",
+        "errTimeout": "Conexão expirou: rede inacessível ou proxy não encaminhando corretamente. Verifique o endereço do proxy ou tente conectar diretamente sem proxy.",
+        "errNetwork": "Falha na conexão de rede: não é possível acessar o servidor de e-mail. Verifique a rede ou as configurações de proxy.",
+        "proxyNoticeTitle": "Sobre Proxy & Conexão de E-mail",
+        "proxyNoticeBody1": "Caixas nacionais (QQ / 163 / 126, etc.) conectam diretamente — sem proxy.",
+        "proxyNoticeBody2": "Caixas internacionais (Gmail / Outlook / iCloud, etc.) requerem proxy. Alguns provedores bloqueiam portas de e-mail (993), causando falhas; escolha um nó que suporte portas de e-mail.",
         "statusLabel": "Status",
         "statusIdle": "Ocioso",
         "statusConnecting": "Conectando",
@@ -269,12 +279,12 @@
         "statusError": "Erro",
         "bubbleFrom": "De: ",
         "providers": {
-          "gmail": "Gmail: ative a Verificação em duas etapas na sua Conta do Google primeiro, depois gere uma Senha de app. Vá em myaccount.google.com → Segurança → Senhas de app.",
-          "qq": "QQ Mail: acesse mail.qq.com → Configurações → Conta → ative o serviço IMAP/SMTP, siga o prompt de SMS para obter o código de autorização.",
-          "163": "163 Mail: acesse mail.163.com → Configurações → POP3/SMTP/IMAP → ative o serviço IMAP, defina uma senha de autorização do cliente.",
-          "126": "126 Mail: acesse mail.126.com → Configurações → POP3/SMTP/IMAP → ative o serviço IMAP, defina uma senha de autorização do cliente.",
-          "outlook": "Outlook/Hotmail: acesse outlook.live.com → Segurança → ative a verificação em duas etapas → gere uma senha de aplicativo.",
-          "icloud": "iCloud: vá em appleid.apple.com → Segurança da conta → senhas específicas de app, gere uma para Mail."
+          "gmail": "Gmail\n\n1. Acesse myaccount.google.com\n2. Ative a Verificação em duas etapas\n3. Gere uma Senha de app\n4. Use-a como código de autorização",
+          "qq": "QQ Mail\n\n1. Acesse mail.qq.com\n2. Configurações → Conta e Segurança → Segurança\n3. Ative o serviço POP3/IMAP/SMTP/Exchange\n4. Siga o prompt de SMS para obter o código",
+          "163": "163 Mail\n\n1. Acesse mail.163.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
+          "126": "126 Mail\n\n1. Acesse mail.126.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
+          "outlook": "Outlook / Hotmail\n\n1. Acesse outlook.live.com\n2. Segurança → Ative verificação em duas etapas\n3. Gere uma senha de aplicativo",
+          "icloud": "iCloud\n\n1. Acesse appleid.apple.com\n2. Segurança da conta → Senhas de app\n3. Gere uma para Mail"
         }
       }
     }

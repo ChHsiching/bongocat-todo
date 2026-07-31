@@ -94,6 +94,7 @@ impl ConnectionManager {
         imap_host: String,
         imap_port: u16,
         username: String,
+        proxy: Option<String>,
     ) -> Result<(), String> {
         // 先从 keyring 取密码
         let entry = Entry::new(&keyring_key(&account_id), &username)
@@ -121,6 +122,7 @@ impl ConnectionManager {
             imap_port,
             username,
             password,
+            proxy,
         ));
 
         self.tasks.lock().await.insert(account_id, handle);
@@ -152,6 +154,7 @@ async fn idle_loop<R: Runtime>(
     imap_port: u16,
     username: String,
     password: String,
+    proxy: Option<String>,
 ) {
     let mut retries: u32 = 0;
 
@@ -164,6 +167,7 @@ async fn idle_loop<R: Runtime>(
             imap_port,
             &username,
             &password,
+            proxy.as_deref(),
         )
         .await
         {
@@ -201,9 +205,10 @@ async fn run_idle_session<R: Runtime>(
     imap_port: u16,
     username: &str,
     password: &str,
+    proxy: Option<&str>,
 ) -> Result<(), String> {
     // 1-3. 建立 TLS 连接 + 登录 + 选 INBOX（与 mail_test_connection 共用）
-    let session = build_imap_session(imap_host, imap_port, username, password).await?;
+    let session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
 
     let _ = app.emit(
         "mail://connection-status",
@@ -228,35 +233,76 @@ async fn run_idle_session<R: Runtime>(
 ///
 /// `mail_test_connection`（验证连通）和 `run_idle_session`（IDLE 监听）共用本函数，
 /// 避免连接序列的重复代码。返回已选 INBOX 的 Session，调用方负责后续 idle/logout。
+///
+/// `proxy` 非空时通过 HTTP CONNECT 代理建立隧道（绕开 TUN system stack 对非标端口
+/// 转发不稳定的问题）。格式如 `"127.0.0.1:7890"`。
 pub(crate) async fn build_imap_session(
     imap_host: &str,
     imap_port: u16,
     username: &str,
     password: &str,
-) -> Result<async_imap::Session<tokio_native_tls::TlsStream<tokio::net::TcpStream>>, String> {
-    let tls_connector = native_tls::TlsConnector::builder()
-        .build()
-        .map_err(|e| format!("TLS connector 构建失败: {e}"))?;
+    proxy: Option<&str>,
+) -> Result<async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, String> {
+    use tokio::time::timeout;
+    use std::time::Duration;
 
-    let tcp = tokio::net::TcpStream::connect((imap_host, imap_port))
+    // 每个网络步骤的超时（TCP/TLS/登录/选文件夹）。代理转发不通时会卡死，
+    // 必须有超时让 UI 能报错退出而不是永久转圈。
+    const STEP_TIMEOUT: Duration = Duration::from_secs(30);
+
+    // rustls TLS：用 webpki-roots 内置 Mozilla 根 CA，不做证书吊销检查（OCSP/CRL）。
+    // native-tls/SChannel 默认检查吊销，国内吊销服务器不可达时握手失败
+    // （CRYPT_E_REVOCATION_OFFLINE），rustls 规避此问题。
+    let mut root_cert_store = rustls::RootCertStore::empty();
+    root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_cert_store)
+        .with_no_client_auth();
+    let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
+
+    // 建立 TCP 连接：有代理走 HTTP CONNECT 隧道，无代理直连。
+    let tcp = if let Some(proxy_addr) = proxy {
+        log::info!("[mail] 使用代理 {proxy_addr} 建立到 {imap_host}:{imap_port} 的隧道");
+        // 先 TCP 连代理服务器
+        let mut proxy_tcp = timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect(proxy_addr))
+            .await
+            .map_err(|_| format!("连接代理超时（{proxy_addr}，30s 无响应）"))?
+            .map_err(|e| format!("连接代理失败 {proxy_addr}: {e}"))?;
+        // HTTP CONNECT 隧道到目标 IMAP 服务器
+        timeout(STEP_TIMEOUT, async_http_proxy::http_connect_tokio(&mut proxy_tcp, imap_host, imap_port))
+            .await
+            .map_err(|_| "代理隧道建立超时（30s 无响应）".to_string())?
+            .map_err(|e| format!("代理 CONNECT 失败: {e}"))?;
+        proxy_tcp
+    }
+    else {
+        timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((imap_host, imap_port)))
+            .await
+            .map_err(|_| format!("TCP 连接超时（{imap_host}:{imap_port}，30s 无响应）"))?
+            .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?
+    };
+
+    let tcp = timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((imap_host, imap_port)))
         .await
+        .map_err(|_| format!("TCP 连接超时（{imap_host}:{imap_port}，30s 无响应）"))?
         .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
 
-    let tls = tokio_native_tls::TlsConnector::from(tls_connector);
-    let tls_stream = tls
-        .connect(imap_host, tcp)
+    let server_name = rustls::pki_types::ServerName::try_from(imap_host.to_string())
+        .map_err(|e| format!("无效的 IMAP 主机名: {e}"))?;
+    let tls_stream = timeout(STEP_TIMEOUT, connector.connect(server_name, tcp))
         .await
+        .map_err(|_| "TLS 握手超时（30s 无响应，可能是代理未转发 IMAP 流量）".to_string())?
         .map_err(|e| format!("TLS 握手失败: {e}"))?;
 
     let client = async_imap::Client::new(tls_stream);
-    let mut session = client
-        .login(username, password)
+    let mut session = timeout(STEP_TIMEOUT, client.login(username, password))
         .await
+        .map_err(|_| "IMAP 登录超时（30s 无响应）".to_string())?
         .map_err(|(err, _)| format!("IMAP 登录失败: {err}"))?;
 
-    session
-        .select("INBOX")
+    timeout(STEP_TIMEOUT, session.select("INBOX"))
         .await
+        .map_err(|_| "选 INBOX 超时（30s 无响应）".to_string())?
         .map_err(|e| format!("选 INBOX 失败: {e}"))?;
 
     Ok(session)
@@ -269,14 +315,21 @@ pub(crate) async fn build_imap_session(
 async fn idle_wait_loop<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
-    mut session: async_imap::Session<tokio_native_tls::TlsStream<tokio::net::TcpStream>>,
-) -> Result<async_imap::Session<tokio_native_tls::TlsStream<tokio::net::TcpStream>>, String> {
+    mut session: async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
+) -> Result<async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, String> {
+    // 记录已推送过的最大 UID，用于只推送真正的新邮件（去重）。
+    // 首次进入循环前先初始化为当前 INBOX 最大 UID，避免把已有邮件全推一遍。
+    let mut last_seen_uid: u32 = fetch_max_uid(&mut session).await.unwrap_or(0);
+
     loop {
         let mut handle = session.idle();
         handle.init().await.map_err(|e| format!("IDLE init 失败: {e}"))?;
 
-        let (wait_future, _stop_token) = handle.wait();
+        // 用 wait_with_timeout 显式 60 秒超时，确保 future 定期返回（测 wait 是否卡死）
+        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(60));
+        log::info!("[mail] {account_id} IDLE 等待中（60s 超时）...");
         let response = wait_future.await;
+        log::info!("[mail] {account_id} IDLE 响应: {response:?}");
 
         match response {
             Ok(IdleResponse::NewData(_response_data)) => {
@@ -286,12 +339,11 @@ async fn idle_wait_loop<R: Runtime>(
                     .await
                     .map_err(|e| format!("IDLE done 失败: {e}"))?;
 
-                match fetch_latest_envelope(account_id, &mut session).await {
-                    Ok(Some(payload)) => {
-                        let _ = app.emit("mail://new-mail", payload);
-                    }
-                    Ok(None) => {
-                        // 没取到（可能新数据不是新邮件，如 flag 变化），忽略
+                match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
+                    Ok(payloads) => {
+                        for payload in payloads {
+                            let _ = app.emit("mail://new-mail", payload);
+                        }
                     }
                     Err(e) => {
                         log::warn!("mail {account_id} fetch envelope 失败: {e}");
@@ -300,11 +352,23 @@ async fn idle_wait_loop<R: Runtime>(
                 // 继续循环重新 idle
             }
             Ok(IdleResponse::Timeout) => {
-                // wait 29 分钟超时（保活）：发 DONE 拿回 session，回顶部重新 idle
+                // 超时保活：发 DONE 拿回 session，顺便轮询检查新邮件（QQ 等邮箱 IDLE 推送不稳定，
+                // 主动 fetch 兜底），然后回顶部重新 idle
                 session = handle
                     .done()
                     .await
                     .map_err(|e| format!("IDLE done 失败: {e}"))?;
+
+                match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
+                    Ok(payloads) => {
+                        for payload in payloads {
+                            let _ = app.emit("mail://new-mail", payload);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("mail {account_id} 轮询 fetch 失败: {e}");
+                    }
+                }
             }
             Ok(IdleResponse::ManualInterrupt) => {
                 // 手动中断（task 取消）：正常退出
@@ -323,27 +387,53 @@ async fn idle_wait_loop<R: Runtime>(
     }
 }
 
-/// 取 INBOX 里最新一封邮件的信封元数据（发件人 + 主题）。
-///
-/// 用 `fetch("1:*", "ENVELOPE")` 取所有邮件的 envelope，取最后一封（最新）。
-/// 注意：IDLE 的 NewData 不总是新邮件（也可能是 flag 变化），所以这里取「最新一封」
-/// 作为「可能的新邮件」推给前端——T1 tracer bullet 的简化策略，精确去重在后续 ticket。
-async fn fetch_latest_envelope(
-    account_id: &str,
-    session: &mut async_imap::Session<tokio_native_tls::TlsStream<tokio::net::TcpStream>>,
-) -> Result<Option<NewMailPayload>, String> {
+/// 取 INBOX 当前最大 UID（用于初始化去重基线，避免启动时把已有邮件全推一遍）。
+async fn fetch_max_uid(
+    session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
+) -> Result<u32, String> {
     let mut fetch_stream = session
-        .fetch("1:*", "ENVELOPE")
+        .uid_fetch("1:*", "UID")
         .await
-        .map_err(|e| format!("fetch 失败: {e}"))?;
+        .map_err(|e| format!("fetch max uid 失败: {e}"))?;
 
-    let mut latest: Option<(String, String)> = None;
+    let mut max_uid = 0u32;
+    while let Some(fetch) = fetch_stream.next().await {
+        let Ok(fetch) = fetch else { continue };
+        if let Some(uid) = fetch.uid {
+            max_uid = max_uid.max(uid);
+        }
+    }
+    Ok(max_uid)
+}
+
+/// 取 last_seen_uid 之后的新邮件信封元数据（去重 + MIME 解码）。
+///
+/// 只推送 UID > last_seen_uid 的邮件，避免把已有邮件或 flag 变化重复推送。
+/// 主题做 MIME encoded-word 解码（`=?utf-8?B?...?=` / `=?utf-8?Q?...?=`）。
+async fn fetch_new_envelopes(
+    account_id: &str,
+    session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
+    last_seen_uid: &mut u32,
+) -> Result<Vec<NewMailPayload>, String> {
+    // 取 last_seen_uid+1 到 * 的邮件
+    let range = format!("{}:*", last_seen_uid.saturating_add(1));
+    let mut fetch_stream = session
+        .uid_fetch(&range, "ENVELOPE")
+        .await
+        .map_err(|e| format!("fetch 新邮件失败: {e}"))?;
+
+    let mut payloads = Vec::new();
 
     while let Some(fetch) = fetch_stream.next().await {
         let Ok(fetch) = fetch else { continue };
+        let Some(uid) = fetch.uid else { continue };
+
+        // 跳过已推送过的
+        if uid <= *last_seen_uid {
+            continue;
+        }
 
         if let Some(env) = fetch.envelope() {
-            // 发件人：取第一个 address 的 mailbox@host
             let from = env
                 .from
                 .as_ref()
@@ -357,23 +447,116 @@ async fn fetch_latest_envelope(
                 })
                 .unwrap_or_default();
 
-            // 主题：UTF-8 解码（mime-encoded 暂不深度处理）
             let subject = env
                 .subject
                 .as_deref()
-                .map(|b| String::from_utf8_lossy(b).to_string())
+                .map(|b| decode_mime_words(&String::from_utf8_lossy(b)))
                 .unwrap_or_default();
 
-            latest = Some((from, subject));
+            payloads.push(NewMailPayload {
+                account_id: account_id.to_string(),
+                from,
+                subject,
+                arrived_at: now_ms(),
+            });
+
+            *last_seen_uid = (*last_seen_uid).max(uid);
         }
     }
 
-    Ok(latest.map(|(from, subject)| NewMailPayload {
-        account_id: account_id.to_string(),
-        from,
-        subject,
-        arrived_at: now_ms(),
-    }))
+    Ok(payloads)
+}
+
+/// 解码 MIME encoded-word（RFC 2047）：`=?charset?B?base64?=` 或 `=?charset?Q?quoted?=`。
+///
+/// 邮件主题含非 ASCII 字符时会被编码。本函数处理 UTF-8 的 Base64 和 Quoted-Printable，
+/// 其他编码用原始 lossy 字符串兜底。支持多个 encoded-word 拼接。
+fn decode_mime_words(input: &str) -> String {
+    use base64::Engine;
+
+    // 正则匹配太重，手动扫描 `=?charset?enc?data?=` 片段
+    let mut result = String::new();
+    let mut rest = input;
+
+    while let Some(start) = rest.find("=?") {
+        // 普通文本部分
+        result.push_str(&rest[..start]);
+
+        let after = &rest[start + 2..];
+        // 找结束 ?=
+        let Some(end_rel) = after.find("?=") else {
+            result.push_str(&rest[start..]);
+            return result;
+        };
+
+        // encoded-word 内容：charset?enc?data
+        let encoded = &after[..end_rel];
+        let parts: Vec<&str> = encoded.splitn(3, '?').collect();
+        if parts.len() < 3 {
+            result.push_str(&rest[start..start + 2 + end_rel + 2]);
+            rest = &rest[start + 2 + end_rel + 2..];
+            continue;
+        }
+
+        let charset = parts[0].to_lowercase();
+        let enc = parts[1].to_lowercase();
+        let data = parts[2];
+
+        let decoded_bytes = if enc == "b" {
+            base64::engine::general_purpose::STANDARD.decode(data).ok()
+        }
+        else if enc == "q" {
+            // Quoted-Printable: '_' = 空格，=XX 为十六进制字节
+            let mut bytes = Vec::new();
+            let bytes_iter = data.as_bytes();
+            let mut i = 0;
+            while i < bytes_iter.len() {
+                if bytes_iter[i] == b'_' {
+                    bytes.push(b' ');
+                    i += 1;
+                }
+                else if bytes_iter[i] == b'=' && i + 2 < bytes_iter.len() {
+                    if let Ok(b) = u8::from_str_radix(
+                        &String::from_utf8_lossy(&bytes_iter[i + 1..i + 3]),
+                        16,
+                    ) {
+                        bytes.push(b);
+                        i += 3;
+                    }
+                    else {
+                        bytes.push(bytes_iter[i]);
+                        i += 1;
+                    }
+                }
+                else {
+                    bytes.push(bytes_iter[i]);
+                    i += 1;
+                }
+            }
+            Some(bytes)
+        }
+        else {
+            None
+        };
+
+        match decoded_bytes {
+            Some(b) => {
+                if charset.starts_with("utf") {
+                    result.push_str(&String::from_utf8_lossy(&b));
+                }
+                else {
+                    // 非 UTF-8 用 lossy 兜底（tracer bullet 简化）
+                    result.push_str(&String::from_utf8_lossy(&b));
+                }
+            }
+            None => result.push_str(&rest[start..start + 2 + end_rel + 2]),
+        }
+
+        rest = &rest[start + 2 + end_rel + 2..];
+    }
+
+    result.push_str(rest);
+    result
 }
 
 /// 取当前 Unix 时间戳（ms）。基于 SystemTime，无 chrono 依赖。

@@ -28,6 +28,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::mail_delete_password,
         ])
         .setup(|app, _api| {
+            // rustls 0.23 需要进程级显式安装 crypto provider，否则首次
+            // ClientConfig::builder() 会卡住（不报错、不超时、永久挂起）。
+            // 用 ring provider（Cargo.toml 已启用 ring feature）。
+            // 已安装时 install_default 返回 Err，忽略即可（幂等）。
+            let _ = rustls::crypto::ring::default_provider().install_default();
             app.manage(ConnectionManager::new());
             Ok(())
         })

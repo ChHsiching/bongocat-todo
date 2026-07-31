@@ -16,9 +16,10 @@ pub async fn mail_test_connection(
     imap_port: u16,
     username: String,
     password: String,
+    proxy: Option<String>,
 ) -> Result<(), String> {
     // 复用 build_imap_session：TLS 连接 + 登录 + 选 INBOX，成功即登出返回，不持有任何状态
-    let mut session = build_imap_session(&imap_host, imap_port, &username, &password).await?;
+    let mut session = build_imap_session(&imap_host, imap_port, &username, &password, proxy.as_deref()).await?;
     let _ = session.logout().await;
     Ok(())
 }
@@ -31,13 +32,14 @@ pub async fn mail_connect<R: Runtime>(
     imap_host: String,
     imap_port: u16,
     username: String,
+    proxy: Option<String>,
 ) -> Result<(), String> {
     let manager = app.state::<ConnectionManager>();
     // connect 需要 owned AppHandle（spawn 的 task 持有它），clone 一份传走，
     // 避免与上面的 `.state()` 借用冲突。
     manager
         .inner()
-        .connect(app.clone(), account_id, imap_host, imap_port, username)
+        .connect(app.clone(), account_id, imap_host, imap_port, username, proxy)
         .await
 }
 

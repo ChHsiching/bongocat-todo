@@ -12,8 +12,9 @@ import {
   mailTestConnection,
 } from './commands'
 
-export { useMailAccountStore } from './stores/mailAccount'
 export type { MailAccount, MailAccountStatus } from './stores/mailAccount'
+export { useMailAccountStore } from './stores/mailAccount'
+export { useMailSettingsStore } from './stores/mailSettings'
 
 /** Rust 推给前端的「新邮件」事件 payload（`mail://new-mail`）。 */
 export interface NewMailPayload {
@@ -39,6 +40,7 @@ export const MAIL_EVENT = {
 /** setupMailPlugin 的入参：调用方在 setup 顶层实例化好的 store + i18n t 函数。 */
 interface SetupMailPluginArgs {
   mailAccountStore: ReturnType<typeof useMailAccountStore>
+  mailSettingsStore: ReturnType<typeof useMailSettingsStore>
   /** 当前窗口 label（用于把全局副作用限定到 main 窗口，避免多窗口重复监听）。 */
   windowLabel: string
 }
@@ -55,7 +57,7 @@ interface SetupMailPluginArgs {
  *
  * @returns 一个 unlisten 函数数组（目前未使用，预留 hot-reload 清理）；tracer bullet 阶段监听随 app 生命周期存活。
  */
-export async function setupMailPlugin({ mailAccountStore, windowLabel }: SetupMailPluginArgs) {
+export async function setupMailPlugin({ mailAccountStore, mailSettingsStore, windowLabel }: SetupMailPluginArgs) {
   if (windowLabel !== WINDOW_LABEL.MAIN) {
     return
   }
@@ -73,9 +75,10 @@ export async function setupMailPlugin({ mailAccountStore, windowLabel }: SetupMa
   })
 
   // app 启动后，对已持久化的账号自动重连（store 在 $tauri.start() 后已加载）
+  const proxy = mailSettingsStore.proxy || null
   for (const account of mailAccountStore.accounts) {
     if (account.enabled) {
-      mailConnect(account.id, account.imapHost, account.imapPort, account.username).catch(
+      mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy).catch(
         () => {
           // 连接失败已由 connection-status event 更新 status='error'，这里不重复处理
         },
@@ -88,9 +91,10 @@ export async function setupMailPlugin({ mailAccountStore, windowLabel }: SetupMa
 export async function testAndSaveAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
   input: { address: string, imapHost: string, imapPort: number, username: string, password: string },
+  proxy: string | null,
 ): Promise<void> {
   // 1. 测试连通（不保存任何东西）
-  await mailTestConnection(input.imapHost, input.imapPort, input.username, input.password)
+  await mailTestConnection(input.imapHost, input.imapPort, input.username, input.password, proxy)
 
   // 2. 加到 store（生成 id；单账号阶段限制长度 1，超限抛错）
   const account = mailAccountStore.addAccount({
@@ -112,7 +116,7 @@ export async function testAndSaveAccount(
   // 4. 启动 IDLE 监听
   mailAccountStore.setStatus(account.id, 'connecting')
   try {
-    await mailConnect(account.id, account.imapHost, account.imapPort, account.username)
+    await mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy)
   } catch (err) {
     // 连接失败：密码已存 keyring，保留账号（用户可在列表里看到 error 状态重试）
     mailAccountStore.setStatus(account.id, 'error')

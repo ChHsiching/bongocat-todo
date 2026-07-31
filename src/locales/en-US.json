@@ -262,6 +262,16 @@
         "removeButton": "Remove",
         "removed": "Removed",
         "singleAccountHint": "Only one account is supported for now; multi-account support is coming soon.",
+        "proxy": "Proxy",
+        "proxyPlaceholder": "127.0.0.1:7890",
+        "proxyHint": "Mailboxes that can't be reached directly (e.g. Gmail) need a proxy. Enter your Clash/mihomo mixed-port (usually 7890). Leave empty for direct connection.",
+        "errTlsBlocked": "Connection interrupted: TLS handshake failed. If your proxy/VPN provider blocks mail ports (993), switch to a node that supports mail ports. Domestic mailboxes (QQ/163) need no proxy.",
+        "errAuthFailed": "Login failed: wrong auth code or app password. Make sure you're not using your login password, and that IMAP service is enabled in your mailbox settings.",
+        "errTimeout": "Connection timed out: network unreachable or proxy not forwarding correctly. Check your proxy address or try connecting directly without a proxy.",
+        "errNetwork": "Network connection failed: cannot reach the mail server. Check your network or proxy settings.",
+        "proxyNoticeTitle": "About Proxy & Mail Connection",
+        "proxyNoticeBody1": "Domestic mailboxes (QQ / 163 / 126, etc.) connect directly — no proxy needed.",
+        "proxyNoticeBody2": "Overseas mailboxes (Gmail / Outlook / iCloud, etc.) require a proxy. Some providers block mail ports (993), causing connection failures; choose a node that supports mail ports.",
         "statusLabel": "Status",
         "statusIdle": "Idle",
         "statusConnecting": "Connecting",
@@ -269,12 +279,12 @@
         "statusError": "Error",
         "bubbleFrom": "From: ",
         "providers": {
-          "gmail": "Gmail: Enable 2-Step Verification in your Google Account first, then generate an App Password. Go to myaccount.google.com → Security → App passwords.",
-          "qq": "QQ Mail: Log in at mail.qq.com → Settings → Account → enable IMAP/SMTP service, follow the SMS prompt to get an authorization code.",
-          "163": "163 Mail: Log in at mail.163.com → Settings → POP3/SMTP/IMAP → enable IMAP service, set a client authorization password.",
-          "126": "126 Mail: Log in at mail.126.com → Settings → POP3/SMTP/IMAP → enable IMAP service, set a client authorization password.",
-          "outlook": "Outlook/Hotmail: Log in at outlook.live.com → Security → enable two-step verification → generate an app password.",
-          "icloud": "iCloud: Go to appleid.apple.com → Account Security → app-specific passwords, generate one for Mail."
+          "gmail": "Gmail\n\n1. Go to myaccount.google.com\n2. Enable 2-Step Verification\n3. Generate an App Password\n4. Use it as the auth code below",
+          "qq": "QQ Mail\n\n1. Log in at mail.qq.com\n2. Settings → Account & Security → Security Settings\n3. Enable POP3/IMAP/SMTP/Exchange service\n4. Follow SMS prompt to get auth code",
+          "163": "163 Mail\n\n1. Log in at mail.163.com\n2. Settings → POP3/SMTP/IMAP\n3. Enable IMAP service\n4. Set a client authorization password",
+          "126": "126 Mail\n\n1. Log in at mail.126.com\n2. Settings → POP3/SMTP/IMAP\n3. Enable IMAP service\n4. Set a client authorization password",
+          "outlook": "Outlook / Hotmail\n\n1. Log in at outlook.live.com\n2. Security → Enable two-step verification\n3. Generate an app password",
+          "icloud": "iCloud\n\n1. Go to appleid.apple.com\n2. Account Security → App-specific passwords\n3. Generate one for Mail"
         }
       }
     }

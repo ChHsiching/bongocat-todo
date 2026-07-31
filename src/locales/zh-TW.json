@@ -262,6 +262,16 @@
         "removeButton": "刪除",
         "removed": "已刪除",
         "singleAccountHint": "目前僅支援單一帳號，多帳號支援即將推出。",
+        "proxy": "代理",
+        "proxyPlaceholder": "127.0.0.1:7890",
+        "proxyHint": "無法直連的信箱（如 Gmail）需填代理。填 Clash/mihomo 的 mixed-port（通常 7890）。留空則直連。",
+        "errTlsBlocked": "連線被中斷：安全握手失敗。如果你的代理/機場封鎖了郵件連接埠（993），換一個支援郵件連接埠的節點即可。國內信箱（QQ/163）無需代理。",
+        "errAuthFailed": "登入失敗：授權碼或應用專用密碼錯誤。請確認填的不是登入密碼，且 IMAP 服務已在信箱設定中開啟。",
+        "errTimeout": "連線逾時：網路不通或代理未正確轉發。請檢查代理地址是否正確，或嘗試不填代理直連。",
+        "errNetwork": "網路連線失敗：無法連接到信箱伺服器。請檢查網路或代理設定。",
+        "proxyNoticeTitle": "關於代理與信箱連線",
+        "proxyNoticeBody1": "國內信箱（QQ / 163 / 126 等）無需代理，直連即可。",
+        "proxyNoticeBody2": "境外信箱（Gmail / Outlook / iCloud 等）需透過代理連線。部分機場會封鎖郵件連接埠（993），導致連線失敗；請選用支援郵件連接埠的節點。",
         "statusLabel": "狀態",
         "statusIdle": "閒置",
         "statusConnecting": "連線中",
@@ -269,12 +279,12 @@
         "statusError": "連線失敗",
         "bubbleFrom": "寄件者：",
         "providers": {
-          "gmail": "Gmail：需先在 Google 帳戶開啟兩步驟驗證，再產生「應用專用密碼」。前往 myaccount.google.com → 安全性 → 應用專用密碼。",
-          "qq": "QQ 信箱：登入 mail.qq.com → 設定 → 帳戶 → 開啟 IMAP/SMTP 服務，依提示發簡訊取得授權碼。",
-          "163": "163 信箱：登入 mail.163.com → 設定 → POP3/SMTP/IMAP → 開啟 IMAP 服務，設定用戶端授權密碼。",
-          "126": "126 信箱：登入 mail.126.com → 設定 → POP3/SMTP/IMAP → 開啟 IMAP 服務，設定用戶端授權密碼。",
-          "outlook": "Outlook/Hotmail：登入 outlook.live.com → 安全性 → 啟用兩步驟驗證 → 產生應用程式密碼。",
-          "icloud": "iCloud：登入 appleid.apple.com → 帳戶安全 → 專用密碼，產生用於郵件的應用專用密碼。"
+          "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 開啟「兩步驟驗證」\n3. 產生「應用專用密碼」\n4. 用該密碼填入下方授權碼",
+          "qq": "QQ 信箱\n\n1. 登入 mail.qq.com\n2. 設定 → 帳號與安全 → 安全設定\n3. 開啟 POP3/IMAP/SMTP/Exchange 服務\n4. 依提示發簡訊，取得授權碼",
+          "163": "163 信箱\n\n1. 登入 mail.163.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
+          "126": "126 信箱\n\n1. 登入 mail.126.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
+          "outlook": "Outlook / Hotmail\n\n1. 登入 outlook.live.com\n2. 安全性 → 啟用兩步驟驗證\n3. 產生應用程式密碼",
+          "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 帳戶安全 → 專用密碼\n3. 產生用於郵件的應用專用密碼"
         }
       }
     }

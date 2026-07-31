@@ -6,10 +6,11 @@ import { useI18n } from 'vue-i18n'
 
 import type { MailAccountStatus } from '@/plugins/mail'
 
-import { removeAccount, testAndSaveAccount, useMailAccountStore } from '@/plugins/mail'
+import { removeAccount, testAndSaveAccount, useMailAccountStore, useMailSettingsStore } from '@/plugins/mail'
 import { matchProvider } from '@/plugins/mail/utils/providers'
 
 const mailAccountStore = useMailAccountStore()
+const mailSettingsStore = useMailSettingsStore()
 const { t } = useI18n()
 
 const address = ref('')
@@ -17,6 +18,11 @@ const imapHost = ref('')
 const imapPort = ref(993)
 const username = ref('')
 const password = ref('')
+/** 代理地址（双向绑定 mailSettingsStore.proxy）。 */
+const proxyInput = computed({
+  get: () => mailSettingsStore.proxy,
+  set: (v: string) => mailSettingsStore.setProxy(v),
+})
 
 /** 「测试并保存」进行中（禁用按钮 + 显示文案）。 */
 const saving = ref(false)
@@ -67,7 +73,7 @@ async function handleTestAndSave() {
       imapPort: imapPort.value,
       username: username.value,
       password: password.value,
-    })
+    }, mailSettingsStore.proxy || null)
     message.success(t('plugins.mail.labels.connectSuccess'))
     // 清空表单
     address.value = ''
@@ -166,10 +172,29 @@ function statusText(status: MailAccountStatus): string {
       <!-- provider 命中时展示该邮箱的授权码获取指引 -->
       <Alert
         v-if="providerHint"
-        class="w-full!"
+        class="w-full! whitespace-pre-line text-sm"
         :message="providerHint"
         type="info"
       />
+
+      <!-- 代理注意事项（常驻教学，提前告知代理节点要求） -->
+      <Alert
+        class="w-full!"
+        show-icon
+        type="warning"
+      >
+        <template #message>
+          <div class="leading-relaxed text-xs">
+            <p class="mb-1 font-bold">
+              {{ t('plugins.mail.labels.proxyNoticeTitle') }}
+            </p>
+            <p class="mb-1">
+              {{ t('plugins.mail.labels.proxyNoticeBody1') }}
+            </p>
+            <p>{{ t('plugins.mail.labels.proxyNoticeBody2') }}</p>
+          </div>
+        </template>
+      </Alert>
 
       <Flex gap="middle">
         <div class="flex-1">
@@ -204,6 +229,17 @@ function statusText(status: MailAccountStatus): string {
         />
         <div class="mt-1 text-gray-400 text-xs">
           {{ t('plugins.mail.labels.passwordHint') }}
+        </div>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm">{{ t('plugins.mail.labels.proxy') }}</label>
+        <Input
+          v-model:value="proxyInput"
+          :placeholder="t('plugins.mail.labels.proxyPlaceholder')"
+        />
+        <div class="mt-1 text-gray-400 text-xs">
+          {{ t('plugins.mail.labels.proxyHint') }}
         </div>
       </div>
 

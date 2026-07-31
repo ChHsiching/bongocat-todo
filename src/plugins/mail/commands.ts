@@ -20,8 +20,9 @@ export function mailTestConnection(
   imapPort: number,
   username: string,
   password: string,
+  proxy: string | null,
 ): Promise<void> {
-  return invoke(COMMAND.TEST_CONNECTION, { imapHost, imapPort, username, password })
+  return invoke(COMMAND.TEST_CONNECTION, { imapHost, imapPort, username, password, proxy })
 }
 
 /** 启动某账号的 IDLE 监听（Rust 从 keyring 取密码，spawn task）。 */
@@ -30,8 +31,9 @@ export function mailConnect(
   imapHost: string,
   imapPort: number,
   username: string,
+  proxy: string | null,
 ): Promise<void> {
-  return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username })
+  return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username, proxy })
 }
 
 /** 断开某账号的 IDLE 监听（取消 task）。 */

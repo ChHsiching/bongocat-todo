@@ -262,6 +262,16 @@
         "removeButton": "Xóa",
         "removed": "Đã xóa",
         "singleAccountHint": "Hiện chỉ hỗ trợ một tài khoản; hỗ trợ nhiều tài khoản sắp ra mắt.",
+        "proxy": "Proxy",
+        "proxyPlaceholder": "127.0.0.1:7890",
+        "proxyHint": "Các hộp thư không truy cập trực tiếp được (vd. Gmail) cần proxy. Nhập mixed-port của Clash/mihomo (thường là 7890). Để trống để kết nối trực tiếp.",
+        "errTlsBlocked": "Kết nối bị gián đoạn: handshake TLS thất bại. Nếu nhà cung cấp proxy/VPN chặn cổng thư (993), hãy đổi sang nút hỗ trợ cổng thư. Hộp thư trong nước (QQ/163) không cần proxy.",
+        "errAuthFailed": "Đăng nhập thất bại: sai mã ủy quyền hoặc mật khẩu ứng dụng. Hãy đảm bảo bạn không dùng mật khẩu đăng nhập, và dịch vụ IMAP đã được bật trong cài đặt hộp thư.",
+        "errTimeout": "Kết nối quá hạn: mạng không reachable hoặc proxy không chuyển tiếp đúng. Kiểm tra địa chỉ proxy hoặc thử kết nối trực tiếp không qua proxy.",
+        "errNetwork": "Kết nối mạng thất bại: không thể kết nối đến máy chủ thư. Kiểm tra mạng hoặc cài đặt proxy.",
+        "proxyNoticeTitle": "Về Proxy & Kết nối Hộp thư",
+        "proxyNoticeBody1": "Hộp thư trong nước (QQ / 163 / 126, v.v.) kết nối trực tiếp — không cần proxy.",
+        "proxyNoticeBody2": "Hộp thư nước ngoài (Gmail / Outlook / iCloud, v.v.) cần proxy. Một số nhà cung cấp chặn cổng thư (993), gây lỗi kết nối; hãy chọn nút hỗ trợ cổng thư.",
         "statusLabel": "Trạng thái",
         "statusIdle": "Chờ",
         "statusConnecting": "Đang kết nối",
@@ -269,12 +279,12 @@
         "statusError": "Lỗi",
         "bubbleFrom": "Từ: ",
         "providers": {
-          "gmail": "Gmail: Bật Xác minh hai bước trong tài khoản Google trước, sau đó tạo Mật khẩu ứng dụng. Vào myaccount.google.com → Bảo mật → Mật khẩu ứng dụng.",
-          "qq": "QQ Mail: Đăng nhập mail.qq.com → Cài đặt → Tài khoản → bật dịch vụ IMAP/SMTP, làm theo hướng dẫn SMS để lấy mã ủy quyền.",
-          "163": "163 Mail: Đăng nhập mail.163.com → Cài đặt → POP3/SMTP/IMAP → bật dịch vụ IMAP, đặt mật khẩu ủy quyền máy khách.",
-          "126": "126 Mail: Đăng nhập mail.126.com → Cài đặt → POP3/SMTP/IMAP → bật dịch vụ IMAP, đặt mật khẩu ủy quyền máy khách.",
-          "outlook": "Outlook/Hotmail: Đăng nhập outlook.live.com → Bảo mật → bật xác minh hai bước → tạo mật khẩu ứng dụng.",
-          "icloud": "iCloud: Vào appleid.apple.com → Bảo mật tài khoản → mật khẩu dành riêng cho ứng dụng, tạo một mật khẩu cho Mail."
+          "gmail": "Gmail\n\n1. Vào myaccount.google.com\n2. Bật Xác minh hai bước\n3. Tạo Mật khẩu ứng dụng\n4. Dùng mật khẩu đó làm mã ủy quyền",
+          "qq": "QQ Mail\n\n1. Đăng nhập mail.qq.com\n2. Cài đặt → Tài khoản & Bảo mật → Cài đặt bảo mật\n3. Bật dịch vụ POP3/IMAP/SMTP/Exchange\n4. Làm theo hướng dẫn SMS để lấy mã ủy quyền",
+          "163": "163 Mail\n\n1. Đăng nhập mail.163.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
+          "126": "126 Mail\n\n1. Đăng nhập mail.126.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
+          "outlook": "Outlook / Hotmail\n\n1. Đăng nhập outlook.live.com\n2. Bảo mật → Bật xác minh hai bước\n3. Tạo mật khẩu ứng dụng",
+          "icloud": "iCloud\n\n1. Vào appleid.apple.com\n2. Bảo mật tài khoản → Mật khẩu ứng dụng\n3. Tạo một mật khẩu cho Mail"
         }
       }
     }
