@@ -289,7 +289,20 @@
           "126": "126 Mail\n\n1. Log in at mail.126.com\n2. Settings → POP3/SMTP/IMAP\n3. Enable IMAP service\n4. Set a client authorization password",
           "outlook": "Outlook / Hotmail\n\n1. Log in at outlook.live.com\n2. Security → Enable two-step verification\n3. Generate an app password",
           "icloud": "iCloud\n\n1. Go to appleid.apple.com\n2. Account Security → App-specific passwords\n3. Generate one for Mail"
-        }
+        },
+        "mailListMenu": "Mail List",
+        "mailArchiveMenu": "Archived",
+        "mailListTitle": "Mail List",
+        "mailArchiveTitle": "Archived Mail",
+        "mailListUnreadSection": "Unread",
+        "mailListReadSection": "Read",
+        "mailArchiveSection": "This Week",
+        "mailEmpty": "No mail yet",
+        "mailArchiveEmpty": "No archived mail",
+        "mailReadMinutesLater": "Read, archives in {n} min",
+        "mailArchivedTag": "Archived",
+        "mailListFooter": "Unread auto-archives after 24h · read after 5 min",
+        "mailArchiveFooter": "Click to open webmail · purged after 30 days"
       }
     }
   }

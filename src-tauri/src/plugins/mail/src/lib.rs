@@ -12,7 +12,7 @@ mod commands;
 mod logic;
 mod manager;
 
-pub use manager::{ConnectionManager, ConnectionStatus, NewMailPayload};
+pub use manager::{ConnectionManager, ConnectionStatus, LastSeenUidPayload, NewMailPayload};
 
 /// 初始化邮件插件：注册命令 + 把 [`ConnectionManager`] 注入 app state。
 ///

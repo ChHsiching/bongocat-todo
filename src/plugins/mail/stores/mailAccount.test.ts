@@ -22,6 +22,7 @@ describe('useMailAccountStore — addAccount（单账号长度限制）', () => 
     expect(acc.address).toBe('alice@gmail.com')
     expect(acc.enabled).toBe(true)
     expect(acc.status).toBe('idle')
+    expect(acc.lastSeenUid).toBe(0)
     expect(store.accounts).toHaveLength(1)
   })
 
@@ -139,5 +140,57 @@ describe('useMailAccountStore — setStatus / removeAccount / getAccount', () =>
 
     store.removeAccount('nope')
     expect(store.accounts).toHaveLength(1)
+  })
+})
+
+describe('useMailAccountStore — setLastSeenUid（离线补发持久化）', () => {
+  it('首次设置 lastSeenUid（0 → N）', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+
+    store.setLastSeenUid(acc.id, 500)
+
+    expect(acc.lastSeenUid).toBe(500)
+  })
+
+  it('单调递增（新 uid 更大才更新）', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+
+    store.setLastSeenUid(acc.id, 500)
+    store.setLastSeenUid(acc.id, 800)
+    store.setLastSeenUid(acc.id, 600) // 乱序/旧数据，不回退
+
+    expect(acc.lastSeenUid).toBe(800)
+  })
+
+  it('小于等于当前值不更新（幂等）', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+
+    store.setLastSeenUid(acc.id, 500)
+    store.setLastSeenUid(acc.id, 500)
+
+    expect(acc.lastSeenUid).toBe(500)
+  })
+
+  it('对不存在 id 静默无操作', () => {
+    const store = useMailAccountStore()
+    expect(() => store.setLastSeenUid('nope', 999)).not.toThrow()
   })
 })

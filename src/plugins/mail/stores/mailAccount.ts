@@ -27,6 +27,17 @@ export interface MailAccount {
   enabled: boolean
   /** 连接状态（纯本地，由 Rust event 驱动） */
   status: MailAccountStatus
+  /**
+   * 已推送过的最大 IMAP UID（持久化，用于离线补发）。
+   *
+   * - 0 表示尚未初始化（首次连接时 Rust 用当前 INBOX 最大 UID 初始化，跳过已有邮件）。
+   * - 非 0 时重连作为补发基线：Rust `fetch_new_envelopes(lastSeenUid)` 把离线期间
+   *   到达的新邮件（UID > lastSeenUid）补推给前端。app 关闭再打开也不漏邮件。
+   * - 由 Rust `mail://last-seen-uid` event 持续更新（每推送一批新邮件后 emit）。
+   *
+   * @see docs/adr/0002-phase2-mail-and-bubble.md D5-actual（离线补发，#15 comment）
+   */
+  lastSeenUid: number
 }
 
 /**
@@ -77,6 +88,7 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
       providerDomain: extractDomain(input.address),
       enabled: true,
       status: 'idle',
+      lastSeenUid: 0,
     }
 
     accounts.value.push(account)
@@ -96,6 +108,18 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     }
   }
 
+  /**
+   * 更新某账号的 lastSeenUid（由 Rust `mail://last-seen-uid` event 驱动调用）。
+   *
+   * 只单调递增（新 uid 比已存的小说明是旧数据/乱序，不回退）。持久化由 saveOnChange 落盘。
+   */
+  function setLastSeenUid(id: string, uid: number) {
+    const account = getAccount(id)
+    if (account && uid > account.lastSeenUid) {
+      account.lastSeenUid = uid
+    }
+  }
+
   /** 从数组移除账号（密码清理 + 断开连接由调用方在移除前调 Rust 命令完成）。 */
   function removeAccount(id: string) {
     accounts.value = accounts.value.filter(a => a.id !== id)
@@ -106,6 +130,7 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     addAccount,
     getAccount,
     setStatus,
+    setLastSeenUid,
     removeAccount,
   }
 })

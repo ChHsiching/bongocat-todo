@@ -289,7 +289,20 @@
           "126": "126 信箱\n\n1. 登入 mail.126.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
           "outlook": "Outlook / Hotmail\n\n1. 登入 outlook.live.com\n2. 安全性 → 啟用兩步驟驗證\n3. 產生應用程式密碼",
           "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 帳戶安全 → 專用密碼\n3. 產生用於郵件的應用專用密碼"
-        }
+        },
+        "mailListMenu": "郵件列表",
+        "mailArchiveMenu": "封存郵件",
+        "mailListTitle": "郵件列表",
+        "mailArchiveTitle": "封存郵件",
+        "mailListUnreadSection": "未讀",
+        "mailListReadSection": "已讀",
+        "mailArchiveSection": "本週封存",
+        "mailEmpty": "還沒有郵件",
+        "mailArchiveEmpty": "還沒有封存郵件",
+        "mailReadMinutesLater": "已讀，{n} 分鐘後封存",
+        "mailArchivedTag": "已封存",
+        "mailListFooter": "未讀預設 24 小時後封存 · 已讀 5 分鐘後封存",
+        "mailArchiveFooter": "封存項點擊仍可跳轉 webmail · 封存超過 30 天自動清理"
       }
     }
   }

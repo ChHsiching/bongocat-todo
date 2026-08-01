@@ -289,7 +289,20 @@
           "126": "126 Mail\n\n1. Đăng nhập mail.126.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
           "outlook": "Outlook / Hotmail\n\n1. Đăng nhập outlook.live.com\n2. Bảo mật → Bật xác minh hai bước\n3. Tạo mật khẩu ứng dụng",
           "icloud": "iCloud\n\n1. Vào appleid.apple.com\n2. Bảo mật tài khoản → Mật khẩu ứng dụng\n3. Tạo một mật khẩu cho Mail"
-        }
+        },
+        "mailListMenu": "Danh sách thư",
+        "mailArchiveMenu": "Thư đã lưu",
+        "mailListTitle": "Danh sách thư",
+        "mailArchiveTitle": "Thư đã lưu",
+        "mailListUnreadSection": "Chưa đọc",
+        "mailListReadSection": "Đã đọc",
+        "mailArchiveSection": "Tuần này",
+        "mailEmpty": "Chưa có thư",
+        "mailArchiveEmpty": "Chưa có thư đã lưu",
+        "mailReadMinutesLater": "Đã đọc, lưu sau {n} phút",
+        "mailArchivedTag": "Đã lưu",
+        "mailListFooter": "Chưa đọc tự lưu sau 24h · đã đọc sau 5 phút",
+        "mailArchiveFooter": "Nhấn để mở webmail · xóa sau 30 ngày"
       }
     }
   }

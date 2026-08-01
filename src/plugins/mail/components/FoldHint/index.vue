@@ -23,8 +23,8 @@ defineProps<{
   count: number
 }>()
 
-defineEmits<{
-  /** 点击提示条 → 打开邮件列表（T5 窗口；当前父级占位处理）。 */
+const emit = defineEmits<{
+  /** 点击提示条 → 打开邮件列表（T5 窗口已实现）。 */
   click: []
   /** 内容高度变化，父级据以重设窗口尺寸。payload = 像素高度。 */
   resize: [height: number]

@@ -16,6 +16,10 @@ export const LISTEN_KEY = {
   SHOW_TODO_MINI: 'show-todo-mini',
   /** 桌宠气泡窗口弹气泡，由「新邮件到达」事件触发（Phase 2 邮件通知）。 */
   SHOW_BUBBLE: 'show-bubble',
+  /** 邮件列表窗口打开（贴猫正上方，由「邮件列表」菜单项触发）。 */
+  SHOW_MAIL_LIST: 'show-mail-list',
+  /** 归档邮件窗口打开（贴猫正上方，由「归档邮件」菜单项触发）。 */
+  SHOW_MAIL_ARCHIVE: 'show-mail-archive',
 }
 
 export const INVOKE_KEY = {
@@ -39,4 +43,8 @@ export const WINDOW_LABEL = {
   TODO: 'todo',
   /** 桌宠气泡通知窗口（贴桌宠正上方，Phase 2 邮件/todo 共用）。 */
   BUBBLE: 'bubble',
+  /** 邮件列表窗口（本地通知历史，未读+已读，贴猫正上方伴随窗口）。 */
+  MAIL_LIST: 'mail-list',
+  /** 归档邮件窗口（已归档邮件列表，贴猫正上方伴随窗口）。 */
+  MAIL_ARCHIVE: 'mail-archive',
 } as const

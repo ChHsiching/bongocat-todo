@@ -289,7 +289,20 @@
           "126": "126 邮箱\n\n1. 登录 mail.126.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码",
           "outlook": "Outlook / Hotmail\n\n1. 登录 outlook.live.com\n2. 安全 → 启用两步验证\n3. 生成应用密码",
           "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 账户安全 → 专用密码\n3. 生成用于邮件的应用专用密码"
-        }
+        },
+        "mailListMenu": "邮件列表",
+        "mailArchiveMenu": "归档邮件",
+        "mailListTitle": "邮件列表",
+        "mailArchiveTitle": "归档邮件",
+        "mailListUnreadSection": "未读",
+        "mailListReadSection": "已读",
+        "mailArchiveSection": "本周归档",
+        "mailEmpty": "还没有邮件",
+        "mailArchiveEmpty": "还没有归档邮件",
+        "mailReadMinutesLater": "已读，{n} 分钟后归档",
+        "mailArchivedTag": "已归档",
+        "mailListFooter": "未读默认 24 小时后归档 · 已读 5 分钟后归档",
+        "mailArchiveFooter": "归档项点击仍可跳转 webmail · 归档超过 30 天自动清理"
       }
     }
   }

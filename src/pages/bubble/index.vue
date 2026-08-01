@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
+import { emit } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -13,6 +14,7 @@ import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import Bubble from '@/plugins/mail/components/Bubble/index.vue'
 import FoldHint from '@/plugins/mail/components/FoldHint/index.vue'
 import { useMailAccountStore } from '@/plugins/mail/stores/mailAccount'
+import { useMailNotificationStore } from '@/plugins/mail/stores/mailNotification'
 import { computeBubbleOverflow } from '@/plugins/mail/utils/overflow'
 import { matchProvider, resolveWebmailUrl } from '@/plugins/mail/utils/providers'
 import { hideWindow, showWindow } from '@/plugins/window'
@@ -54,13 +56,17 @@ const shownItems = computed(() => queue.value.slice(0, overflow.value.shown))
 
 /** store 必须在 setup 顶层实例化（跨 async 边界 inject 失效，见 CONTEXT.md 踩坑清单）。 */
 const mailAccountStore = useMailAccountStore()
+const mailNotificationStore = useMailNotificationStore()
 const { t } = useI18n()
 
 // bubble 是独立 webview，store 实例与 main 窗口各自独立。必须在此窗口也调
 // $tauri.start() 加载持久化的账号数据，否则 accounts 为空 → provider 识别失败（sourceLabel
 // 拿不到 address）。加载后 accounts 变化触发响应式重渲染。
+// mailNotification store 也在此加载：点击邮件时按 <accountId>:<uid> 匹配本地通知历史，
+// 调 markRead 标本地已读（5 分钟后归档由 main 窗口的 tickRetention 处理）。
 onMounted(async () => {
   await mailAccountStore.$tauri.start()
+  await mailNotificationStore.$tauri.start()
 })
 
 /** 气泡来源标签：按账号邮箱识别 provider 名（如「新邮件 · Gmail」），未识别则通用文案。 */
@@ -163,7 +169,13 @@ async function layoutAndShow() {
 }
 
 /**
- * 点击邮件气泡 → 打开 webmail（浏览器）+ 标记本地已读（T5 store stub）+ 关闭该条。
+ * 点击邮件气泡 → 标本地已读 + 打开 webmail + 关闭该条气泡。
+ *
+ * 本地已读：按 <accountId>:<uid> 匹配 mailNotification store 中的通知历史，调 markRead
+ * （纯本地状态，**不向邮箱发 STORE**，D5-actual 零写约束）。5 分钟后归档由 tickRetention
+ * 扫描处理——@tauri-store/pinia 默认开启跨窗口 state-change 同步（DEFAULT_SYNC=true），
+ * 本窗口的 markRead 会 patchSelf 到 main 窗口的内存副本，main 的 tickRetention 能读到 readAt。
+ * mail-list 窗口也各自跑 tickRetention 作为兜底（幂等，多窗口同时跑不冲突）。
  *
  * webmail URL 解析：先按账号 address 匹配 provider，未命中回退 IMAP host；
  * 都未命中时不跳转（只关闭气泡，避免跳到无关页面）。
@@ -178,8 +190,13 @@ async function handleMailAction(item: BubbleItem) {
       // 打开失败不阻塞关闭流程
     })
   }
-  // 本地已读标记：T5 mailNotification store 未实现，当前先在内存移除（点击即关闭）。
-  // T5 完成后此处改为 store.markRead(accountId, ...) + 5 分钟后归档定时器。
+  // 标本地已读：按 accountId+uid 匹配 mailNotification 项
+  const match = mailNotificationStore.notifications.find(
+    n => n.accountId === item.mail.accountId && n.uid === item.mail.uid,
+  )
+  if (match) {
+    mailNotificationStore.markRead(match.id)
+  }
   closeItem(item.key)
 }
 
@@ -192,6 +209,12 @@ function closeItem(key: string) {
     // 还有气泡，重排尺寸/定位
     layoutAndShow()
   }
+}
+
+/** 点折入提示「还有 N 条，查看邮件列表」→ 打开邮件列表窗口 + 关闭气泡。 */
+function openMailList() {
+  emit(LISTEN_KEY.SHOW_MAIL_LIST)
+  scheduleHide()
 }
 
 /** 队列空时：先渐隐再 hideWindow。 */
@@ -227,7 +250,7 @@ function scheduleHide() {
     <FoldHint
       v-if="overflow.overflow > 0"
       :count="overflow.overflow"
-      @click="scheduleHide"
+      @click="openMailList"
       @resize="onChildResize"
     />
   </div>

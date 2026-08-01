@@ -61,6 +61,34 @@
         "resizable": false,
         "width": 360,
         "height": 60
+      },
+      {
+        "label": "mail-list",
+        "url": "index.html/#/mail-list",
+        "title": "邮件列表",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 400,
+        "height": 480
+      },
+      {
+        "label": "mail-archive",
+        "url": "index.html/#/mail-archive",
+        "title": "归档邮件",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 400,
+        "height": 420
       }
     ],
     "security": {

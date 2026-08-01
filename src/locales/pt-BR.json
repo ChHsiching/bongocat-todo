@@ -289,7 +289,20 @@
           "126": "126 Mail\n\n1. Acesse mail.126.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
           "outlook": "Outlook / Hotmail\n\n1. Acesse outlook.live.com\n2. Segurança → Ative verificação em duas etapas\n3. Gere uma senha de aplicativo",
           "icloud": "iCloud\n\n1. Acesse appleid.apple.com\n2. Segurança da conta → Senhas de app\n3. Gere uma para Mail"
-        }
+        },
+        "mailListMenu": "Lista de e-mails",
+        "mailArchiveMenu": "Arquivados",
+        "mailListTitle": "Lista de e-mails",
+        "mailArchiveTitle": "E-mails arquivados",
+        "mailListUnreadSection": "Não lidos",
+        "mailListReadSection": "Lidos",
+        "mailArchiveSection": "Esta semana",
+        "mailEmpty": "Nenhum e-mail ainda",
+        "mailArchiveEmpty": "Nenhum arquivado",
+        "mailReadMinutesLater": "Lido, arquiva em {n} min",
+        "mailArchivedTag": "Arquivado",
+        "mailListFooter": "Não lidos arquivam após 24h · lidos após 5 min",
+        "mailArchiveFooter": "Clique para abrir o webmail · removido após 30 dias"
       }
     }
   }

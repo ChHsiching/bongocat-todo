@@ -41,6 +41,8 @@ pub fn keyring_key(account_id: &str) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct NewMailPayload {
     pub account_id: String,
+    /// 邮箱 UID（前端用于离线补发去重：`<accountId>:<uid>` 唯一）。
+    pub uid: u32,
     /// 发件人邮箱（`mailbox@host`）；解析失败时给原始字符串。
     pub from: String,
     /// 主题（UTF-8 解码，mime-encoded 暂不深度解码，T1 用 from_utf8_lossy）。
@@ -57,6 +59,20 @@ pub struct ConnectionStatusPayload {
     pub status: ConnectionStatus,
     /// 附加信息（如错误原因）。
     pub message: Option<String>,
+}
+
+/// 推给前端的「最新已见 UID」事件 payload（`mail://last-seen-uid`）。
+///
+/// Rust 每推送一批新邮件后 emit 本事件，前端持久化到 mailAccount.lastSeenUid，
+/// 作为下次启动/重连时的离线补发基线（`fetch_new_envelopes(lastSeenUid)` 把离线期间
+/// 到达的新邮件补推，app 关闭再打开也不漏邮件）。
+///
+/// @see #15 comment（离线补发需求）
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LastSeenUidPayload {
+    pub account_id: String,
+    pub last_seen_uid: u32,
 }
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -89,6 +105,10 @@ impl ConnectionManager {
     ///
     /// 先从 keyring 取密码（不在内存长期持有），取不到直接返回错误。
     /// 已存在同名 task 会先取消再覆盖。
+    ///
+    /// `initial_last_seen_uid` 来自前端持久化的 `mailAccount.lastSeenUid`：非 0 时作为
+    /// 离线补发基线（fetch 离线期间到达的新邮件 UID > last_seen_uid）；0 时回退到
+    /// `fetch_max_uid`（跳过当前所有已有邮件，T1 行为）。
     pub async fn connect<R: Runtime>(
         &self,
         app: AppHandle<R>,
@@ -97,6 +117,7 @@ impl ConnectionManager {
         imap_port: u16,
         username: String,
         proxy: Option<String>,
+        initial_last_seen_uid: u32,
     ) -> Result<(), String> {
         // 先从 keyring 取密码
         let entry = Entry::new(&keyring_key(&account_id), &username)
@@ -125,6 +146,7 @@ impl ConnectionManager {
             username,
             password,
             proxy,
+            initial_last_seen_uid,
         ));
 
         self.tasks.lock().await.insert(account_id, handle);
@@ -149,6 +171,9 @@ impl Default for ConnectionManager {
 ///
 /// 结构：外层重连循环（出错 → 退避 → 重连），内层 IDLE 循环（NewData → fetch → 重启 idle）。
 /// 29 分钟保活由 `Handle::wait()` 自带超时实现，超时返回 `Timeout` 后内层循环重启 idle。
+///
+/// `initial_last_seen_uid` 非零时作为离线补发基线（前端持久化传入）；0 时回退到 fetch_max_uid。
+/// 重连时**沿用**已推进的 last_seen_uid（不重置为初始值），避免补发过的邮件重复推送。
 async fn idle_loop<R: Runtime>(
     app: AppHandle<R>,
     account_id: String,
@@ -157,7 +182,12 @@ async fn idle_loop<R: Runtime>(
     username: String,
     password: String,
     proxy: Option<String>,
+    initial_last_seen_uid: u32,
 ) {
+    // 跨重连保留：首次连接用前端传入的 last_seen_uid（离线补发基线），
+    // 后续重连沿用同一基线值（每次推送后已通过 mail://last-seen-uid event 让前端持久化，
+    // 进程重启时前端会传入更新后的 lastSeenUid；同一进程内 task 正常退出即不再重连）。
+    let last_seen_uid = initial_last_seen_uid;
     let mut retries: u32 = 0;
 
     loop {
@@ -170,11 +200,14 @@ async fn idle_loop<R: Runtime>(
             &username,
             &password,
             proxy.as_deref(),
+            last_seen_uid,
         )
         .await
         {
-            Ok(()) => {
-                // 正常退出（如手动取消）—— 不重连
+            Ok(_returned_uid) => {
+                // 正常退出（如手动取消）—— 不重连。
+                // 正常退出即 task 被取消/进程结束，无需保留最新 uid（前端已通过
+                // mail://last-seen-uid event 持久化每次推送后的 uid）。
                 break;
             }
             Err(err) => {
@@ -199,7 +232,8 @@ async fn idle_loop<R: Runtime>(
 
 /// 建立一次完整的 IMAP 连接并跑 IDLE 直到出错或取消。
 ///
-/// 成功返回 `Ok(())` 表示正常结束（task 被取消）；`Err` 表示需要重连。
+/// 成功返回 `Ok(last_seen_uid)` 表示正常结束（task 被取消），携带最新已推送 UID
+/// 供外层重连沿用；`Err` 表示需要重连。
 async fn run_idle_session<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -208,7 +242,8 @@ async fn run_idle_session<R: Runtime>(
     username: &str,
     password: &str,
     proxy: Option<&str>,
-) -> Result<(), String> {
+    initial_last_seen_uid: u32,
+) -> Result<u32, String> {
     // 1-3. 建立 TLS 连接 + 登录 + 选 INBOX（与 mail_test_connection 共用）
     let session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
 
@@ -224,11 +259,11 @@ async fn run_idle_session<R: Runtime>(
     // 4. IDLE 循环（idle() 消耗 session，done() 归还 session）
     //    wait() 内部自带 29 分钟超时（见 async-imap idle.rs），超时返回 Timeout，
     //    循环顶部重新 idle 即完成 RFC 2177 保活，无需额外的 should_reset_idle 判定。
-    let mut session = idle_wait_loop(app, account_id, session).await?;
+    let (mut session, last_seen_uid) = idle_wait_loop(app, account_id, session, initial_last_seen_uid).await?;
 
     // 5. 退出时登出（优雅关闭）
     let _ = session.logout().await;
-    Ok(())
+    Ok(last_seen_uid)
 }
 
 /// 建立 IMAP 会话：TLS 连接 → 登录 → 选 INBOX。
@@ -314,14 +349,51 @@ pub(crate) async fn build_imap_session(
 ///
 /// `session.idle()` 会消耗 session（返回 Handle），`handle.done()` 发 DONE 结束 IDLE 并归还 session。
 /// `wait()` 自带 29 分钟超时（async-imap 内置保活），超时返回 Timeout 后循环重启 idle。
+///
+/// `initial_last_seen_uid` 非零时作为离线补发基线（首连接时把离线期间到达的新邮件补推）；
+/// 为零时回退到 `fetch_max_uid`（T1 行为：跳过当前所有已有邮件）。循环内 fetch 推进该值后
+/// emit `mail://last-seen-uid` 让前端持久化（重连/重启后作为下次补发基线）。
+///
+/// 返回 `(session, last_seen_uid)`：session 供外层 logout，last_seen_uid 供重连沿用。
 async fn idle_wait_loop<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
     mut session: async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
-) -> Result<async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, String> {
-    // 记录已推送过的最大 UID，用于只推送真正的新邮件（去重）。
-    // 首次进入循环前先初始化为当前 INBOX 最大 UID，避免把已有邮件全推一遍。
-    let mut last_seen_uid: u32 = fetch_max_uid(&mut session).await.unwrap_or(0);
+    initial_last_seen_uid: u32,
+) -> Result<(async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, u32), String> {
+    // 初始化去重基线：
+    // - 前端传入非 0 的 initial_last_seen_uid → 直接用作补发基线（离线补发：fetch 离线期间新邮件）
+    // - 为 0（首次绑定，前端还没持久化过）→ 回退到当前 INBOX 最大 UID（跳过已有邮件，T1 行为）
+    let mut last_seen_uid: u32 = if initial_last_seen_uid > 0 {
+        initial_last_seen_uid
+    } else {
+        fetch_max_uid(&mut session).await.unwrap_or(0)
+    };
+
+    // 离线补发：initial_last_seen_uid 非零时，先把离线期间到达的新邮件补推一遍。
+    // 这一步只在 initial_last_seen_uid > 0（前端有持久化基线）时执行，避免首次绑定时
+    // 把已有邮件全推（initial=0 走 fetch_max_uid 已是基线，fetch_new_envelopes 不会推已存在的）。
+    if initial_last_seen_uid > 0 {
+        match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
+            Ok(payloads) => {
+                for payload in &payloads {
+                    let _ = app.emit("mail://new-mail", payload);
+                }
+                if !payloads.is_empty() {
+                    let _ = app.emit(
+                        "mail://last-seen-uid",
+                        LastSeenUidPayload {
+                            account_id: account_id.to_string(),
+                            last_seen_uid,
+                        },
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("mail {account_id} 离线补发 fetch 失败: {e}");
+            }
+        }
+    }
 
     loop {
         let mut handle = session.idle();
@@ -343,8 +415,17 @@ async fn idle_wait_loop<R: Runtime>(
 
                 match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
                     Ok(payloads) => {
-                        for payload in payloads {
+                        for payload in &payloads {
                             let _ = app.emit("mail://new-mail", payload);
+                        }
+                        if !payloads.is_empty() {
+                            let _ = app.emit(
+                                "mail://last-seen-uid",
+                                LastSeenUidPayload {
+                                    account_id: account_id.to_string(),
+                                    last_seen_uid,
+                                },
+                            );
                         }
                     }
                     Err(e) => {
@@ -363,8 +444,17 @@ async fn idle_wait_loop<R: Runtime>(
 
                 match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
                     Ok(payloads) => {
-                        for payload in payloads {
+                        for payload in &payloads {
                             let _ = app.emit("mail://new-mail", payload);
+                        }
+                        if !payloads.is_empty() {
+                            let _ = app.emit(
+                                "mail://last-seen-uid",
+                                LastSeenUidPayload {
+                                    account_id: account_id.to_string(),
+                                    last_seen_uid,
+                                },
+                            );
                         }
                     }
                     Err(e) => {
@@ -378,7 +468,7 @@ async fn idle_wait_loop<R: Runtime>(
                     .done()
                     .await
                     .map_err(|e| format!("IDLE done 失败: {e}"))?;
-                return Ok(session);
+                return Ok((session, last_seen_uid));
             }
             Err(e) => {
                 // wait 出错：尝试发 DONE 归还 session（失败也无妨，外层会重连）
@@ -457,6 +547,7 @@ async fn fetch_new_envelopes(
 
             payloads.push(NewMailPayload {
                 account_id: account_id.to_string(),
+                uid,
                 from,
                 subject,
                 arrived_at: now_ms(),

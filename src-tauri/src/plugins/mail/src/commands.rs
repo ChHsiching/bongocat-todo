@@ -25,6 +25,10 @@ pub async fn mail_test_connection(
 }
 
 /// 启动某账号的 IDLE 监听（从 keyring 取密码，spawn task）。
+///
+/// `initial_last_seen_uid` 来自前端持久化的 mailAccount.lastSeenUid：
+/// 非 0 时作为离线补发基线（fetch 离线期间到达的新邮件 UID > last_seen_uid）；
+/// 0 时回退到当前 INBOX 最大 UID（T1 行为：跳过已有邮件）。
 #[command]
 pub async fn mail_connect<R: Runtime>(
     app: AppHandle<R>,
@@ -33,13 +37,14 @@ pub async fn mail_connect<R: Runtime>(
     imap_port: u16,
     username: String,
     proxy: Option<String>,
+    initial_last_seen_uid: u32,
 ) -> Result<(), String> {
     let manager = app.state::<ConnectionManager>();
     // connect 需要 owned AppHandle（spawn 的 task 持有它），clone 一份传走，
     // 避免与上面的 `.state()` 借用冲突。
     manager
         .inner()
-        .connect(app.clone(), account_id, imap_host, imap_port, username, proxy)
+        .connect(app.clone(), account_id, imap_host, imap_port, username, proxy, initial_last_seen_uid)
         .await
 }
 

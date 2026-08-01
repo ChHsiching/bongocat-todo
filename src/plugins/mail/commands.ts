@@ -25,15 +25,21 @@ export function mailTestConnection(
   return invoke(COMMAND.TEST_CONNECTION, { imapHost, imapPort, username, password, proxy })
 }
 
-/** 启动某账号的 IDLE 监听（Rust 从 keyring 取密码，spawn task）。 */
+/**
+ * 启动某账号的 IDLE 监听（Rust 从 keyring 取密码，spawn task）。
+ *
+ * `initialLastSeenUid` 来自 mailAccount.lastSeenUid（持久化）：非 0 时作为离线补发基线，
+ * Rust fetch 离线期间到达的新邮件（UID > lastSeenUid）补推；0 时跳过已有邮件（T1 行为）。
+ */
 export function mailConnect(
   accountId: string,
   imapHost: string,
   imapPort: number,
   username: string,
   proxy: string | null,
+  initialLastSeenUid: number,
 ): Promise<void> {
-  return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username, proxy })
+  return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username, proxy, initialLastSeenUid })
 }
 
 /** 断开某账号的 IDLE 监听（取消 task）。 */

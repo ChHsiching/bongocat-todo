@@ -1,4 +1,8 @@
+import type { useI18n } from 'vue-i18n'
+
 import { emit } from '@tauri-apps/api/event'
+
+import type { MenuItemDescriptor, useMenuBusStore } from '@/stores/menuBus'
 
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 
@@ -14,11 +18,15 @@ import {
 
 export type { MailAccount, MailAccountStatus } from './stores/mailAccount'
 export { useMailAccountStore } from './stores/mailAccount'
+export { useMailNotificationStore } from './stores/mailNotification'
+export type { MailNotification, MailNotificationStatus } from './stores/mailNotification'
 export { useMailSettingsStore } from './stores/mailSettings'
 
 /** Rust 推给前端的「新邮件」事件 payload（`mail://new-mail`）。 */
 export interface NewMailPayload {
   accountId: string
+  /** 邮箱 UID（离线补发去重用，`<accountId>:<uid>` 唯一）。 */
+  uid: number
   from: string
   subject: string
   arrivedAt: number
@@ -31,41 +39,57 @@ export interface ConnectionStatusPayload {
   message?: string
 }
 
+/** Rust 推给前端的「最新已见 UID」事件 payload（`mail://last-seen-uid`）。 */
+export interface LastSeenUidPayload {
+  accountId: string
+  lastSeenUid: number
+}
+
 /** Tauri event 名（Rust 端 emit 用的字符串，两端必须一致）。 */
 export const MAIL_EVENT = {
   NEW_MAIL: 'mail://new-mail',
   CONNECTION_STATUS: 'mail://connection-status',
+  LAST_SEEN_UID: 'mail://last-seen-uid',
 } as const
 
 /** setupMailPlugin 的入参：调用方在 setup 顶层实例化好的 store + i18n t 函数。 */
 interface SetupMailPluginArgs {
   mailAccountStore: ReturnType<typeof useMailAccountStore>
+  mailNotificationStore: ReturnType<typeof useMailNotificationStore>
   mailSettingsStore: ReturnType<typeof useMailSettingsStore>
+  menuBus: ReturnType<typeof useMenuBusStore>
+  t: ReturnType<typeof useI18n>['t']
   /** 当前窗口 label（用于把全局副作用限定到 main 窗口，避免多窗口重复监听）。 */
   windowLabel: string
 }
 
+/** 留存规则 tick 间隔（1 分钟扫描一次 24h/5min 超时归档 + 30 天清理）。 */
+const RETENTION_TICK_MS = 60 * 1000
+
 /**
- * 安装邮件插件：注册 Tauri event 监听（新邮件 → 弹气泡；连接状态 → 更新 store）。
+ * 安装邮件插件：注册 Tauri event 监听（新邮件 → 入历史 + 弹气泡；连接状态 → 更新 store；
+ * last-seen-uid → 持久化补发基线）+ 启动留存规则 tick。
  *
  * 必须在 App.vue 的 onMounted 里、stores `$tauri.start()` 之后调用（store 才加载已落盘数据）。
  * 监听只在 **main 窗口** 启动（App.vue 在 main/preference/todo/bubble 多窗口都挂载，
- * 否则多窗口重复监听会触发多次弹气泡）。main 是 app 生命周期所有者。
+ * 否则多窗口重复监听会触发多次弹气泡 + 多份留存 timer）。main 是 app 生命周期所有者。
+ *
+ * 新邮件到达时同时：①upsert 到 mailNotification store（进历史列表）；②emit SHOW_BUBBLE
+ * 给 bubble 窗口弹气泡。两步独立（bubble 窗口是独立 webview，读不到 main 的 store 变更）。
  *
  * ⚠️ store 实例化必须由调用方在 setup 顶层完成（跨 async 边界 Pinia inject 会失效，
  * 报 "Must be called at the top of a setup function" code:26），本函数只接收已实例化的 store。
- *
- * @returns 一个 unlisten 函数数组（目前未使用，预留 hot-reload 清理）；tracer bullet 阶段监听随 app 生命周期存活。
  */
-export async function setupMailPlugin({ mailAccountStore, mailSettingsStore, windowLabel }: SetupMailPluginArgs) {
+export async function setupMailPlugin({ mailAccountStore, mailNotificationStore, mailSettingsStore, menuBus, t, windowLabel }: SetupMailPluginArgs) {
   if (windowLabel !== WINDOW_LABEL.MAIN) {
     return
   }
 
   const { listen } = await import('@tauri-apps/api/event')
 
-  // 新邮件 → emit SHOW_BUBBLE（bubble 窗口监听此事件弹气泡 + 定位）
+  // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡）
   listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
+    mailNotificationStore.upsertMail(payload, payload.uid)
     emit(LISTEN_KEY.SHOW_BUBBLE, payload)
   })
 
@@ -74,11 +98,40 @@ export async function setupMailPlugin({ mailAccountStore, mailSettingsStore, win
     mailAccountStore.setStatus(payload.accountId, payload.status)
   })
 
-  // app 启动后，对已持久化的账号自动重连（store 在 $tauri.start() 后已加载）
+  // last-seen-uid → 持久化到 mailAccount.lastSeenUid（离线补发基线，下次启动用）
+  listen<LastSeenUidPayload>(MAIL_EVENT.LAST_SEEN_UID, ({ payload }) => {
+    mailAccountStore.setLastSeenUid(payload.accountId, payload.lastSeenUid)
+  })
+
+  // 留存规则 tick：每分钟扫描，迁移超时的未读/已读到归档 + 清理 30 天归档项
+  setInterval(() => {
+    mailNotificationStore.tickRetention()
+  }, RETENTION_TICK_MS)
+
+  // 向 menuBus 登记「邮件列表」+「归档邮件」两个右键菜单项（D9）。
+  // action emit 专用事件，让 mail-list / mail-archive 页面在 show 前先定位 + setSize。
+  const mailMenuItems: MenuItemDescriptor[] = [
+    {
+      id: 'mail-list',
+      label: () => t('plugins.mail.labels.mailListMenu'),
+      icon: 'i-solar:letter-unread-bold',
+      action: () => emit(LISTEN_KEY.SHOW_MAIL_LIST),
+    },
+    {
+      id: 'mail-archive',
+      label: () => t('plugins.mail.labels.mailArchiveMenu'),
+      icon: 'i-solar:archive-minimalistic-bold',
+      action: () => emit(LISTEN_KEY.SHOW_MAIL_ARCHIVE),
+    },
+  ]
+  menuBus.registerItems(mailMenuItems)
+
+  // app 启动后，对已持久化的账号自动重连（store 在 $tauri.start() 后已加载）。
+  // 传入持久化的 lastSeenUid 作为离线补发基线（非 0 时 fetch 离线期间到达的新邮件补推）
   const proxy = mailSettingsStore.proxy || null
   for (const account of mailAccountStore.accounts) {
     if (account.enabled) {
-      mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy).catch(
+      mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy, account.lastSeenUid ?? 0).catch(
         () => {
           // 连接失败已由 connection-status event 更新 status='error'，这里不重复处理
         },
@@ -113,10 +166,10 @@ export async function testAndSaveAccount(
     throw err
   }
 
-  // 4. 启动 IDLE 监听
+  // 4. 启动 IDLE 监听（新账号 lastSeenUid=0，Rust 用当前 INBOX 最大 UID 初始化基线）
   mailAccountStore.setStatus(account.id, 'connecting')
   try {
-    await mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy)
+    await mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy, 0)
   } catch (err) {
     // 连接失败：密码已存 keyring，保留账号（用户可在列表里看到 error 状态重试）
     mailAccountStore.setStatus(account.id, 'error')
