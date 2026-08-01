@@ -258,6 +258,21 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **修复**：新增 `bubbleShape.ts` 的 `genBubbleShape(textHeight)`，按内容高度动态生成 path d。
 - **规则**：**手绘风 UI 的 SVG 形状不能用写死坐标**，必须根据内容尺寸动态生成 path。T5 邮件列表/归档面板也是手绘风，同样适用。
 
+#### Tauri listen 不 await 是竞态炸弹（T5 踩坑）
+- **坑**：`setupMailPlugin` 里 4 个 `listen()` 没 `await`，监听器还没注册完 Rust 就补发 emit `mail://new-mail`，离线补发的邮件被丢弃。正常 IDLE 推送（10 秒后）不暴露这个 bug，但离线补发是「连接后立即 emit」，时序紧得多。
+- **修复**：全部加 `await`，确保注册完再 `mailConnect`。
+- **规则**：**Tauri `listen` 是异步的（返回 Promise）**，如果有「连接后立即 emit」的场景，必须 await 所有 listen 完成后再建立连接。
+
+#### store 加新字段要做数据迁移（T5 踩坑）
+- **坑**：T5 给 mailAccount store 加 `lastSeenUid` 字段，但 T5 前创建的账号持久化 JSON 没这个字段（`undefined`）。`setLastSeenUid` 里 `uid > undefined` 是 `false`（NaN 比较），永远不更新 → 离线补发永不触发。
+- **修复**：`migrateLastSeenUid()` 给旧账号补 `lastSeenUid: 0`；`setLastSeenUid` 用 `?? 0` 兜底。
+- **规则**：**给已有持久化 store 加新字段时，必须写 migrate 函数给旧数据补默认值**，否则 undefined 参与比较运算会静默 false。
+
+#### `monitors.find(m => ...)` 的 m 闭包泄漏（T5 踩坑）
+- **坑**：`mail-list/index.vue` 的 clamp 定位代码 `monitors.find(m => ...)` 里参数名 `m`，在 find 回调外部作用域被误引用 → `ReferenceError`，整个监听回调崩溃，邮件列表窗口打不开。归档窗口用的参数名是 `monitor` 所以没踩。
+- **修复**：`m` → `monitor`。
+- **教训**：ESLint 抓不到这种「find 回调参数名跨作用域泄漏」，只有运行时 ReferenceError 才暴露。**find/filter 回调参数名要语义化、不与外部变量重名**。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -301,17 +316,24 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl）+ vitest 测试 |
 | `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
 | `components/Bubble/index.vue` | **手绘风气泡**（T2 完成）：圆胖 SVG 形状 + 851/荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。通过 prop 区分 mail/todo 类型 |
+| `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
+| `components/MailItem/index.vue` | 邮件项（T5 新增）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 |
+| `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + vitest 测试 |
+| `utils/retention.ts` | 留存规则纯函数（T5 新增）：24h 归档 / 5min 归档 / 30 天清理 + vitest 测试 |
+| `utils/timeFormat.ts` | 相对时间格式化（T5 新增）：「2 分钟前」/「昨天」 |
 
 > **字体变更（T2，用户口头要求）**：手写字体从 851 换成**荆南波波黑**。font-family 名仍叫 `'Handwriting851'`（历史命名，只换了 `@font-face` src）。气泡 `bubble.css` 和 todo `handdrawn.css` 各自定义 `@font-face`，改字体要改两处。
 >
 > **新需求备忘（不在现有 ticket 里）**：用户计划设置页加「字体切换」功能，内置多种字体。Phase 2 范围外，暂不建 ticket。
 
 ### 接入点
-- `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE`
-- `src/router/index.ts`：`/bubble` 路由
+- `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` / `MAIL_LIST` / `MAIL_ARCHIVE` + `LISTEN_KEY.SHOW_BUBBLE` / `SHOW_MAIL_LIST` / `SHOW_MAIL_ARCHIVE`
+- `src/router/index.ts`：`/bubble` / `/mail-list` / `/mail-archive` 路由
 - `src/pages/bubble/index.vue`：气泡窗口（独立伴随窗口，定位照抄 todo 面板 clamp+翻边）
+- `src/pages/mail-list/index.vue`：邮件列表窗口（T5 新增）
+- `src/pages/mail-archive/index.vue`：归档邮件窗口（T5 新增）
 - `src/pages/preference/components/mail/index.vue`：邮件设置页（表单 + provider 指引 + 代理）
-- `src-tauri/tauri.conf.json`：bubble 窗口 + preference minHeight 720
+- `src-tauri/tauri.conf.json`：bubble / mail-list / mail-archive 窗口 + preference minHeight 720
 - `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
 - 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`
 

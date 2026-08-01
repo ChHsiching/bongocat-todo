@@ -170,15 +170,20 @@ entry.delete_credential()?;  // ⚠️ 不是 delete_password
 - 新邮件到达触发气泡后，自动进入邮件列表（未读状态）。
 - **默认留存 24 小时**后自动归档（转入归档邮件窗口，从邮件列表移除）。
 - **点击后**标记为本地已读 + **5 分钟后**自动归档。
+- **归档超过 30 天**自动清理（从 store 彻底移除）。来源：设计稿 `mail-list.html` footer 写明，T5 落地。
 
 **状态模型**（本地，不碰邮箱服务端）：
 ```
 MailNotification {
-  id, accountId, from, subject, arrivedAt  // 信封元数据
+  id, accountId, uid, from, subject, arrivedAt  // 信封元数据（uid 来自 IMAP，用于去重）
   status: 'unread' | 'read' | 'archived'  // 纯本地状态
   readAt?, archivedAt?                      // 本地时间戳
 }
 ```
+
+> **T5 实现补充（2026-08-01）**：
+> - `NewMailPayload`（Rust → 前端 event）加了 `uid: u32` 字位，用于前端按 `<accountId>:<uid>` 去重（离线补发 + IDLE 推送可能重复）+ bubble 点击邮件时按 uid 匹配 store 调 `markRead`。
+> - **离线补发链路**（`mail://last-seen-uid` event）：Rust 每批推送新邮件后 emit 当前 last_seen_uid，前端监听后 `setLastSeenUid` 持久化到 mailAccount store。app 启动重连时传持久化的 `initial_last_seen_uid`（而非 fetch_max_uid 跳过），`fetch_new_envelopes` 把离线期间的新邮件补推。**离线补发的关键约束**：前端 `listen` 必须全部 `await` 完成后再 `mailConnect`，否则 Rust emit 的事件被丢弃（竞态）。
 
 **理由**：
 - 常驻气泡（D7 改）让用户「不漏看」，但常驻不等于「记得处理过」。邮件列表补上「历史回看」——用户关掉气泡后还能在列表里找回。
