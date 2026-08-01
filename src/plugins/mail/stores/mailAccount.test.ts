@@ -193,4 +193,58 @@ describe('useMailAccountStore — setLastSeenUid（离线补发持久化）', ()
     const store = useMailAccountStore()
     expect(() => store.setLastSeenUid('nope', 999)).not.toThrow()
   })
+
+  it('lastSeenUid 为 undefined（旧数据）时直接写入（兼容迁移前数据）', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+    // 模拟旧持久化数据：强制删除 lastSeenUid
+    ;(acc as { lastSeenUid?: number }).lastSeenUid = undefined as unknown as number
+
+    store.setLastSeenUid(acc.id, 500)
+
+    expect(acc.lastSeenUid).toBe(500)
+  })
+})
+
+describe('useMailAccountStore — migrateLastSeenUid（旧数据迁移）', () => {
+  it('给 lastSeenUid 为 undefined 的旧账号补 0', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+    // 模拟旧持久化数据：强制删除 lastSeenUid
+    ;(acc as { lastSeenUid?: number }).lastSeenUid = undefined as unknown as number
+
+    store.migrateLastSeenUid()
+
+    expect(acc.lastSeenUid).toBe(0)
+  })
+
+  it('已有 lastSeenUid 的账号不受影响', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+    store.setLastSeenUid(acc.id, 800)
+
+    store.migrateLastSeenUid()
+
+    expect(acc.lastSeenUid).toBe(800)
+  })
+
+  it('空账号列表不报错', () => {
+    const store = useMailAccountStore()
+    expect(() => store.migrateLastSeenUid()).not.toThrow()
+  })
 })

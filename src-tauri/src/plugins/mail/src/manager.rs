@@ -363,11 +363,23 @@ async fn idle_wait_loop<R: Runtime>(
 ) -> Result<(async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, u32), String> {
     // 初始化去重基线：
     // - 前端传入非 0 的 initial_last_seen_uid → 直接用作补发基线（离线补发：fetch 离线期间新邮件）
-    // - 为 0（首次绑定，前端还没持久化过）→ 回退到当前 INBOX 最大 UID（跳过已有邮件，T1 行为）
+    // - 为 0（首次绑定 / T5 前旧账号 migrate 后）→ 回退到当前 INBOX 最大 UID（跳过已有邮件，T1 行为），
+    //   并 emit last-seen-uid 让前端持久化这个基线（否则前端永远是 0，离线补发永不触发）
     let mut last_seen_uid: u32 = if initial_last_seen_uid > 0 {
         initial_last_seen_uid
     } else {
-        fetch_max_uid(&mut session).await.unwrap_or(0)
+        let max_uid = fetch_max_uid(&mut session).await.unwrap_or(0);
+        // 把 fetch_max_uid 得到的基线 emit 给前端持久化，下次启动就能用它做离线补发
+        if max_uid > 0 {
+            let _ = app.emit(
+                "mail://last-seen-uid",
+                LastSeenUidPayload {
+                    account_id: account_id.to_string(),
+                    last_seen_uid: max_uid,
+                },
+            );
+        }
+        max_uid
     };
 
     // 离线补发：initial_last_seen_uid 非零时，先把离线期间到达的新邮件补推一遍。

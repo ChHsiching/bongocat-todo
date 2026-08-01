@@ -112,11 +112,33 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
    * 更新某账号的 lastSeenUid（由 Rust `mail://last-seen-uid` event 驱动调用）。
    *
    * 只单调递增（新 uid 比已存的小说明是旧数据/乱序，不回退）。持久化由 saveOnChange 落盘。
+   * 兼容旧数据：lastSeenUid 可能是 undefined（T5 前创建的账号），当 undefined 时直接写入。
    */
   function setLastSeenUid(id: string, uid: number) {
     const account = getAccount(id)
-    if (account && uid > account.lastSeenUid) {
+    if (!account) {
+      return
+    }
+    const current = account.lastSeenUid ?? 0
+    if (uid > current) {
       account.lastSeenUid = uid
+    }
+  }
+
+  /**
+   * 数据迁移：给 T5 前创建的旧账号补 lastSeenUid 默认值（0）。
+   *
+   * 旧持久化 JSON 没有 lastSeenUid 字段，`$tauri.start()` 加载后该属性是 undefined，
+   * 导致 `account.lastSeenUid ?? 0` 传给 Rust 的是 0（走 T1 旧行为跳过已有邮件）。
+   * 本方法把 undefined 补成 0，让 saveOnChange 把字段写入 JSON，后续 setLastSeenUid 能正常递增。
+   *
+   * 必须在 `$tauri.start()` 之后、`setupMailPlugin` 调用 `mailConnect` 之前调一次。幂等。
+   */
+  function migrateLastSeenUid() {
+    for (const account of accounts.value) {
+      if (account.lastSeenUid === undefined) {
+        account.lastSeenUid = 0
+      }
     }
   }
 
@@ -131,6 +153,7 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     getAccount,
     setStatus,
     setLastSeenUid,
+    migrateLastSeenUid,
     removeAccount,
   }
 })

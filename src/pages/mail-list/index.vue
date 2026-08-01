@@ -126,7 +126,7 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
       )
       y = Math.max(
         monitor.position.y,
-        Math.min(y, monitor.position.y + m.size.height - PANEL_SIZE.height),
+        Math.min(y, monitor.position.y + monitor.size.height - PANEL_SIZE.height),
       )
     }
   }

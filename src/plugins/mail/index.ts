@@ -87,19 +87,22 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
 
   const { listen } = await import('@tauri-apps/api/event')
 
+  // ⚠️ 必须先 await 所有 listen 注册完成，再发起 mailConnect。
+  // 原因：离线补发的 fetch 在 Rust 连接建立后立即执行并 emit mail://new-mail，
+  // 如果前端 listen 还没注册（listen 返回 Promise 但没 await），补发的邮件会被丢弃。
   // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡）
-  listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
+  await listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
     mailNotificationStore.upsertMail(payload, payload.uid)
     emit(LISTEN_KEY.SHOW_BUBBLE, payload)
   })
 
   // 连接状态 → 更新 store（驱动账号列表 UI 的状态展示）
-  listen<ConnectionStatusPayload>(MAIL_EVENT.CONNECTION_STATUS, ({ payload }) => {
+  await listen<ConnectionStatusPayload>(MAIL_EVENT.CONNECTION_STATUS, ({ payload }) => {
     mailAccountStore.setStatus(payload.accountId, payload.status)
   })
 
   // last-seen-uid → 持久化到 mailAccount.lastSeenUid（离线补发基线，下次启动用）
-  listen<LastSeenUidPayload>(MAIL_EVENT.LAST_SEEN_UID, ({ payload }) => {
+  await listen<LastSeenUidPayload>(MAIL_EVENT.LAST_SEEN_UID, ({ payload }) => {
     mailAccountStore.setLastSeenUid(payload.accountId, payload.lastSeenUid)
   })
 
@@ -127,7 +130,8 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   menuBus.registerItems(mailMenuItems)
 
   // app 启动后，对已持久化的账号自动重连（store 在 $tauri.start() 后已加载）。
-  // 传入持久化的 lastSeenUid 作为离线补发基线（非 0 时 fetch 离线期间到达的新邮件补推）
+  // 先迁移旧账号数据（补 lastSeenUid 默认值），再传入持久化的 lastSeenUid 作为离线补发基线。
+  mailAccountStore.migrateLastSeenUid()
   const proxy = mailSettingsStore.proxy || null
   for (const account of mailAccountStore.accounts) {
     if (account.enabled) {
