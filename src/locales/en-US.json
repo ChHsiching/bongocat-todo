@@ -278,6 +278,10 @@
         "statusConnected": "Connected",
         "statusError": "Error",
         "bubbleFrom": "From: ",
+        "bubbleClose": "Close",
+        "bubbleFold": "{n} more, view mail list →",
+        "bubbleSourceProvider": "New mail · {provider}",
+        "bubbleSourceDefault": "New mail",
         "providers": {
           "gmail": "Gmail\n\n1. Go to myaccount.google.com\n2. Enable 2-Step Verification\n3. Generate an App Password\n4. Use it as the auth code below",
           "qq": "QQ Mail\n\n1. Log in at mail.qq.com\n2. Settings → Account & Security → Security Settings\n3. Enable POP3/IMAP/SMTP/Exchange service\n4. Follow SMS prompt to get auth code",

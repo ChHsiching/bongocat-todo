@@ -278,6 +278,10 @@
         "statusConnected": "已连接",
         "statusError": "连接失败",
         "bubbleFrom": "发件人：",
+        "bubbleClose": "关闭",
+        "bubbleFold": "还有 {n} 条，查看邮件列表 →",
+        "bubbleSourceProvider": "新邮件 · {provider}",
+        "bubbleSourceDefault": "新邮件",
         "providers": {
           "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 开启「两步验证」\n3. 生成「应用专用密码」\n4. 用该密码填入下方授权码",
           "qq": "QQ 邮箱\n\n1. 登录 mail.qq.com\n2. 设置 → 账号与安全 → 安全设置\n3. 开启 POP3/IMAP/SMTP/Exchange 服务\n4. 按提示发短信，获取授权码",

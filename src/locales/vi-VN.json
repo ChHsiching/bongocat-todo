@@ -278,6 +278,10 @@
         "statusConnected": "Đã kết nối",
         "statusError": "Lỗi",
         "bubbleFrom": "Từ: ",
+        "bubbleClose": "Đóng",
+        "bubbleFold": "Còn {n} thư, xem danh sách →",
+        "bubbleSourceProvider": "Thư mới · {provider}",
+        "bubbleSourceDefault": "Thư mới",
         "providers": {
           "gmail": "Gmail\n\n1. Vào myaccount.google.com\n2. Bật Xác minh hai bước\n3. Tạo Mật khẩu ứng dụng\n4. Dùng mật khẩu đó làm mã ủy quyền",
           "qq": "QQ Mail\n\n1. Đăng nhập mail.qq.com\n2. Cài đặt → Tài khoản & Bảo mật → Cài đặt bảo mật\n3. Bật dịch vụ POP3/IMAP/SMTP/Exchange\n4. Làm theo hướng dẫn SMS để lấy mã ủy quyền",

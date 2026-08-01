@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchProvider, PROVIDER_PRESETS } from './providers'
+import { matchProvider, PROVIDER_PRESETS, resolveWebmailUrl } from './providers'
 
 describe('matchProvider', () => {
   it('gmail.com 命中 Gmail 预设', () => {
@@ -54,5 +54,52 @@ describe('matchProvider', () => {
     for (const p of PROVIDER_PRESETS) {
       expect(p.imapPort).toBe(993)
     }
+  })
+})
+
+describe('webmailUrl 字段', () => {
+  it('所有预设都有 webmailUrl（点气泡跳转用）', () => {
+    for (const p of PROVIDER_PRESETS) {
+      expect(p.webmailUrl).toBeTruthy()
+      expect(p.webmailUrl).toMatch(/^https?:\/\//)
+    }
+  })
+})
+
+describe('displayName 字段', () => {
+  it('所有预设都有 displayName（气泡来源标签用）', () => {
+    for (const p of PROVIDER_PRESETS) {
+      expect(p.displayName).toBeTruthy()
+    }
+  })
+
+  it('gmail 命中显示名是 Gmail（非全大写）', () => {
+    expect(matchProvider('a@gmail.com')?.displayName).toBe('Gmail')
+  })
+
+  it('qq 命中显示名是 QQ', () => {
+    expect(matchProvider('a@qq.com')?.displayName).toBe('QQ')
+  })
+})
+
+describe('resolveWebmailUrl', () => {
+  it('按地址命中 Gmail → mail.google.com', () => {
+    expect(resolveWebmailUrl('alice@gmail.com')).toBe('https://mail.google.com')
+  })
+
+  it('按地址命中 QQ → mail.qq.com', () => {
+    expect(resolveWebmailUrl('u@qq.com')).toBe('https://mail.qq.com')
+  })
+
+  it('地址未命中时按 IMAP host 回退命中', () => {
+    expect(resolveWebmailUrl('self@example.com', 'imap.qq.com')).toBe('https://mail.qq.com')
+  })
+
+  it('地址和 host 都未命中返回 null', () => {
+    expect(resolveWebmailUrl('a@example.com', 'mail.example.com')).toBeNull()
+  })
+
+  it('不传 host 且地址未命中返回 null', () => {
+    expect(resolveWebmailUrl('a@example.com')).toBeNull()
   })
 })

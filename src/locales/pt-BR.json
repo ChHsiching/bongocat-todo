@@ -278,6 +278,10 @@
         "statusConnected": "Conectado",
         "statusError": "Erro",
         "bubbleFrom": "De: ",
+        "bubbleClose": "Fechar",
+        "bubbleFold": "Mais {n}, ver lista de e-mails →",
+        "bubbleSourceProvider": "Novo e-mail · {provider}",
+        "bubbleSourceDefault": "Novo e-mail",
         "providers": {
           "gmail": "Gmail\n\n1. Acesse myaccount.google.com\n2. Ative a Verificação em duas etapas\n3. Gere uma Senha de app\n4. Use-a como código de autorização",
           "qq": "QQ Mail\n\n1. Acesse mail.qq.com\n2. Configurações → Conta e Segurança → Segurança\n3. Ative o serviço POP3/IMAP/SMTP/Exchange\n4. Siga o prompt de SMS para obter o código",

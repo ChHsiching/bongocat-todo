@@ -38,6 +38,7 @@ pub fn keyring_key(account_id: &str) -> String {
 
 /// 推给前端的「新邮件」事件 payload（`mail://new-mail`）。
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct NewMailPayload {
     pub account_id: String,
     /// 发件人邮箱（`mailbox@host`）；解析失败时给原始字符串。
@@ -50,6 +51,7 @@ pub struct NewMailPayload {
 
 /// 推给前端的「连接状态」事件 payload（`mail://connection-status`）。
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionStatusPayload {
     pub account_id: String,
     pub status: ConnectionStatus,

@@ -278,6 +278,10 @@
         "statusConnected": "已連線",
         "statusError": "連線失敗",
         "bubbleFrom": "寄件者：",
+        "bubbleClose": "關閉",
+        "bubbleFold": "還有 {n} 封，查看郵件列表 →",
+        "bubbleSourceProvider": "新郵件 · {provider}",
+        "bubbleSourceDefault": "新郵件",
         "providers": {
           "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 開啟「兩步驟驗證」\n3. 產生「應用專用密碼」\n4. 用該密碼填入下方授權碼",
           "qq": "QQ 信箱\n\n1. 登入 mail.qq.com\n2. 設定 → 帳號與安全 → 安全設定\n3. 開啟 POP3/IMAP/SMTP/Exchange 服務\n4. 依提示發簡訊，取得授權碼",
