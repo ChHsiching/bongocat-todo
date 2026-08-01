@@ -35,7 +35,7 @@ import '@/plugins/mail/styles/bubble.css'
 const appWindow = getCurrentWebviewWindow()
 
 const FADE_MS = 200
-const PANEL_SIZE = new PhysicalSize(400, 420)
+const PANEL_SIZE = new PhysicalSize(400, 560)
 
 const mailAccountStore = useMailAccountStore()
 const mailNotificationStore = useMailNotificationStore()

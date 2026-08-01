@@ -17,7 +17,7 @@
     <svg
       class="panel-bg"
       preserveAspectRatio="none"
-      viewBox="0 0 400 480"
+      viewBox="0 0 400 560"
     >
       <defs>
         <pattern
@@ -80,13 +80,13 @@
 
       <!-- 阴影层（错位手绘形状） -->
       <path
-        d="M 16 14 Q 18 12 24 13 L 378 16 Q 386 18 385 24 L 388 464 Q 386 472 378 472 L 22 468 Q 14 466 15 460 Z"
+        d="M 16 14 Q 18 12 24 13 L 378 16 Q 386 18 385 24 L 388 544 Q 386 552 378 552 L 22 548 Q 14 546 15 540 Z"
         fill="var(--paper-shadow)"
         opacity="0.6"
       />
       <!-- 主面板（纯白底 + 手绘边框） -->
       <path
-        d="M 14 10 Q 16 8 22 9 L 376 12 Q 384 14 383 20 L 386 460 Q 384 468 376 468 L 20 464 Q 12 462 13 456 Z"
+        d="M 14 10 Q 16 8 22 9 L 376 12 Q 384 14 383 20 L 386 540 Q 384 548 376 548 L 20 544 Q 12 542 13 536 Z"
         fill="url(#mail-paper-texture)"
         filter="url(#mail-shadow)"
         stroke="var(--ink)"
