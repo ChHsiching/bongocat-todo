@@ -211,6 +211,39 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **排查**：identifier 变更后，查数据文件要找**新 identifier 对应的目录**，不是旧上游的。
 - **Windows 路径**：`%APPDATA%/<identifier>/tauri-plugin-pinia/<store-id>.dev.json`（dev 模式带 `.dev` 后缀）。
 
+### Phase 2 邮件模块踩坑（T1 实现，必读）
+
+> 以下 8 个坑都是 T1 实现过程中付出调试代价才发现的，ADR 0002 D1/D2/D3 已更新对应决策。
+
+#### native-tls/SChannel 吊销检查导致 TLS 握手失败 → 用 rustls
+- **问题**：`tokio-native-tls` 在 Windows 上走 SChannel，默认做证书吊销检查（OCSP/CRL）。用户网络下吊销服务器不可达 → `CRYPT_E_REVOCATION_OFFLINE` → TLS 握手失败。curl（同样走 SChannel）复现。
+- **修复**：改用 `tokio-rustls` + `rustls`（不检查吊销）+ `webpki-roots`（内置 Mozilla 根 CA，不用系统证书库）。
+- **详见**：ADR 0002 D1 T1 纠正段。
+
+#### rustls 0.23 crypto provider 必须显式安装（否则永久卡死）
+- **坑**：rustls 0.23 首次调 `ClientConfig::builder()` 时需要进程级 crypto provider。**不安装会永久卡死**——不 panic、不超时、`tokio::time::timeout` 都救不了（卡在 provider 初始化的内部锁上）。
+- **修复**：插件 init 的 setup 里 `rustls::crypto::ring::default_provider().install_default()`。幂等，重复调用返回 Err 忽略。
+
+#### async-imap IDLE `wait()` 在 Tauri runtime 卡死 → `wait_with_timeout(10s)`
+- **坑**：`Handle::wait()` 默认 29 分钟超时，在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（timer future 永久 Pending）。`NewData` 路径正常，但 `Timeout` 路径完全失效。
+- **修复**：改用 `handle.wait_with_timeout(Duration::from_secs(10))`，10 秒短周期循环。Timeout 分支做兜底 `fetch_new_envelopes`，补查 IDLE 推送间隙漏掉的新邮件（QQ 邮箱 IDLE 推送不稳定，10 秒兜底保证体感延迟可控）。
+- **详见**：ADR 0002 D3 T1 纠正段。
+
+#### keyring v4 删除 API 是 `delete_credential`（不是 `delete_password`）
+- **坑**：ADR 0002 D2 原写 `delete_password()`，实际 keyring v4 v1 feature 的 API 是 `delete_credential()`。写错编译失败。
+
+#### Tauri 2 capability 权限要显式 allow
+- **坑**：Tauri 2 权限模型要求插件命令在 `src-tauri/capabilities/default.json` 显式 allow。建插件时漏了，导致 `mail_test_connection not allowed`。
+- **修复**：`capabilities/default.json` 加 `mail:allow-*` 权限。**新建 Tauri plugin 时必须同时加 capability 权限**。
+
+#### vue-i18n 的 `@` 必须 literal 转义
+- **坑**：vue-i18n 把 message 里的 `@` 当 linked-message 语法符（`@:key`）。`addressPlaceholder` 的 `alice@gmail.com` 导致编译失败，启动报 `SyntaxError: Invalid linked format`。
+- **修复**：locale 文件的 `@` 改为 `{'@'}`。
+
+#### TUN 透明代理对 993 端口不稳定 → 程序需自带 HTTP CONNECT 代理
+- **问题**：国内用户的境外邮箱（Gmail 等）需代理。TUN 透明代理对 993 端口转发不稳定（`stack: system` 已知问题）。
+- **修复**：程序内置 HTTP CONNECT 代理支持（`async-http-proxy` crate），设置页提供代理输入框。详见 ADR 0002 D10。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -231,6 +264,39 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 
 工具函数（`src/plugins/todo/utils/`）：
 - `priority.ts`：`PRIORITIES` 数组 + `priorityIndex` + `nextPriority`（循环切换）
+
+## mail 插件组件清单（Phase 2 T1 完成，T2-T6 进行中）
+
+> 位于 `src/plugins/mail/`。Rust 后端在 `src-tauri/src/plugins/mail/`（独立 Tauri plugin crate）。
+
+### Rust 后端（`src-tauri/src/plugins/mail/`）
+| 文件 | 说明 |
+|------|------|
+| `src/lib.rs` | init() + rustls crypto provider install_default + ConnectionManager state |
+| `src/commands.rs` | `mail_test_connection` / `mail_connect` / `mail_disconnect` / `mail_store_password` / `mail_delete_password` |
+| `src/manager.rs` | ConnectionManager + idle_loop + build_imap_session（含 HTTP CONNECT 代理）+ fetch_max_uid + fetch_new_envelopes + decode_mime_words |
+| `src/logic.rs` | `should_reset_idle` / `backoff_delay` 纯函数 + `#[cfg(test)]` 12 个测试 |
+
+### 前端（`src/plugins/mail/`）
+| 文件 | 说明 |
+|------|------|
+| `commands.ts` | Rust 命令的 TS 封装 |
+| `index.ts` | setupMailPlugin（listen events）+ testAndSaveAccount + removeAccount |
+| `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ vitest 测试 |
+| `stores/mailSettings.ts` | 代理设置 store |
+| `utils/providers.ts` | `matchProvider()` provider 识别 + vitest 测试 |
+| `components/Bubble/index.vue` | **最简矩形气泡**（T1 tracer bullet），T2 替换为手绘风 |
+
+### 接入点
+- `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE`
+- `src/router/index.ts`：`/bubble` 路由
+- `src/pages/bubble/index.vue`：气泡窗口（独立伴随窗口，定位照抄 todo 面板 clamp+翻边）
+- `src/pages/preference/components/mail/index.vue`：邮件设置页（表单 + provider 指引 + 代理）
+- `src-tauri/tauri.conf.json`：bubble 窗口 + preference minHeight 720
+- `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
+- 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`
+
+> **气泡窗口方案（T1 回填）**：用独立伴随窗口 `WINDOW_LABEL.BUBBLE`（非 main 内渲染）。main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域与 main 交互冲突。详见 ADR 0002 D7.1。
 
 ## 设计探索决策（已定稿）
 
