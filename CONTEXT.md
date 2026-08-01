@@ -244,6 +244,20 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **问题**：国内用户的境外邮箱（Gmail 等）需代理。TUN 透明代理对 993 端口转发不稳定（`stack: system` 已知问题）。
 - **修复**：程序内置 HTTP CONNECT 代理支持（`async-http-proxy` crate），设置页提供代理输入框。详见 ADR 0002 D10。
 
+#### WebView2 console.log 不转发到 Tauri stdout（T2 踩坑）
+- **问题**：Windows WebView2 的 `console.log` **不会**出现在 `pnpm tauri dev` 的 Rust stdout 里。前端调试时以为日志没输出，实际是被 WebView2 吞了。
+- **修复**：前端调试用 `@tauri-apps/plugin-log` 的 `info()` / `error()`，这些会转发到 Tauri 日志系统可见。
+
+#### Rust serde 蛇形/驼峰不匹配是静默 bug（T2 修复 T1 遗留）
+- **坑**：Rust struct 字段默认蛇形（`account_id`），前端 JS 读驼峰（`accountId`）。如果 struct 缺 `#[serde(rename_all = "camelCase")]`，前端 `payload.accountId` 会拿到 **`undefined`**——**不报错、不崩溃、静默失败**。
+- **修复**：`NewMailPayload` / `ConnectionStatusPayload` 加 `#[serde(rename_all = "camelCase")]`。
+- **规则**：**后续新增任何 Rust → 前端 event payload struct，必须加这个属性**。
+
+#### SVG path 写死坐标是布局炸弹（T2 踩坑）
+- **坑**：设计稿 `bubble.html` 的气泡 SVG path 坐标是写死的（固定高度）。内容变高时气泡形状不跟着变，文字溢出到气泡外面。`preserveAspectRatio="none"` 会强行拉伸变形。
+- **修复**：新增 `bubbleShape.ts` 的 `genBubbleShape(textHeight)`，按内容高度动态生成 path d。
+- **规则**：**手绘风 UI 的 SVG 形状不能用写死坐标**，必须根据内容尺寸动态生成 path。T5 邮件列表/归档面板也是手绘风，同样适用。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -284,8 +298,13 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `index.ts` | setupMailPlugin（listen events）+ testAndSaveAccount + removeAccount |
 | `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ vitest 测试 |
 | `stores/mailSettings.ts` | 代理设置 store |
-| `utils/providers.ts` | `matchProvider()` provider 识别 + vitest 测试 |
-| `components/Bubble/index.vue` | **最简矩形气泡**（T1 tracer bullet），T2 替换为手绘风 |
+| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl）+ vitest 测试 |
+| `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
+| `components/Bubble/index.vue` | **手绘风气泡**（T2 完成）：圆胖 SVG 形状 + 851/荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。通过 prop 区分 mail/todo 类型 |
+
+> **字体变更（T2，用户口头要求）**：手写字体从 851 换成**荆南波波黑**。font-family 名仍叫 `'Handwriting851'`（历史命名，只换了 `@font-face` src）。气泡 `bubble.css` 和 todo `handdrawn.css` 各自定义 `@font-face`，改字体要改两处。
+>
+> **新需求备忘（不在现有 ticket 里）**：用户计划设置页加「字体切换」功能，内置多种字体。Phase 2 范围外，暂不建 ticket。
 
 ### 接入点
 - `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE`
