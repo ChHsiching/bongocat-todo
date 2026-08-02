@@ -273,6 +273,11 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **修复**：`m` → `monitor`。
 - **教训**：ESLint 抓不到这种「find 回调参数名跨作用域泄漏」，只有运行时 ReferenceError 才暴露。**find/filter 回调参数名要语义化、不与外部变量重名**。
 
+#### inline 二次确认必须有强制反应死区（T5a 踩坑）
+- **坑**：inline 二次确认（按钮变形，非弹窗）如果没有死区，用户快速双击会瞬间删除，等于没有二次确认。
+- **修复**：进入确认态后先有 **700ms 死区**（按钮变灰禁用 + `cursor: not-allowed` + 点击忽略），死区结束后才变红色高亮可点击，再过 3.3 秒不点自动恢复。
+- **规则**：**inline 二次确认必须配死区**，否则防不住误双击。死区内按钮视觉必须明确禁用（灰+not-allowed），不能只是「逻辑上忽略点击但视觉正常」。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -317,10 +322,10 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
 | `components/Bubble/index.vue` | **手绘风气泡**（T2 完成）：圆胖 SVG 形状 + 851/荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。通过 prop 区分 mail/todo 类型 |
 | `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
-| `components/MailItem/index.vue` | 邮件项（T5 新增）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 |
+| `components/MailItem/index.vue` | 邮件项（T5 新增，T5a 增强）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 + 归档按钮(手绘箱) + 删除按钮(手绘垃圾桶) + inline 二次确认(700ms 死区+3.3s 确认窗口) + meta 两列网格 + 绝对日期 |
 | `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + vitest 测试 |
 | `utils/retention.ts` | 留存规则纯函数（T5 新增）：24h 归档 / 5min 归档 / 30 天清理 + vitest 测试 |
-| `utils/timeFormat.ts` | 相对时间格式化（T5 新增）：「2 分钟前」/「昨天」 |
+| `utils/timeFormat.ts` | 相对时间格式化（T5）：「2 分钟前」/「昨天」+ `absoluteDate(ts)` 绝对日期 `年.月.日`（T5a 新增） |
 
 > **字体变更（T2，用户口头要求）**：手写字体从 851 换成**荆南波波黑**。font-family 名仍叫 `'Handwriting851'`（历史命名，只换了 `@font-face` src）。气泡 `bubble.css` 和 todo `handdrawn.css` 各自定义 `@font-face`，改字体要改两处。
 >
