@@ -237,7 +237,9 @@
         "confirmAddButton": "Thêm",
         "cancelAddButton": "Hủy",
         "dueTodayShort": "Hôm nay",
-        "dueOverdueShort": "Quá hạn"
+        "dueOverdueShort": "Quá hạn",
+        "bubbleSource": "Việc đến hạn",
+        "bubbleDueBody": "Đã đến hạn"
       }
     },
     "mail": {

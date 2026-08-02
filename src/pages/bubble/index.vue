@@ -7,7 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { NewMailPayload } from '@/plugins/mail'
+import type { BubblePayload } from '@/plugins/mail'
 
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
@@ -43,9 +43,9 @@ const FALLBACK_HEIGHT = 80
  * 用 Map 而非数组，方便按 id 关闭单条；顺序按到达顺序（push 末尾 = 最新）。
  */
 interface BubbleItem {
-  /** 与 NewMailPayload.arrivedAt + 自增 seq 组合的唯一 key（同秒到达多封时不撞）。 */
+  /** 到达时间戳 + 自增 seq 组合的唯一 key（同秒到达多条时不撞）。 */
   key: string
-  mail: NewMailPayload
+  payload: BubblePayload
 }
 const queue = ref<BubbleItem[]>([])
 
@@ -69,9 +69,12 @@ onMounted(async () => {
   await mailNotificationStore.$tauri.start()
 })
 
-/** 气泡来源标签：按账号邮箱识别 provider 名（如「新邮件 · Gmail」），未识别则通用文案。 */
-function sourceLabel(mail: NewMailPayload): string {
-  const account = mailAccountStore.getAccount(mail.accountId)
+/** 气泡来源标签：邮件按账号邮箱识别 provider 名（如「新邮件 · Gmail」），todo 用「待办到期」。 */
+function sourceLabel(payload: BubblePayload): string {
+  if (payload.type === 'todo') {
+    return t('plugins.todo.labels.bubbleSource')
+  }
+  const account = mailAccountStore.getAccount(payload.accountId)
   const preset = account ? matchProvider(account.address) : null
   const providerName = preset?.displayName ?? null
   return providerName
@@ -107,8 +110,10 @@ async function measureHeight(): Promise<number> {
  *
  * 单条/多条复用同一路径：第一条到达 show 窗口，后续只追加 + 重排尺寸/定位。
  */
-useTauriListen<NewMailPayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
-  queue.value.push({ key: `${payload.arrivedAt}-${seq++}`, mail: payload })
+useTauriListen<BubblePayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
+  // 到达时间戳：邮件用 arrivedAt，todo 用 dueDate；+ 自增 seq 保证同秒多条不撞 key
+  const arriveTs = payload.type === 'mail' ? payload.arrivedAt : payload.dueDate
+  queue.value.push({ key: `${arriveTs}-${seq++}`, payload })
   shown.value = true
 
   await layoutAndShow()
@@ -169,19 +174,24 @@ async function layoutAndShow() {
 }
 
 /**
- * 点击邮件气泡 → 标本地已读 + 打开 webmail + 关闭该条气泡。
+ * 点击气泡 → 按 type 分发：邮件标本地已读 + 打开 webmail；todo 打开 todo 面板。都随后关闭。
  *
- * 本地已读：按 <accountId>:<uid> 匹配 mailNotification store 中的通知历史，调 markRead
+ * 邮件：按 <accountId>:<uid> 匹配 mailNotification store 中的通知历史，调 markRead
  * （纯本地状态，**不向邮箱发 STORE**，D5-actual 零写约束）。5 分钟后归档由 tickRetention
  * 扫描处理——@tauri-store/pinia 默认开启跨窗口 state-change 同步（DEFAULT_SYNC=true），
  * 本窗口的 markRead 会 patchSelf 到 main 窗口的内存副本，main 的 tickRetention 能读到 readAt。
  * mail-list 窗口也各自跑 tickRetention 作为兜底（幂等，多窗口同时跑不冲突）。
  *
- * webmail URL 解析：先按账号 address 匹配 provider，未命中回退 IMAP host；
- * 都未命中时不跳转（只关闭气泡，避免跳到无关页面）。
+ * todo：emit SHOW_TODO_FULL 打开 todo 面板（与「待办」右键菜单同入口）。
  */
-async function handleMailAction(item: BubbleItem) {
-  const account = mailAccountStore.getAccount(item.mail.accountId)
+async function handleAction(item: BubbleItem) {
+  if (item.payload.type === 'todo') {
+    emit(LISTEN_KEY.SHOW_TODO_FULL)
+    closeItem(item.key)
+    return
+  }
+  const mail = item.payload
+  const account = mailAccountStore.getAccount(mail.accountId)
   const url = account
     ? resolveWebmailUrl(account.address, account.imapHost)
     : null
@@ -192,7 +202,7 @@ async function handleMailAction(item: BubbleItem) {
   }
   // 标本地已读：按 accountId+uid 匹配 mailNotification 项
   const match = mailNotificationStore.notifications.find(
-    n => n.accountId === item.mail.accountId && n.uid === item.mail.uid,
+    n => n.accountId === mail.accountId && n.uid === mail.uid,
   )
   if (match) {
     mailNotificationStore.markRead(match.id)
@@ -239,11 +249,12 @@ function scheduleHide() {
     <Bubble
       v-for="item in shownItems"
       :key="item.key"
-      :source="sourceLabel(item.mail)"
-      :subtitle="item.mail.subject"
-      :title="item.mail.from"
-      type="mail"
-      @action="handleMailAction(item)"
+      :source="sourceLabel(item.payload)"
+      :subtitle="item.payload.type === 'todo' ? t('plugins.todo.labels.bubbleDueBody') : item.payload.subject"
+      :title="item.payload.type === 'todo' ? item.payload.title : item.payload.from"
+      :type="item.payload.type"
+      :urgent="item.payload.type === 'todo'"
+      @action="handleAction(item)"
       @close="closeItem(item.key)"
       @resize="onChildResize"
     />

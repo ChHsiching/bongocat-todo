@@ -237,7 +237,9 @@
         "confirmAddButton": "Add",
         "cancelAddButton": "Cancel",
         "dueTodayShort": "Today",
-        "dueOverdueShort": "Overdue"
+        "dueOverdueShort": "Overdue",
+        "bubbleSource": "Todo due",
+        "bubbleDueBody": "is due now"
       }
     },
     "mail": {

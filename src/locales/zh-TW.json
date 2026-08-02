@@ -237,7 +237,9 @@
         "confirmAddButton": "新增",
         "cancelAddButton": "取消",
         "dueTodayShort": "今天",
-        "dueOverdueShort": "已逾期"
+        "dueOverdueShort": "已逾期",
+        "bubbleSource": "待辦到期",
+        "bubbleDueBody": "已到期"
       }
     },
     "mail": {

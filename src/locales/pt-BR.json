@@ -237,7 +237,9 @@
         "confirmAddButton": "Adicionar",
         "cancelAddButton": "Cancelar",
         "dueTodayShort": "Hoje",
-        "dueOverdueShort": "Atrasado"
+        "dueOverdueShort": "Atrasado",
+        "bubbleSource": "Tarefa vencida",
+        "bubbleDueBody": "Venceu"
       }
     },
     "mail": {

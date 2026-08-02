@@ -32,6 +32,15 @@ export interface NewMailPayload {
   arrivedAt: number
 }
 
+/**
+ * 桌宠气泡 payload（`show-bubble` event）。判别联合：邮件气泡复用 NewMailPayload 字段，
+ * todo 气泡（T6）只带标题 + 到期时间戳。bubble 窗口按 `type` 字面量分支渲染。
+ *
+ * 邮件 emit 时把 NewMailPayload 与 `{ type: 'mail' }` 交叉，得到带 type 字面量的变体；
+ * todo emit 直接构造 `{ type: 'todo', ... }`。
+ */
+export type BubblePayload = (NewMailPayload & { type: 'mail' }) | { type: 'todo', id: string, title: string, dueDate: number }
+
 /** Rust 推给前端的「连接状态」事件 payload（`mail://connection-status`）。 */
 export interface ConnectionStatusPayload {
   accountId: string
@@ -93,7 +102,7 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡）
   await listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
     mailNotificationStore.upsertMail(payload, payload.uid)
-    emit(LISTEN_KEY.SHOW_BUBBLE, payload)
+    emit(LISTEN_KEY.SHOW_BUBBLE, { ...payload, type: 'mail' })
   })
 
   // 连接状态 → 更新 store（驱动账号列表 UI 的状态展示）
