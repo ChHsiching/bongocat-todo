@@ -302,7 +302,10 @@
         "mailReadMinutesLater": "已读，{n} 分钟后归档",
         "mailArchivedTag": "已归档",
         "mailListFooter": "未读默认 24 小时后归档 · 已读 5 分钟后归档",
-        "mailArchiveFooter": "归档项点击仍可跳转 webmail · 归档超过 30 天自动清理"
+        "mailArchiveFooter": "归档项点击仍可跳转 webmail · 归档超过 30 天自动清理",
+        "mailArchiveAction": "归档",
+        "mailDeleteAction": "删除",
+        "mailConfirmDelete": "确认删除?"
       }
     }
   }

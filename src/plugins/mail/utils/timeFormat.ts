@@ -10,6 +10,19 @@ const HOUR = 60 * MIN
 const DAY = 24 * HOUR
 
 /**
+ * 把时间戳格式化为绝对日期文案（T5a，归档列表 meta 用）。
+ *
+ * 格式 `年.月.日`（如 `2026.8.2`），与相对时间（「昨天」）并列显示——
+ * 既看到多久前，又看到具体日期。取本地时区年月日（用户视角的日期）。
+ *
+ * @param ts 目标时间戳（ms）
+ */
+export function absoluteDate(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`
+}
+
+/**
  * 把时间戳格式化为相对时间文案（中文）。
  *
  * - < 1 分钟：「刚刚」

@@ -302,7 +302,10 @@
         "mailReadMinutesLater": "Read, archives in {n} min",
         "mailArchivedTag": "Archived",
         "mailListFooter": "Unread auto-archives after 24h · read after 5 min",
-        "mailArchiveFooter": "Click to open webmail · purged after 30 days"
+        "mailArchiveFooter": "Click to open webmail · purged after 30 days",
+        "mailArchiveAction": "Archive",
+        "mailDeleteAction": "Delete",
+        "mailConfirmDelete": "Confirm delete?"
       }
     }
   }

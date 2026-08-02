@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { relativeTime } from './timeFormat'
+import { absoluteDate, relativeTime } from './timeFormat'
 
 const MIN = 60 * 1000
 const HOUR = 60 * MIN
@@ -51,5 +51,40 @@ describe('relativeTime — 相对时间文案', () => {
 
   it('未来时间（diff 负）回退为「刚刚」', () => {
     expect(relativeTime(now + 1000, now)).toBe('刚刚')
+  })
+})
+
+describe('absoluteDate — 绝对日期（年.月.日）', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('格式为 年.月.日（无补零）', () => {
+    // 固定时区为 UTC，避免 CI/本地时区差异
+    vi.stubEnv('TZ', 'UTC')
+    // 2026-08-02T13:14:15.000Z → UTC 年.月.日
+    const ts = Date.UTC(2026, 7, 2, 13, 14, 15)
+    expect(absoluteDate(ts)).toBe('2026.8.2')
+    vi.unstubAllEnvs()
+  })
+
+  it('月份/日期不补零（1 月 1 日 = 2026.1.1）', () => {
+    vi.stubEnv('TZ', 'UTC')
+    const ts = Date.UTC(2026, 0, 1, 0, 0, 0)
+    expect(absoluteDate(ts)).toBe('2026.1.1')
+    vi.unstubAllEnvs()
+  })
+
+  it('12 月 31 日 = 2026.12.31', () => {
+    vi.stubEnv('TZ', 'UTC')
+    const ts = Date.UTC(2026, 11, 31, 23, 59, 59)
+    expect(absoluteDate(ts)).toBe('2026.12.31')
+    vi.unstubAllEnvs()
+  })
+
+  it('不同年份', () => {
+    vi.stubEnv('TZ', 'UTC')
+    expect(absoluteDate(Date.UTC(2024, 2, 9, 6, 0, 0))).toBe('2024.3.9')
+    vi.unstubAllEnvs()
   })
 })

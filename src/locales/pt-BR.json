@@ -302,7 +302,10 @@
         "mailReadMinutesLater": "Lido, arquiva em {n} min",
         "mailArchivedTag": "Arquivado",
         "mailListFooter": "Não lidos arquivam após 24h · lidos após 5 min",
-        "mailArchiveFooter": "Clique para abrir o webmail · removido após 30 dias"
+        "mailArchiveFooter": "Clique para abrir o webmail · removido após 30 dias",
+        "mailArchiveAction": "Arquivar",
+        "mailDeleteAction": "Excluir",
+        "mailConfirmDelete": "Confirmar exclusão?"
       }
     }
   }

@@ -302,7 +302,10 @@
         "mailReadMinutesLater": "Đã đọc, lưu sau {n} phút",
         "mailArchivedTag": "Đã lưu",
         "mailListFooter": "Chưa đọc tự lưu sau 24h · đã đọc sau 5 phút",
-        "mailArchiveFooter": "Nhấn để mở webmail · xóa sau 30 ngày"
+        "mailArchiveFooter": "Nhấn để mở webmail · xóa sau 30 ngày",
+        "mailArchiveAction": "Lưu",
+        "mailDeleteAction": "Xóa",
+        "mailConfirmDelete": "Xác nhận xóa?"
       }
     }
   }

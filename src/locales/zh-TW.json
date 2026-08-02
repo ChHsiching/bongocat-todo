@@ -302,7 +302,10 @@
         "mailReadMinutesLater": "已讀，{n} 分鐘後封存",
         "mailArchivedTag": "已封存",
         "mailListFooter": "未讀預設 24 小時後封存 · 已讀 5 分鐘後封存",
-        "mailArchiveFooter": "封存項點擊仍可跳轉 webmail · 封存超過 30 天自動清理"
+        "mailArchiveFooter": "封存項點擊仍可跳轉 webmail · 封存超過 30 天自動清理",
+        "mailArchiveAction": "封存",
+        "mailDeleteAction": "刪除",
+        "mailConfirmDelete": "確認刪除?"
       }
     }
   }

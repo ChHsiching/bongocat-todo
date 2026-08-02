@@ -27,7 +27,7 @@ import MailPanel from '@/plugins/mail/components/MailPanel/index.vue'
 import { useMailAccountStore } from '@/plugins/mail/stores/mailAccount'
 import { useMailNotificationStore } from '@/plugins/mail/stores/mailNotification'
 import { matchProvider, resolveWebmailUrl } from '@/plugins/mail/utils/providers'
-import { relativeTime } from '@/plugins/mail/utils/timeFormat'
+import { absoluteDate, relativeTime } from '@/plugins/mail/utils/timeFormat'
 import WaveDivider from '@/plugins/todo/components/WaveDivider/index.vue'
 import { hideWindow, showWindow } from '@/plugins/window'
 import '@/plugins/mail/styles/bubble.css'
@@ -73,6 +73,11 @@ function providerName(accountId: string): string | null {
 
 function timeLabel(mail: { archivedAt?: number }): string {
   return mail.archivedAt ? relativeTime(mail.archivedAt, now.value) : ''
+}
+
+/** 绝对日期（年.月.日），归档列表 meta 区与相对时间并列显示。取接收时间。 */
+function dateLabel(mail: { arrivedAt: number }): string {
+  return absoluteDate(mail.arrivedAt)
 }
 
 useTauriListen(LISTEN_KEY.SHOW_MAIL_ARCHIVE, async () => {
@@ -132,6 +137,11 @@ function handleAction(id: string) {
       // 打开失败不阻塞
     })
   }
+}
+
+/** 删除按钮（二次确认后）：从 store 彻底移除。 */
+function handleDelete(id: string) {
+  mailNotificationStore.purge(id)
 }
 
 function handleClose() {
@@ -210,10 +220,12 @@ function handleClose() {
         <MailItem
           v-for="mail in archivedMails"
           :key="mail.id"
+          :date-label="dateLabel(mail)"
           :mail="mail"
           :provider-name="providerName(mail.accountId)"
           :time-label="timeLabel(mail)"
           @action="handleAction"
+          @delete="handleDelete"
         />
 
         <div

@@ -27,7 +27,7 @@ import MailPanel from '@/plugins/mail/components/MailPanel/index.vue'
 import { useMailAccountStore } from '@/plugins/mail/stores/mailAccount'
 import { useMailNotificationStore } from '@/plugins/mail/stores/mailNotification'
 import { matchProvider, resolveWebmailUrl } from '@/plugins/mail/utils/providers'
-import { relativeTime } from '@/plugins/mail/utils/timeFormat'
+import { absoluteDate, relativeTime } from '@/plugins/mail/utils/timeFormat'
 import WaveDivider from '@/plugins/todo/components/WaveDivider/index.vue'
 import { hideWindow, showWindow } from '@/plugins/window'
 import '@/plugins/mail/styles/bubble.css'
@@ -89,6 +89,11 @@ function providerName(accountId: string): string | null {
 /** 相对时间（到达时间）。 */
 function timeLabel(mail: { arrivedAt: number }): string {
   return relativeTime(mail.arrivedAt, now.value)
+}
+
+/** 绝对日期（年.月.日），meta 区与相对时间并列显示。 */
+function dateLabel(mail: { arrivedAt: number }): string {
+  return absoluteDate(mail.arrivedAt)
 }
 
 /**
@@ -161,6 +166,16 @@ function handleAction(id: string) {
       // 打开失败不阻塞
     })
   }
+}
+
+/** 归档按钮：直接归档（不点开跳浏览器）。幂等：已归档再调无副作用。 */
+function handleArchive(id: string) {
+  mailNotificationStore.archive(id)
+}
+
+/** 删除按钮（二次确认后）：从 store 彻底移除。 */
+function handleDelete(id: string) {
+  mailNotificationStore.purge(id)
 }
 
 function handleClose() {
@@ -247,10 +262,14 @@ function handleClose() {
         <MailItem
           v-for="mail in unreadMails"
           :key="mail.id"
+          :date-label="dateLabel(mail)"
           :mail="mail"
           :provider-name="providerName(mail.accountId)"
+          :show-archive="true"
           :time-label="timeLabel(mail)"
           @action="handleAction"
+          @archive="handleArchive"
+          @delete="handleDelete"
         />
 
         <!-- 已读分组 -->
@@ -264,10 +283,14 @@ function handleClose() {
         <MailItem
           v-for="mail in readMails"
           :key="mail.id"
+          :date-label="dateLabel(mail)"
           :mail="mail"
           :provider-name="providerName(mail.accountId)"
+          :show-archive="true"
           :time-label="timeLabel(mail)"
           @action="handleAction"
+          @archive="handleArchive"
+          @delete="handleDelete"
         />
 
         <!-- 空状态 -->
