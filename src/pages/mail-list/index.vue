@@ -243,8 +243,9 @@ function handleClose() {
             viewBox="0 0 24 24"
             width="20"
           >
-            <path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18" />
-            <path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18" />
+            <!-- 手绘 ×：两段顺滑大弧交叉，与 todo 面板一致 -->
+            <path d="M 6 6 Q 9.5 13 19 19" />
+            <path d="M 18 6 Q 8.5 10 5 18" />
           </svg>
         </button>
       </div>

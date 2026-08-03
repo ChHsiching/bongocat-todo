@@ -202,7 +202,7 @@
   "plugins": {
     "todo": {
       "labels": {
-        "menuItem": "Việc cần làm",
+        "menuItem": "Danh sách việc",
         "windowTitle": "Việc cần làm",
         "addTodoButton": "Việc mới",
         "addTodoPlaceholder": "Viết một việc cần làm…",

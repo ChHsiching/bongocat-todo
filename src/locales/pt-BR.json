@@ -202,7 +202,7 @@
   "plugins": {
     "todo": {
       "labels": {
-        "menuItem": "Tarefas",
+        "menuItem": "Lista de tarefas",
         "windowTitle": "Tarefas",
         "addTodoButton": "Nova tarefa",
         "addTodoPlaceholder": "Escreva uma tarefa…",

@@ -27,7 +27,7 @@ import { genBubbleShape } from '../../utils/bubbleShape'
 /** 气泡类型（prop，为 T6 todo 气泡预留）。 */
 type BubbleType = 'mail' | 'todo'
 
-defineProps<{
+const props = defineProps<{
   /** 气泡类型：mail（信封图标 + 粉波浪）或 todo（手绘时钟 + 红墨波浪）。 */
   type: BubbleType
   /** 来源标签（如「新邮件 · Gmail」/「待办到期」）。 */
@@ -38,6 +38,8 @@ defineProps<{
   subtitle: string
   /** 副标题是否高亮（todo 到期用红墨）。 */
   urgent?: boolean
+  /** 气泡宽度（px，父级根据所有气泡的最大自然宽度决定，默认 360）。 */
+  width?: number
 }>()
 
 const emit = defineEmits<{
@@ -45,8 +47,11 @@ const emit = defineEmits<{
   close: []
   /** 点击气泡本体（邮件→打开 webmail；todo→打开面板），随后父级也会 close。 */
   action: []
-  /** 内容高度变化（文字换行导致），父级据以重设窗口尺寸。payload = 像素高度。 */
-  resize: [height: number]
+  /**
+   * 内容尺寸变化（文字换行 / 长链接），父级据以重设窗口尺寸。
+   * payload = { height: 纯文字高度, naturalWidth: 内容自然宽度（不限宽，含 padding） }。
+   */
+  resize: [height: number, naturalWidth: number]
 }>()
 
 const { t } = useI18n()
@@ -61,8 +66,14 @@ const filterId = `b-sh-${Math.random().toString(36).slice(2, 8)}`
  */
 const textHeight = ref(60)
 
-/** 根据 textHeight 动态生成形状（path + viewBox + 尺寸 + contentTop）。 */
-const shape = computed(() => genBubbleShape(textHeight.value))
+/**
+ * 内容自然宽度（px，含左右 padding）。由 scrollWidth 测量，反映长链接/长文本不换行时的真实宽度。
+ * 父级收集所有气泡的 naturalWidth 取 max，决定窗口宽度（≥360）。
+ */
+const naturalWidth = ref(0)
+
+/** 根据 textHeight + width 动态生成形状（path + viewBox + 尺寸 + contentTop）。 */
+const shape = computed(() => genBubbleShape(textHeight.value, props.width))
 
 /** 根元素 ref（容器，设高度 = shape.height）。 */
 const rootEl = ref<HTMLElement | null>(null)
@@ -72,16 +83,31 @@ const contentEl = ref<HTMLElement | null>(null)
 
 let ro: ResizeObserver | undefined
 
-/** 观察内容尺寸变化（文字换行），重算形状 + 通知父级重设窗口尺寸。 */
+/**
+ * 观察内容尺寸变化（文字换行 / 长链接），重算形状 + 通知父级重设窗口尺寸。
+ *
+ * 测量两个维度：
+ * - height：纯文字高度（getBoundingClientRect().height），驱动 SVG path 高度
+ * - naturalWidth：内容自然宽度（scrollWidth，含溢出部分）。父级取所有气泡的 max 决定窗口宽度，
+ *   避免长链接在固定 360 内被挤压或溢出。
+ */
 function measureContent() {
   const el = contentEl.value
   if (!el) {
     return
   }
   const h = Math.round(el.getBoundingClientRect().height)
-  if (h > 0 && h !== textHeight.value) {
+  const nw = el.scrollWidth
+  const hChanged = h > 0 && h !== textHeight.value
+  const wChanged = nw > 0 && nw !== naturalWidth.value
+  if (hChanged) {
     textHeight.value = h
-    emit('resize', h)
+  }
+  if (wChanged) {
+    naturalWidth.value = nw
+  }
+  if (hChanged || wChanged) {
+    emit('resize', h, nw)
   }
 }
 
@@ -102,17 +128,17 @@ watch(contentEl, (el) => {
   <div
     ref="rootEl"
     class="bubble"
-    :style="{ height: `${shape.height}px` }"
+    :style="{ height: `${shape.height}px`, width: `${shape.width}px` }"
     @click="emit('action')"
   >
-    <!-- 圆胖手绘气泡背景（SVG path，严禁 CSS border）。path 由 genBubbleShape 按文字高度动态生成。
+    <!-- 圆胖手绘气泡背景（SVG path，严禁 CSS border）。path 由 genBubbleShape 按文字高度+宽度动态生成。
          width/height = viewBox 尺寸（1:1，preserveAspectRatio="none" 不拉伸）。 -->
     <svg
       class="bubble-bg"
       :height="shape.height"
       preserveAspectRatio="none"
       :viewBox="shape.viewBox"
-      width="360"
+      :width="shape.width"
     >
       <defs>
         <filter
@@ -253,8 +279,9 @@ watch(contentEl, (el) => {
           viewBox="0 0 24 24"
           width="18"
         >
-          <path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18" />
-          <path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18" />
+          <!-- 手绘 ×：两段顺滑大弧交叉，与 todo 面板一致 -->
+          <path d="M 6 6 Q 9.5 13 19 19" />
+          <path d="M 18 6 Q 8.5 10 5 18" />
         </svg>
       </button>
     </div>
@@ -264,7 +291,6 @@ watch(contentEl, (el) => {
 <style scoped>
 .bubble {
   position: relative;
-  width: 360px;
   cursor: pointer;
   user-select: none;
 }
@@ -282,12 +308,14 @@ watch(contentEl, (el) => {
 .bubble-content {
   position: absolute;
   left: 0;
+  width: 100%;
   z-index: 1;
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding-left: 20px;
   padding-right: 20px;
+  box-sizing: border-box;
 }
 
 .source-icon {

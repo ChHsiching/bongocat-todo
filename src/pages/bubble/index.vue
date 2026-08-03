@@ -28,8 +28,8 @@ const appWindow = getCurrentWebviewWindow()
  */
 const FADE_MS = 200
 
-/** 气泡窗口固定宽（360px，对齐 todo 面板）；高度按内容自适应。 */
-const BUBBLE_WIDTH = 360
+/** 气泡窗口最小宽（360px，对齐 todo 面板）；长内容时按子组件报的自然宽度取 max 变宽。 */
+const MIN_BUBBLE_WIDTH = 360
 
 /** 堆叠间距。 */
 const STACK_GAP = 10
@@ -53,6 +53,25 @@ let seq = 0
 
 const overflow = computed(() => computeBubbleOverflow(queue.value.length))
 const shownItems = computed(() => queue.value.slice(0, overflow.value.shown))
+
+/**
+ * 各气泡子组件上报的内容自然宽度（key → scrollWidth）。
+ * 子组件 resize 事件上报，父级取 max + MIN_BUBBLE_WIDTH 作为窗口宽度。
+ * 长链接/长主题不被挤压换行，而是撑宽气泡。
+ */
+const naturalWidths = ref<Record<string, number>>({})
+
+/** 窗口宽度：max(MIN_BUBBLE_WIDTH, 所有可见气泡的自然宽度)。 */
+const bubbleWidth = computed(() => {
+  let w = MIN_BUBBLE_WIDTH
+  for (const item of shownItems.value) {
+    const nw = naturalWidths.value[item.key]
+    if (nw && nw > w) {
+      w = nw
+    }
+  }
+  return w
+})
 
 /** store 必须在 setup 顶层实例化（跨 async 边界 inject 失效，见 CONTEXT.md 踩坑清单）。 */
 const mailAccountStore = useMailAccountStore()
@@ -119,15 +138,22 @@ useTauriListen<BubblePayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
   await layoutAndShow()
 })
 
-/** 子组件（Bubble/FoldHint）内容高度变化（文字换行）→ 重排窗口尺寸。 */
-function onChildResize() {
+/**
+ * 子组件（Bubble）内容尺寸变化（文字换行 / 长链接）→ 记录自然宽度 + 重排窗口尺寸。
+ * FoldHint 无宽度上报（固定宽度），传 undefined 只触发重排。
+ */
+function onChildResize(key: string, naturalWidth?: number) {
+  if (naturalWidth && naturalWidth > 0) {
+    naturalWidths.value[key] = naturalWidth
+  }
   layoutAndShow()
 }
 
-/** 按真实内容高度重设窗口尺寸 + 定位（clamp + 翻边），然后确保窗口可见。 */
+/** 按真实内容高度 + 宽度重设窗口尺寸 + 定位（clamp + 翻边），然后确保窗口可见。 */
 async function layoutAndShow() {
   const height = await measureHeight()
-  const size = new PhysicalSize(BUBBLE_WIDTH, height)
+  const width = bubbleWidth.value
+  const size = new PhysicalSize(width, height)
   await appWindow.setSize(size)
 
   const monitors = await availableMonitors()
@@ -148,22 +174,17 @@ async function layoutAndShow() {
 
     if (monitor) {
       // 水平：气泡中心对齐猫中心
-      x = catPos.x + Math.round(catSize.width / 2 - BUBBLE_WIDTH / 2)
-      // 垂直：猫正上方留 8px
+      x = catPos.x + Math.round(catSize.width / 2 - width / 2)
+      // 垂直：气泡底部锚定在猫正上方 8px，整体向上扩展（新气泡把旧的往上推）。
+      // 不翻到猫下方——多气泡/多行内容向下展开必然跨过猫区域，向上扩展更符合「贴桌宠上方」语义。
+      // 极端情况（总高 > 猫上方可用空间）顶部被 clamp 到屏幕顶，底部仍 < catY，不侵入猫。
       y = catPos.y - height - 8
-      // 上方放不下 → 翻到猫下方
-      if (y < monitor.position.y) {
-        y = catPos.y + catSize.height + 8
-      }
-      // clamp 到屏内
+      // clamp 到屏内（y 最小贴屏幕顶；x 不溢左右）
       x = Math.max(
         monitor.position.x,
-        Math.min(x, monitor.position.x + monitor.size.width - BUBBLE_WIDTH),
+        Math.min(x, monitor.position.x + monitor.size.width - width),
       )
-      y = Math.max(
-        monitor.position.y,
-        Math.min(y, monitor.position.y + monitor.size.height - height),
-      )
+      y = Math.max(monitor.position.y, y)
     }
   }
 
@@ -213,6 +234,7 @@ async function handleAction(item: BubbleItem) {
 /** 点 × 关闭单条（只消失，不跳转）。 */
 function closeItem(key: string) {
   queue.value = queue.value.filter(i => i.key !== key)
+  delete naturalWidths.value[key]
   if (queue.value.length === 0) {
     scheduleHide()
   } else {
@@ -254,15 +276,16 @@ function scheduleHide() {
       :title="item.payload.type === 'todo' ? item.payload.title : item.payload.from"
       :type="item.payload.type"
       :urgent="item.payload.type === 'todo'"
+      :width="bubbleWidth"
       @action="handleAction(item)"
       @close="closeItem(item.key)"
-      @resize="onChildResize"
+      @resize="(h: number, nw: number) => onChildResize(item.key, nw)"
     />
     <FoldHint
       v-if="overflow.overflow > 0"
       :count="overflow.overflow"
       @click="openMailList"
-      @resize="onChildResize"
+      @resize="() => layoutAndShow()"
     />
   </div>
 </template>

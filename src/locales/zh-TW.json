@@ -202,7 +202,7 @@
   "plugins": {
     "todo": {
       "labels": {
-        "menuItem": "待辦",
+        "menuItem": "待辦列表",
         "windowTitle": "待辦",
         "addTodoButton": "新增待辦",
         "addTodoPlaceholder": "寫一條待辦…",
