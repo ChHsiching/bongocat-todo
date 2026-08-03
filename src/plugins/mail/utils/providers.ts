@@ -118,6 +118,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 /**
  * 按邮箱地址匹配 provider 预设。
  *
+ * 匹配顺序：①精确域名命中预设 → ②后缀模式（教育邮箱 `.edu.cn` / `.edu`）。
+ * 教育邮箱是 SaaS（icoremail），域名千变万化，无法逐一枚举，按后缀兜底。
+ *
  * @returns 命中的 ProviderPreset；未命中返回 null（调用方让用户手动填）
  */
 export function matchProvider(address: string): ProviderPreset | null {
@@ -126,11 +129,100 @@ export function matchProvider(address: string): ProviderPreset | null {
     return null
   }
   const domain = address.slice(at + 1).toLowerCase()
-  return PROVIDER_PRESETS.find(p => p.domains.includes(domain)) ?? null
+
+  // ① 精确域名匹配
+  const exact = PROVIDER_PRESETS.find(p => p.domains.includes(domain))
+  if (exact) {
+    return exact
+  }
+
+  // ② 后缀模式匹配（教育邮箱等无法枚举的域名）
+  for (const pattern of SUFFIX_PATTERNS) {
+    if (domain.endsWith(pattern.suffix)) {
+      return {
+        domains: [domain],
+        imapHost: pattern.imapHost,
+        imapPort: pattern.imapPort,
+        hintKey: pattern.hintKey,
+        displayName: pattern.extractDisplayName?.(address, domain) ?? '教育邮箱',
+        webmailUrl: pattern.webmailUrlTemplate,
+        logo: EDU_MAIL_LOGO,
+      }
+    }
+  }
+
+  return null
 }
 
 /** 未识别邮箱的默认 logo（中性灰信封）。 */
 export const DEFAULT_MAIL_LOGO = '/mail-logos/logo-mail-default.svg'
+
+/** 教育邮箱通用 logo（毕业帽，学院蓝）。 */
+const EDU_MAIL_LOGO = '/mail-logos/logo-edu.svg'
+
+/**
+ * 后缀模式匹配（精确域名未命中时的兜底）。
+ *
+ * 教育邮箱（`.edu.cn` / `.edu`）是 Coremail/iCoremail SaaS，域名千变万化
+ * （如 `s.ytu.edu.cn`），无法逐一枚举。这里按后缀模式匹配，统一走
+ * `edu.icoremail.net` IMAP + `edu.icoremail.net` webmail。
+ * displayName 从域名提取学校简称（如 `s.ytu.edu.cn` → YTU）。
+ */
+interface SuffixPattern {
+  /** 域名后缀（小写，如 `.edu.cn`）。匹配时 endsWith。 */
+  suffix: string
+  /** IMAP 服务器。 */
+  imapHost: string
+  /** IMAP 端口。 */
+  imapPort: number
+  /** 授权码指引 i18n key 后缀。 */
+  hintKey: string
+  /** webmail URL 模板（`{address}` 替换为完整邮箱地址）。 */
+  webmailUrlTemplate: string
+  /**
+   * 从完整邮箱地址提取展示名。返回 null 时用 displayName 兜底。
+   * 教育邮箱提取学校简称（如 `s.ytu.edu.cn` → YTU）。
+   */
+  extractDisplayName?: (address: string, domain: string) => string | null
+}
+
+const SUFFIX_PATTERNS: SuffixPattern[] = [
+  {
+    suffix: '.edu.cn',
+    imapHost: 'edu.icoremail.net',
+    imapPort: 993,
+    hintKey: 'edu',
+    webmailUrlTemplate: 'https://edu.icoremail.net',
+    extractDisplayName: (_address, domain) => extractEduAbbr(domain),
+  },
+  {
+    suffix: '.edu',
+    imapHost: 'edu.icoremail.net',
+    imapPort: 993,
+    hintKey: 'edu',
+    webmailUrlTemplate: 'https://edu.icoremail.net',
+    extractDisplayName: (_address, domain) => extractEduAbbr(domain),
+  },
+]
+
+/**
+ * 从教育邮箱域名提取学校简称。
+ *
+ * 教育域名格式通常为 `<子域>.<学校简称>.edu.cn`（如 `s.ytu.edu.cn` → YTU，
+ * `mail.tsinghua.edu.cn` → TSINGHUA）。取 `.edu.cn` 前最后一段作为简称，大写。
+ * 无法提取时返回 null（用 displayName "教育邮箱" 兜底）。
+ */
+function extractEduAbbr(domain: string): string | null {
+  // 去掉 .edu.cn / .edu 后缀
+  const stripped = domain.replace(/\.edu(\.cn)?$/, '')
+  // 按 . 分割，取倒数第一段（学校简称段）
+  const parts = stripped.split('.')
+  const last = parts[parts.length - 1]
+  if (!last || last.length < 2) {
+    return null
+  }
+  return last.toUpperCase()
+}
 
 /**
  * 取邮箱地址对应的 logo 资源路径。
@@ -145,9 +237,8 @@ export function matchProviderLogo(address: string): string {
 /**
  * 解析邮箱的 webmail 入口 URL。
  *
- * 点击邮件气泡跳转用。先按邮箱地址匹配 provider 取 webmailUrl；
- * 未命中（自定义域名邮箱）时回退按 IMAP host 匹配（账号 store 里存了 host）。
- * 都未命中返回 null，调用方 fallback 到通用搜索入口。
+ * 点击邮件气泡跳转用。按邮箱地址匹配 provider（含后缀模式）取 webmailUrl；
+ * 未命中时回退按 IMAP host 匹配预设。都未命中返回 null。
  *
  * @param address 邮箱地址（首选匹配键）
  * @param imapHost IMAP 服务器地址（address 未命中时的回退匹配键）
@@ -159,9 +250,15 @@ export function resolveWebmailUrl(address: string, imapHost?: string): string | 
   }
   if (imapHost) {
     const host = imapHost.toLowerCase()
+    // 先查精确预设
     const byHost = PROVIDER_PRESETS.find(p => p.imapHost === host)
     if (byHost) {
       return byHost.webmailUrl
+    }
+    // 再查后缀模式（教育邮箱 IMAP host = edu.icoremail.net）
+    const bySuffix = SUFFIX_PATTERNS.find(p => p.imapHost === host)
+    if (bySuffix) {
+      return bySuffix.webmailUrlTemplate
     }
   }
   return null

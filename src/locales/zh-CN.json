@@ -271,6 +271,8 @@
         "errAuthFailed": "登录失败：授权码或应用专用密码错误。请确认填的不是登录密码，且 IMAP 服务已在邮箱设置中开启。",
         "errTimeout": "连接超时：网络不通或代理未正确转发。请检查代理地址是否正确，或尝试不填代理直连。",
         "errNetwork": "网络连接失败：无法连接到邮箱服务器。请检查网络或代理设置。",
+        "errUnsafeLogin": "登录被拦截：网易系邮箱（163/126）新开 IMAP 后会临时拦截第三方客户端登录，通常几小时后自动放行。请在网页版保持登录状态，稍后重试。",
+        "errDomainNotLocal": "IMAP 服务器不匹配：该邮箱账号不归属你填写的 IMAP 服务器。请向邮箱服务商或学校 IT 确认正确的 IMAP 服务器地址。",
         "proxyNoticeTitle": "关于代理与邮箱连接",
         "proxyNoticeBody1": "国内邮箱（QQ / 163 / 126 等）无需代理，直连即可。",
         "proxyNoticeBody2": "境外邮箱（Gmail / Outlook / iCloud 等）需通过代理连接。部分机场会封锁邮件端口（993），导致连接失败；请选用支持邮件端口的节点。",
@@ -285,14 +287,15 @@
         "bubbleSourceProvider": "新邮件 · {provider}",
         "bubbleSourceDefault": "新邮件",
         "providers": {
-          "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 开启「两步验证」\n3. 生成「应用专用密码」\n4. 用该密码填入下方授权码",
+          "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 开启「两步验证」\n3. 生成「应用专用密码」\n4. 用该密码填入下方授权码\n\nGmail 在中国大陆无法直连，需配置代理。部分代理节点会封锁邮件端口（993），请选用支持邮件端点的节点；若连接失败请尝试更换节点。",
           "qq": "QQ 邮箱\n\n1. 登录 mail.qq.com\n2. 设置 → 账号与安全 → 安全设置\n3. 开启 POP3/IMAP/SMTP/Exchange 服务\n4. 按提示发短信，获取授权码",
-          "163": "163 邮箱\n\n1. 登录 mail.163.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码",
-          "126": "126 邮箱\n\n1. 登录 mail.126.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码",
+          "163": "163 邮箱\n\n1. 登录 mail.163.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码\n\n新开启 IMAP 后，网易会临时拦截第三方客户端登录（返回 Unsafe Login），通常在网页端保持登录状态数小时后自动解除，期间无需重复操作。",
+          "126": "126 邮箱\n\n1. 登录 mail.126.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码\n\n新开启 IMAP 后，网易会临时拦截第三方客户端登录（返回 Unsafe Login），通常在网页端保持登录状态数小时后自动解除，期间无需重复操作。",
           "outlook": "Outlook / Hotmail\n\n1. 登录 outlook.live.com\n2. 安全 → 启用两步验证\n3. 生成应用密码",
           "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 账户安全 → 专用密码\n3. 生成用于邮件的应用专用密码",
           "proton": "Proton Mail\n\n1. Proton 不支持直连 IMAP\n2. 下载安装 Proton Mail Bridge 桌面端\n3. Bridge 登录后会在本地监听 IMAP（默认 127.0.0.1:1143）\n4. 把上方 IMAP 服务器/端口改为 Bridge 显示的地址\n5. 用 Bridge 账户设置里的「邮箱密码」填授权码",
-          "yahoo": "Yahoo Mail\n\n1. 登录 mail.yahoo.com\n2. 账户安全 → 开启两步验证\n3. 生成「应用密码」用于 IMAP"
+          "yahoo": "Yahoo Mail\n\n1. 登录 mail.yahoo.com\n2. 账户安全 → 开启两步验证\n3. 生成「应用密码」用于 IMAP",
+          "edu": "教育邮箱\n\n1. 登录学校邮箱网页版，在设置中开启 IMAP 服务\n2. 生成客户端专用密码（与登录密码不同，需单独申请）\n3. IMAP 服务器地址优先按学校提供的填写\n\n若学校提供的 IMAP 服务器地址无法连接：部分高校邮箱由第三方托管（如论客 icoremail），可尝试使用对应的通用接入地址 edu.icoremail.net。若仍无法连接，请联系学校网络中心确认校外访问方式及正确的服务器配置。"
         },
         "mailListMenu": "邮件列表",
         "mailArchiveMenu": "归档邮件",
@@ -317,6 +320,7 @@
         "bubbleAutoDismissDesc": "关闭后气泡常驻直到点击",
         "unreadOnlyTitle": "仅未读邮件提醒",
         "unreadOnlyDesc": "忽略已读邮件（通常应开启）",
+        "invalidPort": "端口必须是 1-65535 的整数",
         "invalidPort": "端口必须是 1-65535 的整数"
       }
     }

@@ -271,6 +271,10 @@
         "errAuthFailed": "登入失敗：授權碼或應用專用密碼錯誤。請確認填的不是登入密碼，且 IMAP 服務已在信箱設定中開啟。",
         "errTimeout": "連線逾時：網路不通或代理未正確轉發。請檢查代理地址是否正確，或嘗試不填代理直連。",
         "errNetwork": "網路連線失敗：無法連接到信箱伺服器。請檢查網路或代理設定。",
+        "errUnsafeLogin": "登入被攔截：網易系信箱（163/126）新開 IMAP 後會臨時攔截第三方用戶端登入，通常幾小時後自動放行。請在網頁版保持登入狀態，稍後重試。",
+        "errDomainNotLocal": "IMAP 伺服器不匹配：該信箱帳號不歸屬你填寫的 IMAP 伺服器。請向信箱服務商或學校 IT 確認正確的 IMAP 伺服器位址。",
+        "errUnsafeLogin": "登入被攔截：網易系信箱（163/126）新開 IMAP 後會臨時攔截第三方用戶端登入，通常幾小時後自動放行。請在網頁版保持登入狀態，稍後重試。",
+        "errDomainNotLocal": "IMAP 伺服器不匹配：該信箱帳號不歸屬你填寫的 IMAP 伺服器。請向信箱服務商或學校 IT 確認正確的 IMAP 伺服器位址。",
         "proxyNoticeTitle": "關於代理與信箱連線",
         "proxyNoticeBody1": "國內信箱（QQ / 163 / 126 等）無需代理，直連即可。",
         "proxyNoticeBody2": "境外信箱（Gmail / Outlook / iCloud 等）需透過代理連線。部分機場會封鎖郵件連接埠（993），導致連線失敗；請選用支援郵件連接埠的節點。",
@@ -285,14 +289,15 @@
         "bubbleSourceProvider": "新郵件 · {provider}",
         "bubbleSourceDefault": "新郵件",
         "providers": {
-          "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 開啟「兩步驟驗證」\n3. 產生「應用專用密碼」\n4. 用該密碼填入下方授權碼",
+          "gmail": "Gmail\n\n1. 前往 myaccount.google.com\n2. 開啟「兩步驟驗證」\n3. 產生「應用專用密碼」\n4. 用該密碼填入下方授權碼\n\nGmail 在中國大陸無法直連，需設定代理。部分代理節點會封鎖郵件連接埠（993），請選用支援郵件端點的節點；若連線失敗請嘗試更換節點。",
           "qq": "QQ 信箱\n\n1. 登入 mail.qq.com\n2. 設定 → 帳號與安全 → 安全設定\n3. 開啟 POP3/IMAP/SMTP/Exchange 服務\n4. 依提示發簡訊，取得授權碼",
-          "163": "163 信箱\n\n1. 登入 mail.163.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
-          "126": "126 信箱\n\n1. 登入 mail.126.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
+          "163": "163 信箱\n\n1. 登入 mail.163.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼\n\n新開啟 IMAP 後，網易會臨時攔截第三方用戶端登入（回傳 Unsafe Login），通常在網頁端保持登入狀態數小時後自動解除，期間無需重複操作。",
+          "126": "126 信箱\n\n1. 登入 mail.126.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼\n\n新開啟 IMAP 後，網易會臨時攔截第三方用戶端登入（回傳 Unsafe Login），通常在網頁端保持登入狀態數小時後自動解除，期間無需重複操作。",
           "outlook": "Outlook / Hotmail\n\n1. 登入 outlook.live.com\n2. 安全性 → 啟用兩步驟驗證\n3. 產生應用程式密碼",
           "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 帳戶安全 → 專用密碼\n3. 產生用於郵件的應用專用密碼",
           "proton": "Proton Mail\n\n1. Proton 不支援直連 IMAP\n2. 下載安裝 Proton Mail Bridge 桌面端\n3. Bridge 登入後會在本地監聽 IMAP（預設 127.0.0.1:1143）\n4. 把上方 IMAP 伺服器/連接埠改為 Bridge 顯示的位址\n5. 用 Bridge 帳戶設定裡的「郵箱密碼」填授權碼",
-          "yahoo": "Yahoo Mail\n\n1. 登入 mail.yahoo.com\n2. 帳戶安全 → 開啟兩步驗證\n3. 產生「應用程式密碼」用於 IMAP"
+          "yahoo": "Yahoo Mail\n\n1. 登入 mail.yahoo.com\n2. 帳戶安全 → 開啟兩步驗證\n3. 產生「應用程式密碼」用於 IMAP",
+          "edu": "教育信箱\n\n1. 登入學校信箱網頁版，在設定中開啟 IMAP 服務\n2. 產生用戶端專用密碼（與登入密碼不同，需單獨申請）\n3. IMAP 伺服器位址優先按學校提供的填寫\n\n若學校提供的 IMAP 伺服器位址無法連線：部分高校信箱由第三方託管（如論客 icoremail），可嘗試使用對應的通用接入位址 edu.icoremail.net。若仍無法連線，請聯絡學校網路中心確認校外存取方式及正確的伺服器設定。"
         },
         "mailListMenu": "郵件列表",
         "mailArchiveMenu": "封存郵件",
@@ -317,6 +322,8 @@
         "bubbleAutoDismissDesc": "關閉後氣泡常駐直到點擊",
         "unreadOnlyTitle": "僅未讀郵件提醒",
         "unreadOnlyDesc": "忽略已讀郵件（通常應開啟）",
+        "invalidPort": "連接埠必須是 1-65535 的整數",
+        "invalidPort": "連接埠必須是 1-65535 的整數",
         "invalidPort": "連接埠必須是 1-65535 的整數"
       }
     }

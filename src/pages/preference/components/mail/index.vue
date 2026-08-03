@@ -16,6 +16,7 @@ import {
   useMailNotificationStore,
   useMailSettingsStore,
 } from '@/plugins/mail'
+import { formatConnectionError } from '@/plugins/mail/utils/errors'
 import { matchProvider, matchProviderLogo } from '@/plugins/mail/utils/providers'
 
 const mailAccountStore = useMailAccountStore()
@@ -107,9 +108,11 @@ async function handleTestAndSave() {
     providerHint.value = ''
     providerImapLabel.value = ''
   } catch (err) {
-    const msg = String(err)
-    await error(`mail testAndSave failed: ${msg}`)
-    message.error(`${t('plugins.mail.labels.connectFailed')}: ${msg}`)
+    const raw = String(err)
+    await error(`mail testAndSave failed: ${raw}`)
+    // 报错框只显示分类翻译后的简短提示，输入引导由表单 providerHint 实时给
+    const friendly = formatConnectionError(raw, t)
+    message.error(`${t('plugins.mail.labels.connectFailed')}: ${friendly}`)
   } finally {
     saving.value = false
   }
@@ -279,7 +282,7 @@ function statusColor(status: MailAccountStatus): string {
         <span class="text-3 color-text-quaternary">{{ t('plugins.mail.labels.proxyHint') }}</span>
       </div>
 
-      <!-- 提示区：自制 SVG icon（感叹号三角，非 emoji）+ 各家授权码指引 -->
+      <!-- 提示区：信息圆圈 icon（非警告，仅指引说明）+ 各家授权码指引 -->
       <div
         v-if="providerHint"
         class="flex items-start gap-2.5 bg-[--ant-color-fill-quaternary] p-3 text-3 leading-relaxed color-text-tertiary rounded-md"
@@ -289,25 +292,28 @@ function statusColor(status: MailAccountStatus): string {
           fill="none"
           viewBox="0 0 24 24"
         >
-          <path
-            d="M12 2 L22 20 L2 20 Z"
-            stroke="#faad14"
-            stroke-linejoin="round"
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="#8c8c8c"
             stroke-width="2"
           />
           <rect
-            fill="#faad14"
-            height="6"
+            fill="#8c8c8c"
+            height="2"
             rx="1"
             width="2"
             x="11"
-            y="9"
+            y="7"
           />
-          <circle
-            cx="12"
-            cy="17.5"
-            fill="#faad14"
-            r="1.1"
+          <rect
+            fill="#8c8c8c"
+            height="7"
+            rx="1"
+            width="2"
+            x="11"
+            y="11"
           />
         </svg>
         <div class="whitespace-pre-line">

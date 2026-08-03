@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 // 两者是不同类型，HashMap 必须用前者匹配 spawn 的返回值）。
 use tauri::async_runtime::JoinHandle;
 
-use crate::logic::backoff_delay;
+use crate::logic::{POLL_INTERVAL, backoff_delay, classify_idle_error};
 
 /// 退避重连的最大尝试次数（避免无限重试刷日志；达到后保持等待上限持续重试）。
 const MAX_BACKOFF_RETRIES: u32 = 8;
@@ -405,7 +405,8 @@ async fn run_idle_session<R: Runtime>(
     // 4. IDLE 循环（idle() 消耗 session，done() 归还 session）
     //    wait() 内部自带 29 分钟超时（见 async-imap idle.rs），超时返回 Timeout，
     //    循环顶部重新 idle 即完成 RFC 2177 保活，无需额外的 should_reset_idle 判定。
-    let (mut session, last_seen_uid) = idle_wait_loop(app, account_id, session, initial_last_seen_uid).await?;
+    //    连接参数传入：IDLE 不支持时 idle_wait_loop 需重建 session 走 poll_loop。
+    let (mut session, last_seen_uid) = idle_wait_loop(app, account_id, session, initial_last_seen_uid, imap_host, imap_port, username, password, proxy).await?;
 
     // 5. 退出时登出（优雅关闭）
     let _ = session.logout().await;
@@ -465,11 +466,6 @@ pub(crate) async fn build_imap_session(
             .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?
     };
 
-    let tcp = timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((imap_host, imap_port)))
-        .await
-        .map_err(|_| format!("TCP 连接超时（{imap_host}:{imap_port}，30s 无响应）"))?
-        .map_err(|e| format!("TCP 连接失败 {imap_host}:{imap_port}: {e}"))?;
-
     let server_name = rustls::pki_types::ServerName::try_from(imap_host.to_string())
         .map_err(|e| format!("无效的 IMAP 主机名: {e}"))?;
     let tls_stream = timeout(STEP_TIMEOUT, connector.connect(server_name, tcp))
@@ -506,6 +502,11 @@ async fn idle_wait_loop<R: Runtime>(
     account_id: &str,
     mut session: async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
     initial_last_seen_uid: u32,
+    imap_host: &str,
+    imap_port: u16,
+    username: &str,
+    password: &str,
+    proxy: Option<&str>,
 ) -> Result<(async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, u32), String> {
     // 初始化去重基线：
     // - 前端传入非 0 的 initial_last_seen_uid → 直接用作补发基线（离线补发：fetch 离线期间新邮件）
@@ -555,12 +556,32 @@ async fn idle_wait_loop<R: Runtime>(
 
     loop {
         let mut handle = session.idle();
-        handle.init().await.map_err(|e| format!("IDLE init 失败: {e}"))?;
+        match handle.init().await {
+            Ok(()) => {}
+            Err(e) => {
+                let err_str = format!("{e}");
+                match classify_idle_error(&err_str) {
+                    crate::logic::IdleSupport::Unsupported => {
+                        // 服务器不支持 IDLE（Coremail 等返回 BAD command not support）。
+                        // session.idle() 消耗了 session 进 handle，init 失败后 async-imap
+                        // 没有安全 API 拿回 session（done() 会再次发命令触发 BAD）。
+                        // 重新建一个 session 给 poll_loop（多一次连接，仅降级时发生一次）。
+                        log::info!("mail {account_id} 服务器不支持 IDLE，降级为轮询模式（{POLL_INTERVAL:?} 周期）");
+                        drop(handle);
+                        let new_session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
+                        return poll_loop(app, account_id, new_session, last_seen_uid).await;
+                    }
+                    crate::logic::IdleSupport::Transient => {
+                        return Err(format!("IDLE init 失败: {err_str}"));
+                    }
+                }
+            }
+        }
 
-        // wait_with_timeout 显式 10 秒超时。IDLE 推送正常时收到 NewData 立即返回；
+        // wait_with_timeout 显式 5 秒超时。IDLE 推送正常时收到 NewData 立即返回；
         // 部分邮箱（如 QQ）IDLE 推送不稳定，done→重新 init 间隙可能漏推，
-        // 10 秒 Timeout 兜底 fetch 补查漏掉的新邮件，保证体感延迟可控。
-        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(10));
+        // 5 秒 Timeout 兜底 fetch 补查漏掉的新邮件，保证体感延迟可控。
+        let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(5));
         let response = wait_future.await;
 
         match response {
@@ -633,6 +654,35 @@ async fn idle_wait_loop<R: Runtime>(
                 let _ = handle.done().await;
                 return Err(format!("IDLE wait 出错: {e}"));
             }
+        }
+    }
+}
+
+/// 轮询模式：服务器不支持 IDLE 时的降级循环。
+///
+/// 不发起 IDLE，纯 `sleep(POLL_INTERVAL) → fetch_new_envelopes` 循环。
+/// fetch 逻辑与 [`idle_wait_loop`] 的 Timeout/NewData 分支一致（emit 新邮件 + 推进 last_seen_uid）。
+/// fetch 出错返回 Err 交由外层重连。
+async fn poll_loop<R: Runtime>(
+    app: &AppHandle<R>,
+    account_id: &str,
+    mut session: async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
+    mut last_seen_uid: u32,
+) -> Result<(async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, u32), String> {
+    loop {
+        tokio::time::sleep(POLL_INTERVAL).await;
+        let payloads = fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await?;
+        for payload in &payloads {
+            let _ = app.emit("mail://new-mail", payload);
+        }
+        if !payloads.is_empty() {
+            let _ = app.emit(
+                "mail://last-seen-uid",
+                LastSeenUidPayload {
+                    account_id: account_id.to_string(),
+                    last_seen_uid,
+                },
+            );
         }
     }
 }

@@ -58,6 +58,30 @@ describe('matchProvider', () => {
     expect(matchProvider('a@example.com')).toBeNull()
   })
 
+  it('教育邮箱 .edu.cn 命中后缀模式（edu.icoremail.net）', () => {
+    const p = matchProvider('changhsich@s.ytu.edu.cn')
+    expect(p?.imapHost).toBe('edu.icoremail.net')
+    expect(p?.imapPort).toBe(993)
+    expect(p?.webmailUrl).toBe('https://edu.icoremail.net')
+  })
+
+  it('教育邮箱从域名提取学校简称（s.ytu.edu.cn → YTU）', () => {
+    expect(matchProvider('changhsich@s.ytu.edu.cn')?.displayName).toBe('YTU')
+  })
+
+  it('教育邮箱 .edu（无 .cn）也命中后缀模式', () => {
+    expect(matchProvider('a@mit.edu')?.imapHost).toBe('edu.icoremail.net')
+    expect(matchProvider('a@mit.edu')?.displayName).toBe('MIT')
+  })
+
+  it('教育邮箱简称多段域名取 .edu 前最后一段', () => {
+    expect(matchProvider('a@mail.tsinghua.edu.cn')?.displayName).toBe('TSINGHUA')
+  })
+
+  it('教育邮箱用毕业帽 logo', () => {
+    expect(matchProvider('a@s.ytu.edu.cn')?.logo).toBe('/mail-logos/logo-edu.svg')
+  })
+
   it('无 @ 的地址返回 null（不崩）', () => {
     expect(matchProvider('badaddr')).toBeNull()
   })

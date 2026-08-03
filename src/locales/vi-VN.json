@@ -271,6 +271,10 @@
         "errAuthFailed": "Đăng nhập thất bại: sai mã ủy quyền hoặc mật khẩu ứng dụng. Hãy đảm bảo bạn không dùng mật khẩu đăng nhập, và dịch vụ IMAP đã được bật trong cài đặt hộp thư.",
         "errTimeout": "Kết nối quá hạn: mạng không reachable hoặc proxy không chuyển tiếp đúng. Kiểm tra địa chỉ proxy hoặc thử kết nối trực tiếp không qua proxy.",
         "errNetwork": "Kết nối mạng thất bại: không thể kết nối đến máy chủ thư. Kiểm tra mạng hoặc cài đặt proxy.",
+        "errUnsafeLogin": "Đăng nhập bị chặn: các hộp thư NetEase (163/126) tạm thời chặn đăng nhập IMAP bên thứ ba sau khi bật IMAP — thường tự động mở sau vài giờ. Vui lòng đăng nhập webmail và thử lại sau.",
+        "errDomainNotLocal": "Máy chủ IMAP không khớp: tài khoản này không thuộc máy chủ IMAP bạn đã nhập. Vui lòng xác nhận địa chỉ máy chủ IMAP đúng với nhà cung cấp hoặc IT trường.",
+        "errUnsafeLogin": "Đăng nhập bị chặn: các hộp thư NetEase (163/126) tạm thời chặn đăng nhập IMAP bên thứ ba sau khi bật IMAP — thường tự động mở sau vài giờ. Vui lòng đăng nhập webmail và thử lại sau.",
+        "errDomainNotLocal": "Máy chủ IMAP không khớp: tài khoản này không thuộc máy chủ IMAP bạn đã nhập. Vui lòng xác nhận địa chỉ máy chủ IMAP đúng với nhà cung cấp hoặc IT trường.",
         "proxyNoticeTitle": "Về Proxy & Kết nối Hộp thư",
         "proxyNoticeBody1": "Hộp thư trong nước (QQ / 163 / 126, v.v.) kết nối trực tiếp — không cần proxy.",
         "proxyNoticeBody2": "Hộp thư nước ngoài (Gmail / Outlook / iCloud, v.v.) cần proxy. Một số nhà cung cấp chặn cổng thư (993), gây lỗi kết nối; hãy chọn nút hỗ trợ cổng thư.",
@@ -285,14 +289,15 @@
         "bubbleSourceProvider": "Thư mới · {provider}",
         "bubbleSourceDefault": "Thư mới",
         "providers": {
-          "gmail": "Gmail\n\n1. Vào myaccount.google.com\n2. Bật Xác minh hai bước\n3. Tạo Mật khẩu ứng dụng\n4. Dùng mật khẩu đó làm mã ủy quyền",
+          "gmail": "Gmail\n\n1. Vào myaccount.google.com\n2. Bật Xác minh hai bước\n3. Tạo Mật khẩu ứng dụng\n4. Dùng mật khẩu đó làm mã ủy quyền\n\nGmail không thể truy cập trực tiếp từ Trung Quốc đại lục; cần dùng proxy. Một số node proxy chặn cổng thư (993) — hãy chọn node hỗ trợ lưu lượng thư. Nếu kết nối thất bại, hãy thử đổi node.",
           "qq": "QQ Mail\n\n1. Đăng nhập mail.qq.com\n2. Cài đặt → Tài khoản & Bảo mật → Cài đặt bảo mật\n3. Bật dịch vụ POP3/IMAP/SMTP/Exchange\n4. Làm theo hướng dẫn SMS để lấy mã ủy quyền",
-          "163": "163 Mail\n\n1. Đăng nhập mail.163.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
-          "126": "126 Mail\n\n1. Đăng nhập mail.126.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
+          "163": "163 Mail\n\n1. Đăng nhập mail.163.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách\n\nSau khi bật IMAP, NetEase tạm thời chặn đăng nhập ứng dụng bên thứ ba (trả về Unsafe Login). Việc này thường tự động mở sau vài giờ đăng nhập webmail — không cần thao tác thêm trong giai đoạn này.",
+          "126": "126 Mail\n\n1. Đăng nhập mail.126.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách\n\nSau khi bật IMAP, NetEase tạm thời chặn đăng nhập ứng dụng bên thứ ba (trả về Unsafe Login). Việc này thường tự động mở sau vài giờ đăng nhập webmail — không cần thao tác thêm trong giai đoạn này.",
           "outlook": "Outlook / Hotmail\n\n1. Đăng nhập outlook.live.com\n2. Bảo mật → Bật xác minh hai bước\n3. Tạo mật khẩu ứng dụng",
           "icloud": "iCloud\n\n1. Vào appleid.apple.com\n2. Bảo mật tài khoản → Mật khẩu ứng dụng\n3. Tạo một mật khẩu cho Mail",
           "proton": "Proton Mail\n\n1. Proton không hỗ trợ IMAP trực tiếp\n2. Tải và cài Proton Mail Bridge (máy tính)\n3. Sau khi đăng nhập, Bridge nghe cục bộ (mặc định 127.0.0.1:1143)\n4. Đổi host/cổng IMAP ở trên theo địa chỉ Bridge hiển thị\n5. Dùng 'Mật khẩu hộp thư' trong Bridge",
-          "yahoo": "Yahoo Mail\n\n1. Đăng nhập mail.yahoo.com\n2. Bảo mật tài khoản → bật xác minh 2 bước\n3. Tạo 'Mật khẩu ứng dụng' cho IMAP"
+          "yahoo": "Yahoo Mail\n\n1. Đăng nhập mail.yahoo.com\n2. Bảo mật tài khoản → bật xác minh 2 bước\n3. Tạo 'Mật khẩu ứng dụng' cho IMAP",
+          "edu": "Hộp thư trường học\n\n1. Đăng nhập webmail trường và bật dịch vụ IMAP trong cài đặt\n2. Tạo mật khẩu khách hàng (khác với mật khẩu đăng nhập, cần đăng ký riêng)\n3. Địa chỉ máy chủ IMAP ưu tiên theo thông tin trường cung cấp\n\nNếu địa chỉ máy chủ IMAP do trường cung cấp không kết nối được: một số hộp thư đại học được lưu trữ bởi bên thứ ba (ví dụ icoremail/Coremail), có thể thử địa chỉ truy cập chung tương ứng edu.icoremail.net. Nếu vẫn không kết nối được, vui lòng liên hệ trung tâm mạng trường để xác nhận phương thức truy cập ngoài trường và cấu hình máy chủ chính xác."
         },
         "mailListMenu": "Danh sách thư",
         "mailArchiveMenu": "Thư đã lưu",
@@ -317,6 +322,8 @@
         "bubbleAutoDismissDesc": "Tắt để bong bóng lưu cho đến khi nhấp",
         "unreadOnlyTitle": "Chỉ thư chưa đọc",
         "unreadOnlyDesc": "Bỏ qua thư đã đọc (thường bật)",
+        "invalidPort": "Cổng phải là số nguyên từ 1 đến 65535",
+        "invalidPort": "Cổng phải là số nguyên từ 1 đến 65535",
         "invalidPort": "Cổng phải là số nguyên từ 1 đến 65535"
       }
     }

@@ -5,6 +5,12 @@
 
 use std::time::Duration;
 
+/// 不支持 IDLE 的服务器（如 Coremail/论客 老版本）轮询周期。
+///
+/// IDLE 不可用时降级为定期 FETCH 检查新邮件，5 秒周期与 IDLE 路径的
+/// `wait_with_timeout` 兜底周期一致，保证体感延迟可控。
+pub const POLL_INTERVAL: Duration = Duration::from_secs(5);
+
 /// IDLE 自动重置阈值。RFC 2177 建议 30 分钟内重置一次，防服务端超时；
 /// 取 29 分钟留 1 分钟余量。
 ///
@@ -13,6 +19,35 @@ use std::time::Duration;
 /// 也为未来需要手动判定保活时机的场景（如非 wait_with_timeout 的自定义循环）预留。
 #[allow(dead_code)]
 pub const IDLE_RESET_INTERVAL: Duration = Duration::from_secs(29 * 60);
+
+/// IDLE 命令失败的分类（决定降级还是重连）。
+///
+/// Coremail（论客）等服务器不支持 IMAP IDLE 扩展，对 IDLE 命令返回
+/// `BAD command not support`。这种情况下重试 IDLE 永远不会成功，应降级为轮询。
+/// 临时错误（网络抖动等）则应重连后重试 IDLE。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdleSupport {
+    /// 服务器不支持 IDLE（BAD command not support）→ 降级轮询，不再尝试 IDLE。
+    Unsupported,
+    /// 临时错误（网络抖动等）→ 重连后重试 IDLE。
+    Transient,
+}
+
+/// 根据错误信息判定是「不支持 IDLE」还是「临时错误」。
+///
+/// 纯函数，便于单测。错误信息的匹配基于实际观察到的服务器响应：
+/// - Coremail: `BAD command not support`（init 返回的 io error message）
+/// - 临时错误：网络抖动、连接重置等，不含 "not support" / "unknown command"
+pub fn classify_idle_error(err_msg: &str) -> IdleSupport {
+    let lower = err_msg.to_lowercase();
+    // Coremail: "command not support"
+    // 通用 IMAP: "unknown command"（RFC 3501 对未识别命令的标准 BAD 响应）
+    if lower.contains("not support") || lower.contains("unknown command") {
+        IdleSupport::Unsupported
+    } else {
+        IdleSupport::Transient
+    }
+}
 
 /// 断线重连退避上限（指数退避封顶，避免无限增长到离谱的等待时间）。
 pub const BACKOFF_MAX: Duration = Duration::from_secs(5 * 60);
@@ -138,6 +173,42 @@ mod tests {
                 assert!(cur >= prev, "retries={retries} 退避变小了");
                 prev = cur;
             }
+        }
+    }
+
+    mod classify_idle_error {
+        use super::*;
+
+        #[test]
+        fn coremail_不支持的响应判定为不支持() {
+            // 实际观察到的 Coremail 响应（日志 A0004 BAD command not support）
+            assert_eq!(classify_idle_error("io: command not support"), IdleSupport::Unsupported);
+            assert_eq!(classify_idle_error("BAD command not support"), IdleSupport::Unsupported);
+        }
+
+        #[test]
+        fn 通用unknown_command也判定为不支持() {
+            // RFC 3501 标准的「未识别命令」响应
+            assert_eq!(classify_idle_error("BAD unknown command"), IdleSupport::Unsupported);
+            assert_eq!(classify_idle_error("BAD Error: unknown command IDLE"), IdleSupport::Unsupported);
+        }
+
+        #[test]
+        fn 大小写不敏感() {
+            assert_eq!(classify_idle_error("COMMAND NOT SUPPORT"), IdleSupport::Unsupported);
+            assert_eq!(classify_idle_error("Unknown Command"), IdleSupport::Unsupported);
+        }
+
+        #[test]
+        fn 网络抖动判定为临时错误() {
+            assert_eq!(classify_idle_error("connection reset by peer"), IdleSupport::Transient);
+            assert_eq!(classify_idle_error("broken pipe"), IdleSupport::Transient);
+            assert_eq!(classify_idle_error("timed out"), IdleSupport::Transient);
+        }
+
+        #[test]
+        fn 空字符串判定为临时错误() {
+            assert_eq!(classify_idle_error(""), IdleSupport::Transient);
         }
     }
 }

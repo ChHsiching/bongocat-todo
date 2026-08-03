@@ -271,6 +271,10 @@
         "errAuthFailed": "Login falhou: código de autorização ou senha de app incorreta. Certifique-se de não estar usando a senha de login e de que o serviço IMAP está ativado nas configurações do e-mail.",
         "errTimeout": "Conexão expirou: rede inacessível ou proxy não encaminhando corretamente. Verifique o endereço do proxy ou tente conectar diretamente sem proxy.",
         "errNetwork": "Falha na conexão de rede: não é possível acessar o servidor de e-mail. Verifique a rede ou as configurações de proxy.",
+        "errUnsafeLogin": "Login bloqueado: caixas de e-mail NetEase (163/126) bloqueiam temporariamente login IMAP de terceiros após ativar o IMAP — geralmente resolve em algumas horas. Mantenha-se logado no webmail e tente novamente mais tarde.",
+        "errDomainNotLocal": "Incompatibilidade do servidor IMAP: esta conta não pertence ao servidor IMAP inserido. Confirme o endereço correto do servidor IMAP com seu provedor de e-mail ou TI da universidade.",
+        "errUnsafeLogin": "Login bloqueado: caixas de e-mail NetEase (163/126) bloqueiam temporariamente login IMAP de terceiros após ativar o IMAP — geralmente resolve em algumas horas. Mantenha-se logado no webmail e tente novamente mais tarde.",
+        "errDomainNotLocal": "Incompatibilidade do servidor IMAP: esta conta não pertence ao servidor IMAP inserido. Confirme o endereço correto do servidor IMAP com seu provedor de e-mail ou TI da universidade.",
         "proxyNoticeTitle": "Sobre Proxy & Conexão de E-mail",
         "proxyNoticeBody1": "Caixas nacionais (QQ / 163 / 126, etc.) conectam diretamente — sem proxy.",
         "proxyNoticeBody2": "Caixas internacionais (Gmail / Outlook / iCloud, etc.) requerem proxy. Alguns provedores bloqueiam portas de e-mail (993), causando falhas; escolha um nó que suporte portas de e-mail.",
@@ -285,14 +289,15 @@
         "bubbleSourceProvider": "Novo e-mail · {provider}",
         "bubbleSourceDefault": "Novo e-mail",
         "providers": {
-          "gmail": "Gmail\n\n1. Acesse myaccount.google.com\n2. Ative a Verificação em duas etapas\n3. Gere uma Senha de app\n4. Use-a como código de autorização",
+          "gmail": "Gmail\n\n1. Acesse myaccount.google.com\n2. Ative a Verificação em duas etapas\n3. Gere uma Senha de app\n4. Use-a como código de autorização\n\nO Gmail não pode ser acessado diretamente da China continental; é necessário um proxy. Alguns nós de proxy bloqueiam portas de e-mail (993) — escolha um nó que suporte tráfego de e-mail. Se a conexão falhar, tente trocar de nó.",
           "qq": "QQ Mail\n\n1. Acesse mail.qq.com\n2. Configurações → Conta e Segurança → Segurança\n3. Ative o serviço POP3/IMAP/SMTP/Exchange\n4. Siga o prompt de SMS para obter o código",
-          "163": "163 Mail\n\n1. Acesse mail.163.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
-          "126": "126 Mail\n\n1. Acesse mail.126.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
+          "163": "163 Mail\n\n1. Acesse mail.163.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização\n\nApós ativar o IMAP, a NetEase bloqueia temporariamente logins de clientes terceiros (retorna Unsafe Login). Isso geralmente se resolve automaticamente em algumas horas mantendo-se logado no webmail — nenhuma ação necessária durante esse período.",
+          "126": "126 Mail\n\n1. Acesse mail.126.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização\n\nApós ativar o IMAP, a NetEase bloqueia temporariamente logins de clientes terceiros (retorna Unsafe Login). Isso geralmente se resolve automaticamente em algumas horas mantendo-se logado no webmail — nenhuma ação necessária durante esse período.",
           "outlook": "Outlook / Hotmail\n\n1. Acesse outlook.live.com\n2. Segurança → Ative verificação em duas etapas\n3. Gere uma senha de aplicativo",
           "icloud": "iCloud\n\n1. Acesse appleid.apple.com\n2. Segurança da conta → Senhas de app\n3. Gere uma para Mail",
           "proton": "Proton Mail\n\n1. Proton não suporta IMAP direto\n2. Baixe e instale o Proton Mail Bridge (desktop)\n3. Após login, Bridge escuta localmente (padrão 127.0.0.1:1143)\n4. Altere host/porta IMAP acima para o endereço do Bridge\n5. Use a 'Senha da caixa de correio' do Bridge",
-          "yahoo": "Yahoo Mail\n\n1. Acesse mail.yahoo.com\n2. Segurança da conta → ativar verificação em duas etapas\n3. Gere uma 'Senha de app' para IMAP"
+          "yahoo": "Yahoo Mail\n\n1. Acesse mail.yahoo.com\n2. Segurança da conta → ativar verificação em duas etapas\n3. Gere uma 'Senha de app' para IMAP",
+          "edu": "E-mail universitário\n\n1. Acesse o webmail da sua universidade e ative o serviço IMAP nas configurações\n2. Gere uma senha específica para cliente (diferente da senha de login, deve ser solicitada separadamente)\n3. Use primeiro o endereço do servidor IMAP fornecido pela universidade\n\nSe o endereço do servidor IMAP fornecido pela universidade não puder ser acessado: algumas caixas de e-mail universitárias são hospedadas por terceiros (ex: icoremail/Coremail). Você pode tentar o endereço de acesso genérico correspondente edu.icoremail.net. Se a conexão ainda falhar, entre em contato com o centro de rede da universidade para confirmar o método de acesso externo e a configuração correta do servidor."
         },
         "mailListMenu": "Lista de e-mails",
         "mailArchiveMenu": "Arquivados",
@@ -317,6 +322,8 @@
         "bubbleAutoDismissDesc": "Desligado: a bolha fica até clicar",
         "unreadOnlyTitle": "Apenas e-mails não lidos",
         "unreadOnlyDesc": "Ignorar lidos (geralmente ligado)",
+        "invalidPort": "A porta deve ser um inteiro entre 1 e 65535",
+        "invalidPort": "A porta deve ser um inteiro entre 1 e 65535",
         "invalidPort": "A porta deve ser um inteiro entre 1 e 65535"
       }
     }
