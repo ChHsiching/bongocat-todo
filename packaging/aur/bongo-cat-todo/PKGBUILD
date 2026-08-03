@@ -41,9 +41,14 @@ prepare() {
 
 build() {
   cd "$srcdir/bongocat-todo-$pkgver"
-  # Pin the cargo target dir to the workspace root (matches release.yml's
-  # rust-cache `workspaces: target`), so the binary lands at target/release/.
-  export CARGO_TARGET_DIR=target
+  # makepkg.conf injects -flto=auto into CFLAGS/CXXFLAGS. The `ring` crate
+  # (pulled in by rustls in the mail plugin) compiles C/asm via the `cc` crate
+  # which reads CFLAGS. LTO bitcode objects from ring's C core produce
+  # "undefined symbol: ring_core_*" at link time with ld.lld. Strip -flto
+  # from the compiler flags to fix this. See:
+  # https://github.com/rust-lang/rust/issues/142752
+  export CFLAGS="${CFLAGS//-flto=auto/}"
+  export CXXFLAGS="${CXXFLAGS//-flto=auto/}"
   # Full Tauri build: pnpm install -> beforeBuildCommand (pnpm build / vite,
   # produces dist/) -> cargo build --release (tauri-build reads dist/ via
   # frontendDist). --no-bundle skips .deb/.rpm/.appimage; we only want the
