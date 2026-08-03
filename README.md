@@ -2,7 +2,7 @@
 
 # BongoCat Todo
 
-[BongoCat](https://github.com/ayangweb/BongoCat) 桌宠的 fork，新增了手绘风格的待办功能——右键桌宠即可打开待办面板。
+[BongoCat](https://github.com/ayangweb/BongoCat) 桌宠的 fork，新增手绘风格待办模块与邮件通知中心——右键桌宠管理待办，新邮件桌宠头顶气泡提醒。
 
 </div>
 
@@ -26,9 +26,9 @@
 
 ## 简介
 
-BongoCat Todo 是 [BongoCat](https://github.com/ayangweb/BongoCat) 的 fork，在原版桌宠的基础上新增了一个手绘风格的待办模块。
+BongoCat Todo 是 [BongoCat](https://github.com/ayangweb/BongoCat) 的 fork，在原版桌宠的基础上新增了手绘风格的待办模块和邮件通知中心。
 
-原版 BongoCat 是一只会跟着你敲键盘、动鼠标的桌宠。BongoCat Todo 让它不只是看着你做事——右键桌宠呼出待办面板，记下接下来要干嘛，到点了还会提醒你。
+原版 BongoCat 是一只会跟着你敲键盘、动鼠标的桌宠。BongoCat Todo 让它不只是看着你做事——右键桌宠呼出待办面板，记下接下来要干嘛，到点了桌宠当面提醒你；绑定邮箱后，新邮件来了桌宠头顶弹出气泡，不用时刻盯着收件箱。
 
 ### 待办模块功能
 
@@ -38,6 +38,15 @@ BongoCat Todo 是 [BongoCat](https://github.com/ayangweb/BongoCat) 的 fork，�
 - **截止日期**：设定年月日时分，到期系统通知提醒
 - **快速新建**：迷你输入窗跟随桌宠，不用打开主面板也能记一条
 - **自动排序**：按优先级和截止日期排列
+
+### 邮件通知中心
+
+- **新邮件气泡**：绑定邮箱后，IMAP IDLE 实时监听新邮件，桌宠头顶弹出气泡显示发件人和主题，常驻直到你手动关闭或点击
+- **多账号支持**：同时绑定多个邮箱（Gmail / QQ / 163 / 126 / Outlook / iCloud / Proton / Yahoo 等），自动识别服务商并填好 IMAP 配置
+- **邮件列表与归档**：被提醒过的邮件缓存在本地，右键桌宠打开「邮件列表」回看，已处理的自动归档，不碰邮箱服务端
+- **todo 提醒双发**：待办到期时，系统通知和桌宠气泡同时触发，不错过也不漏看
+- **凭证安全**：邮箱密码存入系统钥匙串（Windows Credential Manager / macOS Keychain），不落地明文
+- **代理支持**：内置 HTTP CONNECT 代理，境外邮箱也能连
 
 ### 原版 BongoCat 功能
 
