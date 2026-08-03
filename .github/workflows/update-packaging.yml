@@ -1,0 +1,193 @@
+name: Update Packaging (Homebrew + AUR)
+
+# Triggers when a release is published (i.e. promoted from draft to public).
+# Draft releases are created by release.yml + tauri-action; this workflow only
+# runs once the release is visible, so users can immediately brew/yay install.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish packaging for (e.g. v1.3.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update-packaging:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            # release.published payload: github.event.release.tag_name
+            echo "name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch asset SHA256 digests from GitHub API
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          set -euo pipefail
+          # One API call to list assets, then a jq -> env file. The GitHub
+          # release API returns `digest` as "sha256:<hex>" for each asset.
+          # The source tarball is fetched separately via codeload (not a release asset).
+
+          # Asset basenames we need.
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          # Source tarball SHA via codeload (fast HEAD-less GET; ~few MB).
+          TARBALL_URL="https://codeload.github.com/${REPO}/tar.gz/refs/tags/${TAG}"
+          TARBALL_SHA="$(curl -fsSL "$TARBALL_URL" | sha256sum | awk '{print $1}')"
+          echo "SHA_TARBALL=$TARBALL_SHA" >> "$GITHUB_ENV"
+          echo "  tarball: $TARBALL_SHA"
+
+          # Release assets via the API (single call, includes digests).
+          ASSETS_JSON="$(gh api "/repos/${REPO}/releases/tags/${TAG}" --jq '.assets')"
+          asset_sha() {
+            local name="$1"
+            echo "$ASSETS_JSON" | jq -r --arg n "$name" \
+              '.[] | select(.name == $n) | .digest // empty' \
+              | sed 's/^sha256://'
+          }
+
+          SHA_DEB_AMD64="$(asset_sha "BongoCat.Todo_${VERSION}_amd64.deb")"
+          SHA_DEB_ARM64="$(asset_sha "BongoCat.Todo_${VERSION}_arm64.deb")"
+          SHA_DMG_AARCH64="$(asset_sha "BongoCat.Todo_${VERSION}_aarch64.dmg")"
+          SHA_DMG_X64="$(asset_sha "BongoCat.Todo_${VERSION}_x64.dmg")"
+
+          # Validate each is a 64-char hex string; fail loudly otherwise.
+          for kv in \
+            "SHA_DEB_AMD64=$SHA_DEB_AMD64" \
+            "SHA_DEB_ARM64=$SHA_DEB_ARM64" \
+            "SHA_DMG_AARCH64=$SHA_DMG_AARCH64" \
+            "SHA_DMG_X64=$SHA_DMG_X64"; do
+            k="${kv%%=*}"; v="${kv#*=}"
+            if ! echo "$v" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::missing digest for $k (got '$v'). Did the asset upload complete?"
+              exit 1
+            fi
+            echo "$kv" >> "$GITHUB_ENV"
+            echo "  $k=$v"
+          done
+
+      - name: Rewrite recipes
+        run: |
+          set -euo pipefail
+          python scripts/update-packaging.py \
+            --version "$VERSION" \
+            --source-pkgbuild packaging/aur/bongo-cat-todo/PKGBUILD \
+            --bin-pkgbuild    packaging/aur/bongo-cat-todo-bin/PKGBUILD \
+            --cask            packaging/homebrew/bongo-cat-todo.rb
+
+          echo "::group::Updated source PKGBUILD"; cat packaging/aur/bongo-cat-todo/PKGBUILD; echo "::endgroup::"
+          echo "::group::Updated -bin PKGBUILD";   cat packaging/aur/bongo-cat-todo-bin/PKGBUILD; echo "::endgroup::"
+          echo "::group::Updated Cask";            cat packaging/homebrew/bongo-cat-todo.rb;     echo "::endgroup::"
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 1) Push Cask to ChHsiching/homebrew-tap via PAT over HTTPS
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Publish Homebrew Cask
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set; skipping Cask push"
+            exit 0
+          fi
+          tmp="$(mktemp -d)"
+          git clone --depth 1 \
+            "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/ChHsiching/homebrew-tap.git" \
+            "$tmp/repo"
+          mkdir -p "$tmp/repo/Casks"
+          cp packaging/homebrew/bongo-cat-todo.rb "$tmp/repo/Casks/bongo-cat-todo.rb"
+          cd "$tmp/repo"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/bongo-cat-todo.rb
+          if git diff --cached --quiet; then
+            echo "no Cask changes; skipping commit"
+          else
+            git commit -m "bump bongo-cat-todo cask to $TAG"
+            git push origin HEAD:main
+          fi
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 2) Push both PKGBUILDs to AUR over SSH
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Publish AUR packages
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "::warning::AUR_SSH_PRIVATE_KEY not set; skipping AUR push"
+            exit 0
+          fi
+
+          # Configure ssh: use the key, accept AUR host key, disable host key
+          # checking strictness only for aur.archlinux.org (well-known host).
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          ssh-keyscan -t ed25519,rsa aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+              HostName aur.archlinux.org
+              User aur
+              IdentityFile ~/.ssh/aur_key
+              StrictHostKeyChecking accept-new
+          EOF
+
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new"
+
+          for pkg in bongo-cat-todo bongo-cat-todo-bin; do
+            tmp="$(mktemp -d)"
+            GIT_SSH_COMMAND="$GIT_SSH_COMMAND" \
+              git clone "ssh://aur@aur.archlinux.org/${pkg}.git" "$tmp/repo"
+
+            case "$pkg" in
+              bongo-cat-todo)     src="packaging/aur/bongo-cat-todo/PKGBUILD" ;;
+              bongo-cat-todo-bin) src="packaging/aur/bongo-cat-todo-bin/PKGBUILD" ;;
+            esac
+            cp "$src" "$tmp/repo/PKGBUILD"
+
+            # AUR requires PKGBUILD on master. A .SRCINFO alongside it is
+            # recommended but not required; the AUR web UI regenerates it on
+            # demand. Ubuntu runners don't have makepkg, so we skip .SRCINFO
+            # generation here. A maintainer on Arch can regenerate later with:
+            #   makepkg --printsrcinfo > .SRCINFO
+            # and commit it alongside the next PKGBUILD bump.
+
+            cd "$tmp/repo"
+            git config user.name  "ChHsich"
+            git config user.email "chhsiching@users.noreply.github.com"
+            git add PKGBUILD
+            if git diff --cached --quiet; then
+              echo "no AUR changes for $pkg; skipping"
+            else
+              git commit -m "bump $pkg to $TAG"
+              GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git push origin master
+            fi
+          done

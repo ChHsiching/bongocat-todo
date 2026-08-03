@@ -36,8 +36,18 @@ brew upgrade --cask bongo-cat-todo
 
 ### AUR（Arch / Manjaro）
 
+两个包可选，二选一（互斥）：
+
+**预编译二进制包（推荐，免编译快速安装）**：
+
 ```bash
 yay -S bongo-cat-todo-bin
+```
+
+**源码编译包（从源码本地编译，编译时间较长但可审查构建过程）**：
+
+```bash
+yay -S bongo-cat-todo
 ```
 
 ### 手动下载（Debian / Ubuntu / Mint / Fedora 等）
