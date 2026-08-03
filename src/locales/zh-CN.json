@@ -316,7 +316,8 @@
         "bubbleAutoDismissTitle": "气泡自动消失",
         "bubbleAutoDismissDesc": "关闭后气泡常驻直到点击",
         "unreadOnlyTitle": "仅未读邮件提醒",
-        "unreadOnlyDesc": "忽略已读邮件（通常应开启）"
+        "unreadOnlyDesc": "忽略已读邮件（通常应开启）",
+        "invalidPort": "端口必须是 1-65535 的整数"
       }
     }
   }

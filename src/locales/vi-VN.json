@@ -316,7 +316,8 @@
         "bubbleAutoDismissTitle": "Bong bóng tự ẩn",
         "bubbleAutoDismissDesc": "Tắt để bong bóng lưu cho đến khi nhấp",
         "unreadOnlyTitle": "Chỉ thư chưa đọc",
-        "unreadOnlyDesc": "Bỏ qua thư đã đọc (thường bật)"
+        "unreadOnlyDesc": "Bỏ qua thư đã đọc (thường bật)",
+        "invalidPort": "Cổng phải là số nguyên từ 1 đến 65535"
       }
     }
   }

@@ -316,7 +316,8 @@
         "bubbleAutoDismissTitle": "氣泡自動消失",
         "bubbleAutoDismissDesc": "關閉後氣泡常駐直到點擊",
         "unreadOnlyTitle": "僅未讀郵件提醒",
-        "unreadOnlyDesc": "忽略已讀郵件（通常應開啟）"
+        "unreadOnlyDesc": "忽略已讀郵件（通常應開啟）",
+        "invalidPort": "連接埠必須是 1-65535 的整數"
       }
     }
   }

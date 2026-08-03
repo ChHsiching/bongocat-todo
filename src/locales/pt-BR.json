@@ -316,7 +316,8 @@
         "bubbleAutoDismissTitle": "Bolha some automaticamente",
         "bubbleAutoDismissDesc": "Desligado: a bolha fica até clicar",
         "unreadOnlyTitle": "Apenas e-mails não lidos",
-        "unreadOnlyDesc": "Ignorar lidos (geralmente ligado)"
+        "unreadOnlyDesc": "Ignorar lidos (geralmente ligado)",
+        "invalidPort": "A porta deve ser um inteiro entre 1 e 65535"
       }
     }
   }

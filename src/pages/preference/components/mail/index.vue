@@ -79,12 +79,21 @@ async function handleTestAndSave() {
     return
   }
 
+  // antdv-next Input 即使 type="number"，v-model:value 绑定的仍是 string（HTML input value
+  // 永远是 string）。Rust mail_test_connection 的 imapPort 是 u16，传字符串会报
+  // "invalid type: string, expected u16"。这里显式转 number。
+  const port = Number(imapPort.value)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    message.warning(t('plugins.mail.labels.invalidPort'))
+    return
+  }
+
   saving.value = true
   try {
     await testAndSaveAccount(mailAccountStore, {
       address: address.value,
       imapHost: imapHost.value,
-      imapPort: imapPort.value,
+      imapPort: port,
       username: username.value,
       password: password.value,
     }, mailSettingsStore.proxy || null)
@@ -221,7 +230,7 @@ function statusColor(status: MailAccountStatus): string {
             </div>
             <Input
               v-model:value="address"
-              class="pl-5!"
+              class="pl-8!"
               :placeholder="t('plugins.mail.labels.addressPlaceholder')"
               @blur="onAddressBlur"
             />
