@@ -8,6 +8,22 @@
 - fork 的核心扩展目标：以**插件化方式**新增 todo list 等模块，并持续接收上游更新。
 - 同步约定见 `AGENTS.md`；架构决策见 `docs/adr/`。
 
+## 分发渠道（fork 独立于上游）
+
+| 平台 | 渠道 | 包名 | 状态 |
+|------|------|------|------|
+| **macOS** | Homebrew Cask | `ChHsiching/tap/bongo-cat-todo` | 计划中 |
+| **Arch/Manjaro** | AUR | `bongo-cat-todo-bin` | 计划中 |
+| **Windows** | GitHub Release（exe） | — | ✅ 已有 |
+| **Debian/Ubuntu/Mint** | GitHub Release（deb） | — | ✅ 已有（`dpkg -i` 安装） |
+| **Fedora/RHEL** | GitHub Release（rpm） | — | ✅ 已有（`rpm -i` 安装） |
+| **Linux 通用** | GitHub Release（AppImage） | — | ✅ 已有 |
+
+- fork 的包名用 `bongo-cat-todo`（Homebrew Cask）/ `bongo-cat-todo-bin`（AUR），与上游 `bongo-cat` 区分。
+- Homebrew tap 仓库：`ChHsiching/homebrew-tap`（Casks/bongo-cat-todo.rb，GUI app 用 Cask 不是 Formula）。
+- release.yml 发版后自动更新 Homebrew Cask + AUR PKGBUILD（CI 自动化，待实现）。
+- 暂不做 PPA/COPR（维护成本高，`.deb`/`.rpm` 手动安装够用）。
+
 ## 词汇表（Ubiquitous Language）
 
 | 术语 | 含义 |
