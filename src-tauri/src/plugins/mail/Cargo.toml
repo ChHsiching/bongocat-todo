@@ -23,8 +23,8 @@ webpki-roots = "0.26"
 async-http-proxy = { version = "1", default-features = false, features = ["runtime-tokio"] }
 # MIME encoded-word 解码（邮件主题 RFC 2047 `=?utf-8?B?...?=`）
 base64 = "0.22"
-# 异步运行时（IDLE task 需要 rt-multi-thread + 时间工具）
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "net"] }
+# 异步运行时（IDLE task 需要 rt-multi-thread + 时间工具；macros 供 #[tokio::test] 用）
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "net", "macros"] }
 # 异步流处理（fetch 结果 collect）
 futures-lite = "2"
 # OS 钥匙串（密码不落地明文）。⚠️ v4 + v1 feature，API 是 keyring::v1::Entry（非顶层）

@@ -41,18 +41,18 @@ export interface MailAccount {
 }
 
 /**
- * 邮件账号配置 store（数组结构，从一开始支持多账号）。
+ * 邮件账号配置 store（数组结构，支持多账号）。
  *
  * - 持久化：复用 `@tauri-store/pinia` 的 `saveOnChange`，与 todo store 同构。
  *   组件挂载时调 `$tauri.start()` 加载后即可用。
  * - **不存密码**：密码走 keyring（Rust 命令），pinia 只持非敏感的 IMAP 配置。
- * - 单账号阶段（T1/T4 前）：`addAccount` 限制 `accounts` 长度为 1，第二个直接拒绝。
- *   多账号阶段（T4）放开限制即可，不返工数据模型。
+ * - T4（ticket #14）放开单账号限制，支持 N 个账号同时 IDLE 监听；Rust `ConnectionManager`
+ *   按 accountId 独立管理每条连接（断开一个不影响其他）。
  *
  * @see docs/adr/0002-phase2-mail-and-bubble.md D2 / D4
  */
 export const useMailAccountStore = defineStore('mailAccount', () => {
-  /** 已绑定的账号列表（单账号阶段长度 ≤ 1）。 */
+  /** 已绑定的账号列表。 */
   const accounts = ref<MailAccount[]>([])
 
   /** 从邮箱地址提取服务商域名（`@` 后段）。无 `@` 时返回空串。 */
@@ -62,12 +62,13 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
   }
 
   /**
-   * 新增账号到数组（单账号阶段限制长度 1）。
+   * 新增账号到数组。
    *
    * 只负责数据层：构造 MailAccount 并 push。密码存储 + 建立连接由调用方在 push 成功后
    * 串行调 `mailStorePassword` + `mailConnect`（见 mail/index.ts 的 setupMailPlugin 流程）。
+   * 多账号：不做数量限制，每个账号在 Rust 端有独立的 IDLE task（互不影响）。
    *
-   * @returns 新建的 MailAccount；已达单账号上限时抛错（调用方 catch 显示给用户）。
+   * @returns 新建的 MailAccount。
    */
   function addAccount(input: {
     address: string
@@ -75,10 +76,6 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     imapPort: number
     username: string
   }): MailAccount {
-    if (accounts.value.length >= MAX_ACCOUNTS) {
-      throw new Error(`已达单账号上限（${MAX_ACCOUNTS}），多账号支持即将推出`)
-    }
-
     const account: MailAccount = {
       id: nanoid(),
       address: input.address.trim(),
@@ -171,6 +168,3 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     removeAccount,
   }
 })
-
-/** 单账号阶段允许的最大账号数（多账号阶段 T4 放开后调大或移除判断）。 */
-export const MAX_ACCOUNTS = 1

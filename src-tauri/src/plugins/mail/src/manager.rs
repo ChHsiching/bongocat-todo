@@ -159,11 +159,157 @@ impl ConnectionManager {
             handle.abort();
         }
     }
+
+    /// 查询某账号当前是否有活跃的 IDLE 连接（task 存在即视为活跃）。
+    ///
+    /// 多账号场景下各账号状态相互独立：断开/查询账号 A 不影响账号 B 的连接。
+    /// 供 UI 状态展示与多账号隔离测试（`#[cfg(test)]`）使用。
+    pub async fn has_connection(&self, account_id: &str) -> bool {
+        self.tasks.lock().await.contains_key(account_id)
+    }
+
+    /// 当前活跃连接数（多账号场景的诊断/日志用）。
+    pub async fn connection_count(&self) -> usize {
+        self.tasks.lock().await.len()
+    }
 }
 
 impl Default for ConnectionManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 多账号连接池隔离测试（ticket #14 AC）。
+    ///
+    /// `connect()` 依赖 keyring + 真实网络 + AppHandle，无法在 `#[cfg(test)]` 里跑；
+    /// 但隔离性取决于 `tasks: HashMap<accountId, JoinHandle>` 的按-key 增删语义，
+    /// 这一层是纯数据结构操作，可以脱离 IMAP 直接验证：
+    ///
+    /// - N 个账号各自插一个 dummy handle（模拟 `connect` 的 `spawn` + insert）
+    /// - `disconnect(A)` 只移除 A，不影响 B/C 的 handle
+    /// - `has_connection` 按 accountId 独立查询
+    ///
+    /// 这样就覆盖了「给定 N 个账号各自状态 → 查询/切换不影响其他」的 AC，
+    /// 而真正的端到端（2 个 provider 同时 IDLE）靠手动 tracer bullet 验证。
+    fn make_dummy_handle() -> JoinHandle<()> {
+        // spawn 一个永不返回的 task 作为「活跃连接」替身（模拟 idle_loop 长连接）。
+        // 测试结束时 abort 掉，不实际占用运行时。
+        tauri::async_runtime::spawn(async {
+            std::future::pending::<()>().await;
+        })
+    }
+
+    #[tokio::test]
+    async fn 多账号各自独立连接_互不影响() {
+        let manager = ConnectionManager::new();
+        let ids = ["acc-a".to_string(), "acc-b".to_string(), "acc-c".to_string()];
+
+        // 模拟 3 个账号各自 connect（spawn + insert）
+        for id in &ids {
+            let handle = make_dummy_handle();
+            manager.tasks.lock().await.insert(id.clone(), handle);
+        }
+        assert_eq!(manager.connection_count().await, 3);
+        for id in &ids {
+            assert!(manager.has_connection(id).await, "{id} 应有连接");
+        }
+    }
+
+    #[tokio::test]
+    async fn 断开一个账号_其他账号连接不受影响() {
+        let manager = ConnectionManager::new();
+        let ids = ["acc-a".to_string(), "acc-b".to_string(), "acc-c".to_string()];
+        for id in &ids {
+            manager.tasks.lock().await.insert(id.clone(), make_dummy_handle());
+        }
+
+        // 断开 B
+        manager.disconnect("acc-b").await;
+
+        // B 已无连接，A/C 仍活跃
+        assert!(!manager.has_connection("acc-b").await, "acc-b 应已断开");
+        assert!(manager.has_connection("acc-a").await, "acc-a 不应受 acc-b 断开影响");
+        assert!(manager.has_connection("acc-c").await, "acc-c 不应受 acc-b 断开影响");
+        assert_eq!(manager.connection_count().await, 2);
+    }
+
+    #[tokio::test]
+    async fn 断开不存在的账号_无副作用() {
+        let manager = ConnectionManager::new();
+        manager.tasks.lock().await.insert("acc-a".to_string(), make_dummy_handle());
+
+        // 断开一个未连接的 accountId —— 不应影响已有连接
+        manager.disconnect("acc-not-exist").await;
+
+        assert!(manager.has_connection("acc-a").await);
+        assert_eq!(manager.connection_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn 重连同一账号_旧task被abort_新task覆盖() {
+        let manager = ConnectionManager::new();
+        manager.tasks.lock().await.insert("acc-a".to_string(), make_dummy_handle());
+        assert_eq!(manager.connection_count().await, 1);
+
+        // 模拟「重连」：插入新 handle 覆盖旧 key
+        // （connect 内部会先 disconnect 再 insert；这里直接覆盖测试 map 语义）
+        let old = manager.tasks.lock().await.remove("acc-a");
+        if let Some(h) = old {
+            h.abort();
+        }
+        manager.tasks.lock().await.insert("acc-a".to_string(), make_dummy_handle());
+
+        assert!(manager.has_connection("acc-a").await);
+        assert_eq!(manager.connection_count().await, 1, "重连后仍只有 1 条连接");
+    }
+
+    #[tokio::test]
+    async fn 全部断开后连接数归零() {
+        let manager = ConnectionManager::new();
+        for id in ["a", "b", "c", "d"] {
+            manager.tasks.lock().await.insert(id.to_string(), make_dummy_handle());
+        }
+        assert_eq!(manager.connection_count().await, 4);
+
+        for id in ["a", "b", "c", "d"] {
+            manager.disconnect(id).await;
+        }
+        assert_eq!(manager.connection_count().await, 0);
+        for id in ["a", "b", "c", "d"] {
+            assert!(!manager.has_connection(id).await);
+        }
+    }
+
+    #[tokio::test]
+    async fn has_connection_空池查询返回false() {
+        let manager = ConnectionManager::new();
+        assert!(!manager.has_connection("any").await);
+        assert_eq!(manager.connection_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn 多账号断开顺序无关_结果一致() {
+        // 验证断开顺序不影响最终状态（先断 A 再断 B == 先断 B 再断 A）
+        let manager1 = ConnectionManager::new();
+        for id in ["a", "b"] {
+            manager1.tasks.lock().await.insert(id.to_string(), make_dummy_handle());
+        }
+        manager1.disconnect("a").await;
+        manager1.disconnect("b").await;
+        assert_eq!(manager1.connection_count().await, 0);
+
+        let manager2 = ConnectionManager::new();
+        for id in ["a", "b"] {
+            manager2.tasks.lock().await.insert(id.to_string(), make_dummy_handle());
+        }
+        manager2.disconnect("b").await;
+        manager2.disconnect("a").await;
+        assert_eq!(manager2.connection_count().await, 0);
     }
 }
 

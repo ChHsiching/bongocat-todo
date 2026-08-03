@@ -1,13 +1,13 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { MAX_ACCOUNTS, useMailAccountStore } from './mailAccount'
+import { useMailAccountStore } from './mailAccount'
 
 beforeEach(() => {
   setActivePinia(createPinia())
 })
 
-describe('useMailAccountStore — addAccount（单账号长度限制）', () => {
+describe('useMailAccountStore — addAccount（多账号）', () => {
   it('空 store 可添加一个账号', () => {
     const store = useMailAccountStore()
 
@@ -26,7 +26,8 @@ describe('useMailAccountStore — addAccount（单账号长度限制）', () => 
     expect(store.accounts).toHaveLength(1)
   })
 
-  it(`已存在账号时，第二个 addAccount 抛错（MAX_ACCOUNTS=${MAX_ACCOUNTS}）`, () => {
+  it('T4 放开限制后，可添加多个不同 provider 的账号', () => {
+    // ticket #14：放开单账号限制，支持 N 个账号同时 IDLE 监听
     const store = useMailAccountStore()
     store.addAccount({
       address: 'alice@gmail.com',
@@ -35,15 +36,33 @@ describe('useMailAccountStore — addAccount（单账号长度限制）', () => 
       username: 'alice@gmail.com',
     })
 
-    expect(() =>
-      store.addAccount({
-        address: 'bob@qq.com',
-        imapHost: 'imap.qq.com',
-        imapPort: 993,
-        username: 'bob@qq.com',
-      }),
-    ).toThrow()
-    expect(store.accounts).toHaveLength(1)
+    // 第二个账号不再抛错（原 MAX_ACCOUNTS=1 限制已移除）
+    const bob = store.addAccount({
+      address: 'bob@qq.com',
+      imapHost: 'imap.qq.com',
+      imapPort: 993,
+      username: 'bob@qq.com',
+    })
+    expect(bob.id).toBeTruthy()
+    expect(store.accounts).toHaveLength(2)
+    expect(store.accounts[1]?.address).toBe('bob@qq.com')
+
+    // 第三个也行（N 个账号，无上限）
+    store.addAccount({
+      address: 'carol@163.com',
+      imapHost: 'imap.163.com',
+      imapPort: 993,
+      username: 'carol@163.com',
+    })
+    expect(store.accounts).toHaveLength(3)
+  })
+
+  it('每个账号有独立的 id（互不冲突）', () => {
+    const store = useMailAccountStore()
+    const a = store.addAccount({ address: 'a@x.com', imapHost: 'h', imapPort: 993, username: 'a@x.com' })
+    const b = store.addAccount({ address: 'b@x.com', imapHost: 'h', imapPort: 993, username: 'b@x.com' })
+
+    expect(a.id).not.toBe(b.id)
   })
 
   it('providerDomain 从邮箱地址提取', () => {

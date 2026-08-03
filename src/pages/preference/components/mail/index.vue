@@ -42,12 +42,6 @@ const proxyInput = computed({
 /** 「测试并保存」进行中（禁用按钮 + 显示文案）。 */
 const saving = ref(false)
 
-/** 已绑定账号（单账号阶段数组长度 ≤ 1，取第一个展示）。 */
-const boundAccount = computed(() => mailAccountStore.accounts[0])
-
-/** 添加表单是否可填（已有账号时禁用，引导用户先删再加）。 */
-const canAdd = computed(() => !boundAccount.value)
-
 /** 当前匹配到的 provider 授权码指引文案（命中内置邮箱时非空）。 */
 const providerHint = ref('')
 
@@ -112,25 +106,26 @@ async function handleTestAndSave() {
   }
 }
 
-/** 账号开关切换：开 → mailConnect，关 → mailDisconnect（store.enabled 同步更新）。 */
-async function handleToggleEnabled(checked: boolean) {
-  if (!boundAccount.value) {
-    return
-  }
+/**
+ * 账号开关切换：开 → mailConnect，关 → mailDisconnect（store.enabled 同步更新）。
+ * 多账号：按 accountId 独立操作，互不影响。
+ */
+async function handleToggleEnabled(accountId: string, checked: boolean) {
   try {
-    await toggleAccountEnabled(mailAccountStore, boundAccount.value.id, checked, mailSettingsStore.proxy || null)
+    await toggleAccountEnabled(mailAccountStore, accountId, checked, mailSettingsStore.proxy || null)
   } catch (err) {
     await error(`mail toggle enabled failed: ${String(err)}`)
     message.error(`${t('plugins.mail.labels.connectFailed')}: ${String(err)}`)
   }
 }
 
-async function handleRemove() {
-  if (!boundAccount.value) {
-    return
-  }
+/**
+ * 删除账号：断开 → 删 keyring → 清通知历史 → 移出 store。
+ * 多账号：按 accountId 独立操作，删一个不影响其他账号。
+ */
+async function handleRemove(accountId: string) {
   try {
-    await removeAccount(mailAccountStore, mailNotificationStore, boundAccount.value.id)
+    await removeAccount(mailAccountStore, mailNotificationStore, accountId)
     message.success(t('plugins.mail.labels.removed'))
   } catch (err) {
     await error(`mail remove failed: ${String(err)}`)
@@ -163,53 +158,53 @@ function statusColor(status: MailAccountStatus): string {
 
 <template>
   <ProList :title="t('plugins.mail.labels.accountsTitle')">
-    <!-- 已绑定账号卡片（logo + 地址 + 连接状态 + IMAP 地址 + 启用开关 + 删除按钮） -->
+    <!-- 已绑定账号卡片列表（多账号，每个账号一张独立卡片） -->
     <div
-      v-if="boundAccount"
-      class="b-1 b-solid p-4 bg-elevated b-border-sec rounded-lg"
+      v-for="account in mailAccountStore.accounts"
+      :key="account.id"
+      class="mb-3 b-1 b-solid p-4 bg-elevated b-border-sec rounded-lg last:mb-0"
     >
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0 flex flex-1 items-center gap-3">
           <div class="h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden bg-[--ant-color-fill-tertiary] rounded-lg">
             <img
-              :alt="boundAccount.address"
+              :alt="account.address"
               class="h-8 w-8 object-contain"
-              :src="matchProviderLogo(boundAccount.address)"
+              :src="matchProviderLogo(account.address)"
             >
           </div>
           <div class="min-w-0 flex flex-col">
-            <span class="break-all text-3.5 font-medium">{{ boundAccount.address }}</span>
+            <span class="break-all text-3.5 font-medium">{{ account.address }}</span>
             <span class="mt-1 flex items-center gap-1.5 text-3">
               <span
                 class="inline-block h-1.5 w-1.5 rounded-full"
-                :style="{ background: statusColor(boundAccount.status) }"
+                :style="{ background: statusColor(account.status) }"
               />
-              <span :style="{ color: statusColor(boundAccount.status) }">{{ statusText(boundAccount.status) }}</span>
+              <span :style="{ color: statusColor(account.status) }">{{ statusText(account.status) }}</span>
             </span>
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <Switch
-            :checked="boundAccount.enabled"
-            @change="handleToggleEnabled"
+            :checked="account.enabled"
+            @change="(checked: boolean) => handleToggleEnabled(account.id, checked)"
           />
           <Button
             danger
             type="link"
-            @click="handleRemove"
+            @click="handleRemove(account.id)"
           >
             {{ t('plugins.mail.labels.removeButton') }}
           </Button>
         </div>
       </div>
       <div class="flex flex-wrap gap-4 pl-15 pt-2 text-3 color-text-quaternary">
-        <span>{{ boundAccount.imapHost }}:{{ boundAccount.imapPort }}</span>
+        <span>{{ account.imapHost }}:{{ account.imapPort }}</span>
       </div>
     </div>
 
-    <!-- 添加账号表单（已有账号时引导先删再加） -->
+    <!-- 添加账号表单（多账号：始终显示，不限制数量） -->
     <ProListItem
-      v-if="canAdd"
       vertical
     >
       <div class="grid grid-cols-2 gap-3">
@@ -321,13 +316,6 @@ function statusColor(status: MailAccountStatus): string {
         </Button>
       </div>
     </ProListItem>
-
-    <div
-      v-else
-      class="text-3 color-text-quaternary"
-    >
-      {{ t('plugins.mail.labels.singleAccountHint') }}
-    </div>
   </ProList>
 
   <!-- 通知设置三开关 -->
