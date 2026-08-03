@@ -292,6 +292,17 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **决策**：邮箱 logo 10 个文件放 `public/mail-logos/`（绝对路径 `/mail-logos/xxx`），与项目字体（`public/fonts/`）一致。**不用 `src/assets/`**——后者要 `import logo from '@/assets/...'` + vite hash 文件名，对于按域名动态匹配 logo 的场景（`matchProviderLogo` 返回字符串路径）反而麻烦（import 得静态分析，不能运行时拼路径）。
 - **public 原样拷贝**：开发期 `/mail-logos/...` 直接可访问，生产构建同路径不做 hash，`matchProviderLogo` 返回的字符串路径两端（store + img src）一致。
 
+#### PNG logo「白底转透明」误杀内部白色（QQ logo 踩坑）
+- **坑**：简单白底转透明（`r>235 && g>235 && b>235 → alpha=0`）会把 logo 内部的白色部分也转透明。QQ 企鹅的白肚皮/眼白和背景白色 RGB 接近，简单阈值把肚皮也清了 → 企鹅变成空心轮廓。
+- **正确方法**：**flood fill 重建 alpha**——从图像四角的非 logo 色背景开始扩散，标记「连通到边缘的背景」为透明，被 logo 主体色（黑/红）包围的内部白色（肚皮/眼白）保留不透明。需用浏览器 canvas `getImageData` 逐像素处理（不要手写 node PNG 编解码器）。
+- **规则**：logo 有内部白色区域时，不能用简单阈值转透明，必须 flood fill 按连通性区分背景 vs 内部白色。
+
+#### 账号卡片 logo 尺寸偏离设计稿（T3 用户决策）
+- **设计稿** `mail-settings.html`：容器 36×36，logo 22×22。
+- **用户调整**：放大到容器 48×48（`h-12 w-12`）、logo 32×32（`h-8 w-8`）、`object-contain` 保比例、垂直居中。**不要 `h-full w-full` 撑满容器**（用户明确否决「太难看了盛满容器」）。
+- **IMAP 详情行** `pl-15`（60px = 容器 48 + gap 12）对齐文字起始位置。
+- **设计稿未改**（仍是 36×36 原值），以实际实现 48×48 为准。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
