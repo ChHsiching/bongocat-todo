@@ -24,7 +24,8 @@ makedepends=(
 )
 provides=(bongo-cat-todo)
 conflicts=(bongo-cat-todo-bin bongo-cat-todo-git)
-options=(!lto)
+# options=(!lto) is a no-op for Rust crates (cargo's [profile.release] lto
+# governs Rust LTO; makepkg's option only affects C/C++). Omitted intentionally.
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # sha256sums rewritten by CI at release time.
@@ -32,15 +33,21 @@ sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
 
 prepare() {
   cd "$srcdir/bongocat-todo-$pkgver"
-  # Cargo.lock ships in the repo tarball; resolve deps offline.
-  cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+  # Pre-fetch Rust deps using the workspace Cargo.lock (root Cargo.toml has
+  # [workspace] members = ["src-tauri"]). Per Arch Rust package guidelines.
+  # --target restricts to the build arch; --locked honors Cargo.lock exactly.
+  cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
 }
 
 build() {
   cd "$srcdir/bongocat-todo-$pkgver"
-  # Full Tauri build: pnpm install -> pnpm build (vite, produces dist/) ->
-  # cargo build --release (tauri-build reads dist/ via frontendDist).
-  # `--no-bundle` skips .deb/.rpm/.appimage; we only want the raw binary.
+  # Pin the cargo target dir to the workspace root (matches release.yml's
+  # rust-cache `workspaces: target`), so the binary lands at target/release/.
+  export CARGO_TARGET_DIR=target
+  # Full Tauri build: pnpm install -> beforeBuildCommand (pnpm build / vite,
+  # produces dist/) -> cargo build --release (tauri-build reads dist/ via
+  # frontendDist). --no-bundle skips .deb/.rpm/.appimage; we only want the
+  # raw binary.
   pnpm install --frozen-lockfile
   pnpm tauri build --no-bundle
 }
