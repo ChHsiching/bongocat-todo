@@ -278,6 +278,11 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **修复**：进入确认态后先有 **700ms 死区**（按钮变灰禁用 + `cursor: not-allowed` + 点击忽略），死区结束后才变红色高亮可点击，再过 3.3 秒不点自动恢复。
 - **规则**：**inline 二次确认必须配死区**，否则防不住误双击。死区内按钮视觉必须明确禁用（灰+not-allowed），不能只是「逻辑上忽略点击但视觉正常」。
 
+#### 气泡布局必须向上扩展（T6 踩坑）
+- **坑**：气泡内容多行或多气泡堆叠时，向下扩展会侵入桌宠 sprite 区域（遮挡猫）。原设计有「翻猫下方」分支，但翻下方必然跨猫更糟。
+- **修复**：窗口底部锚定 `catY - 8px`，多气泡/多行内容**向上堆叠**；去掉翻下方分支，空间不足时顶部 clamp 到屏幕顶。宽度自适应（`genBubbleShape` 加 width 参数，取 `max(360, 子组件自然宽度)`），长链接撑宽不溢出。
+- **规则**：**气泡只向上扩展，不向下、不翻下方**。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -290,7 +295,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `InkDot` | T2（T6 加 clickable） | 三层 path 墨点，按 priority 变色；`clickable` 模式渲染 button 可点击切换 |
 | `HandClock` | T2 | Q 曲线外圈 + 弧度时分针 + 中心点 |
 | `WaveDivider` | T2 | 手绘波浪分隔线（`Q 25 1 50 3 T 98 3`） |
-| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分 |
+| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分。T6 改动：isOverdue/dueLabel 从整天比较改为精确到分钟（今天 10:15 到期、10:16 即显示红色「已逾期 10:15」）；删除按钮 ×叉号 → 手绘垃圾桶（复刻 MailItem） |
 | `TodoPanel` | T2（T6 增强） | 主面板：标题 + 新建区（标题+优先级+日期+确认取消）+ 列表 + footer |
 | `MiniInput` | T5（T6 复用共享组件） | 迷你快速新建窗（380px 宽），复用 HandDateInput/PriorityPicker |
 | `HandDateInput` | T6（共享） | 5 个手写数字框（年/月/日 + 时:分），focus 自动填充当前系统时间，迷你窗 + 主面板复用 |
@@ -320,7 +325,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `stores/mailSettings.ts` | 代理设置 store |
 | `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl）+ vitest 测试 |
 | `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
-| `components/Bubble/index.vue` | **手绘风气泡**（T2 完成）：圆胖 SVG 形状 + 851/荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。通过 prop 区分 mail/todo 类型 |
+| `components/Bubble/index.vue` | **手绘风气泡**（T2 完成，T6 增强）：圆胖 SVG 形状 + 荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。payload 升级为判别联合 `BubblePayload`（mail/todo），type='todo' 渲染红墨手绘时钟 + 红墨波浪 +「已到期」副标题，点击打开 todo 面板 |
 | `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
 | `components/MailItem/index.vue` | 邮件项（T5 新增，T5a 增强）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 + 归档按钮(手绘箱) + 删除按钮(手绘垃圾桶) + inline 二次确认(700ms 死区+3.3s 确认窗口) + meta 两列网格 + 绝对日期 |
 | `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + vitest 测试 |
