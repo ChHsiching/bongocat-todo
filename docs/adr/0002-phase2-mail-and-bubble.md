@@ -88,10 +88,14 @@ entry.delete_credential()?;  // ⚠️ 不是 delete_password
 > ⚠️ **T1 实现纠正（2026-07-31）**：原计划的「29 分钟 `wait()` 超时」在实际中不可行——async-imap 的 `Handle::wait()` 默认超时在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（29 分钟的 timer future 永久 Pending，`NewData` 路径正常但 `Timeout` 路径完全失效）。
 >
 > 实际实现改为 **`handle.wait_with_timeout(Duration::from_secs(10))` 短周期循环**：每 10 秒触发一次 Timeout，Timeout 分支做兜底 `fetch_new_envelopes` 补查 IDLE 推送间隙漏掉的新邮件。这比 29 分钟更积极，且解决了部分邮箱（如 QQ）IDLE 推送不稳定的问题——10 秒兜底保证体感延迟可控。
+>
+> ⚠️ **T4 实现纠正（2026-08-03）**：
+> - **周期从 10s 缩短到 5s**：用户反馈「邮件来得慢」，`wait_with_timeout` 从 `from_secs(10)` 改为 `from_secs(5)`。
+> - **IDLE 降级轮询**：Coremail（论客）服务器不支持 IDLE 扩展（返回 `BAD command not support`），教育邮箱多由 Coremail 托管。新增 `classify_idle_error` 判定 Unsupported vs Transient，Unsupported 时降级为 `poll_loop`（5s sleep + fetch 纯轮询）。降级时需重新 `build_imap_session`（session 被 idle handle 消耗，无法安全拿回）。
 
 **诚实标注的风险**：Rust 侧长生命周期 task 是 Phase 1 未触碰的新复杂度（Phase 1 全是前端 store + 一次性 Rust 命令）。连接池管理、断线重连、IDLE 超时重置需 TDD 覆盖。
 
-### D4. 多账号：tracer bullet 先行，Phase 2 内闭环
+### D4. 多账号：tracer bullet 先行，Phase 2 内闭环 — ✅ 已完成
 
 **决策**：先以单账号 tracer bullet 打通整条链路（绑定 → IDLE → 推送 → 气泡），验证 IMAP 路线在各目标邮箱上是否成立；多账号紧随其后解禁。**两者均为 Phase 2 必交付**（非下个 Phase）。
 

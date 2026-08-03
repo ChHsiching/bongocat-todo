@@ -303,6 +303,31 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **IMAP 详情行** `pl-15`（60px = 容器 48 + gap 12）对齐文字起始位置。
 - **设计稿未改**（仍是 36×36 原值），以实际实现 48×48 为准。
 
+#### Coremail 服务器不支持 IDLE → 轮询降级（T4 踩坑）
+- **坑**：Coremail（论客）服务器对 IDLE 命令返回 `BAD command not support`，不实现 IMAP IDLE 扩展。教育邮箱（如 `.edu.cn`）多由 Coremail 教育版 SaaS 托管。
+- **修复**：`logic.rs` 新增 `classify_idle_error(err_msg) -> IdleSupport`（Unsupported vs Transient）纯函数 + `manager.rs` 新增 `poll_loop`：IDLE init 失败且判定 Unsupported 时，重建 session 走纯轮询（`POLL_INTERVAL` 5 秒 sleep + fetch 循环）。
+- **技术细节**：`session.idle()` 消耗 session 进 handle，init 失败后 async-imap 没有安全 API 拿回 session（`done()` 会再次触发 BAD），所以降级时**重新 `build_imap_session` 建新连接**。
+
+#### build_imap_session 代理覆盖 bug（T4 修复 pre-existing）
+- **坑**：`manager.rs` 有重复的 `let tcp = TcpStream::connect(...)`，把代理分支建立的隧道 tcp 覆盖了——**代理路径从未生效过**。
+- **修复**：删除重复代码。注意用户实际没用代理（国内邮箱直连），这个 bug 是潜在的。
+
+#### antdv-next Input type="number" 绑定的仍是 string（T4 踩坑）
+- **坑**：`<Input type="number">` 的 `v-model:value` 绑定的是 **string**（HTML input value 永远是 string），传给 Rust `u16` 报 `invalid type: string "993", expected u16`。
+- **修复**：`handleTestAndSave` 显式 `Number(imapPort.value)` + 范围校验（1-65535）。
+- **规则**：**antdv-next Input type="number" 的 v-model 绑定值是 string 不是 number**，传给 Rust 强类型参数前必须显式转换。
+
+#### 教育邮箱 IMAP 地址公网 DNS 无解析（T4 踩坑）
+- **坑**：学校给的 IMAP 地址（如 `imap.s.ytu.edu.cn`）**公网 DNS 无解析**（仅学校内网 DNS 有记录）。实际可用地址是 `edu.icoremail.net`（Coremail 教育版 SaaS 通用接入）。
+- **修复**：`providers.ts` 新增 `SUFFIX_PATTERNS`（`.edu.cn` / `.edu` → `edu.icoremail.net`）+ `extractEduAbbr`（从域名提取学校简称用于 displayName）。
+- **规则**：学校给的地址不一定校外可用，教育邮箱用户需 fallback 到 `edu.icoremail.net`。
+
+#### 右键菜单偶发失效（未解决，已搁置）
+- **症状**：右键桌宠弹出原生菜单，偶发无法用鼠标点击（不高亮、无法选中），但**键盘方向键能选中**。完全随机，无明确触发条件。
+- **已排除的 6 个方向（不要再试）**：① `setAlwaysOnTop` 没 await ② Win32 `SetForegroundWindow` 前台锁定 hack ③ `handleMouseDown` 的 startDragging 与 menu.popup 竞争 ④ alwaysOnTop 轮询线程 16ms 竞争 ⑤ 鼠标悬停隐藏 setIgnoreCursorEvents ⑥ 鼠标穿透开关。
+- **确定事实**：菜单弹出了（可见）+ 键盘能操作（有焦点）+ 鼠标不行（事件被拦截/穿透）+ 与 alwaysOnTop 无关 + 与穿透无关 + 无其他窗口干扰。
+- **结论**：Tauri/WebView2 在 Windows 上的底层交互问题，fork 代码层面诊断到极限。等 Tauri 上游修复或将来有更多线索再查。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -333,8 +358,8 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 |------|------|
 | `src/lib.rs` | init() + rustls crypto provider install_default + ConnectionManager state |
 | `src/commands.rs` | `mail_test_connection` / `mail_connect` / `mail_disconnect` / `mail_store_password` / `mail_delete_password` |
-| `src/manager.rs` | ConnectionManager + idle_loop + build_imap_session（含 HTTP CONNECT 代理）+ fetch_max_uid + fetch_new_envelopes + decode_mime_words |
-| `src/logic.rs` | `should_reset_idle` / `backoff_delay` 纯函数 + `#[cfg(test)]` 12 个测试 |
+| `src/manager.rs` | ConnectionManager + idle_loop + idle_wait_loop + **poll_loop（T4：Coremail 降级轮询）** + build_imap_session（含 HTTP CONNECT 代理，**T4 修复代理覆盖 bug**）+ fetch_max_uid + fetch_new_envelopes + decode_mime_words + **has_connection / connection_count（T4 多账号查询）** |
+| `src/logic.rs` | `should_reset_idle` / `backoff_delay` / **`classify_idle_error`（T4：IDLE 不支持判定）** + `IdleSupport` 枚举 + **`POLL_INTERVAL`(5s)** + `#[cfg(test)]` 测试 |
 
 ### 前端（`src/plugins/mail/`）
 | 文件 | 说明 |
@@ -343,7 +368,8 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `index.ts` | setupMailPlugin（listen events，**T3：气泡受设置开关控制 bubbleEnabled/unreadOnly**）+ testAndSaveAccount + removeAccount（**T3：级联清 mailNotification**）+ toggleAccountEnabled（**T3 新增**：开关账号建/断连接） |
 | `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ setEnabled（**T3 新增**，开关切换）+ vitest 测试 |
 | `stores/mailSettings.ts` | 代理设置 + **T3 通知三开关**（bubbleEnabled 默认 true / bubbleAutoDismiss 默认 false / unreadOnly 默认 false） |
-| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl + **T3：logo 路径**）+ `matchProviderLogo()` + `DEFAULT_MAIL_LOGO`（**T3 新增**）+ vitest 测试。**T3 扩展**：拆 foxmail 独立预设 + 新增 proton（Bridge 本地 1143）/ yahoo |
+| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl + logo 路径）+ `matchProviderLogo()` + `DEFAULT_MAIL_LOGO` + vitest 测试。**T3**：拆 foxmail 独立预设 + 新增 proton / yahoo。**T4**：`SUFFIX_PATTERNS`（`.edu.cn`/`.edu`→`edu.icoremail.net`）+ `extractEduAbbr`（教育邮箱后缀模式匹配） |
+| `utils/errors.ts` | `formatConnectionError(rawErr, t)` 纯函数（**T4 新增**）：Rust 技术错误分类为友好提示（TLS/auth/timeout/unsafe login/domain not local/network），只翻译不写长文 + vitest 测试 |
 | `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
 | `components/Bubble/index.vue` | **手绘风气泡**（T2 完成，T6 增强）：圆胖 SVG 形状 + 荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。payload 升级为判别联合 `BubblePayload`（mail/todo），type='todo' 渲染红墨手绘时钟 + 红墨波浪 +「已到期」副标题，点击打开 todo 面板 |
 | `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
@@ -363,7 +389,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - `src/pages/mail-list/index.vue`：邮件列表窗口（T5 新增）
 - `src/pages/mail-archive/index.vue`：归档邮件窗口（T5 新增）
 - `src/pages/preference/components/mail/index.vue`：邮件设置页（**T3 重写**：账号列表 logo+地址+状态点+IMAP+启用开关+删除 / 添加表单 input-with-icon logo 联动 + 提示区自制 SVG 感叹号三角 + 通知设置三开关，遵循 ProList+ProListItem+Switch）+ 代理）
-- `public/mail-logos/`：10 个邮箱 logo（**T3 新增**，RGBA 透明，域名→logo 映射见 `utils/providers.ts` 的 `logo` 字段）
+- `public/mail-logos/`：11 个邮箱 logo（**T3 新增** 10 个 + **T4 新增** `logo-edu.svg` 毕业帽，全 RGBA 透明，域名→logo 映射见 `utils/providers.ts` 的 `logo` 字段）
 - `src-tauri/tauri.conf.json`：bubble / mail-list / mail-archive 窗口 + preference minHeight 720
 - `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
 - 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`
