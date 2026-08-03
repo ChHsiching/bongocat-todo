@@ -7,6 +7,8 @@ import type { MenuItemDescriptor, useMenuBusStore } from '@/stores/menuBus'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 
 import type { useMailAccountStore } from './stores/mailAccount'
+import type { useMailNotificationStore } from './stores/mailNotification'
+import type { useMailSettingsStore } from './stores/mailSettings'
 
 import {
   mailConnect,
@@ -99,9 +101,17 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   // ⚠️ 必须先 await 所有 listen 注册完成，再发起 mailConnect。
   // 原因：离线补发的 fetch 在 Rust 连接建立后立即执行并 emit mail://new-mail，
   // 如果前端 listen 还没注册（listen 返回 Promise 但没 await），补发的邮件会被丢弃。
-  // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡）
+  // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡，受设置开关控制）
   await listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
-    mailNotificationStore.upsertMail(payload, payload.uid)
+    const inserted = mailNotificationStore.upsertMail(payload, payload.uid)
+    // 气泡总开关关闭 → 不弹气泡（邮件仍进本地历史，邮件列表可见）
+    // unreadOnly 开启 + 该邮件已非 unread（补推时已存在的旧项）→ 不弹
+    if (!mailSettingsStore.bubbleEnabled) {
+      return
+    }
+    if (mailSettingsStore.unreadOnly && inserted.status !== 'unread') {
+      return
+    }
     emit(LISTEN_KEY.SHOW_BUBBLE, { ...payload, type: 'mail' })
   })
 
@@ -190,9 +200,15 @@ export async function testAndSaveAccount(
   }
 }
 
-/** 删除账号：断开监听 → 删 keyring 密码 → 移出 store。任一步失败抛错。 */
+/**
+ * 删除账号：断开监听 → 删 keyring 密码 → 清通知历史 → 移出 store。任一步失败抛错。
+ *
+ * 级联清理：① keyring 密码（`mail_delete_password`）；② mailNotification 该账号的
+ * 所有通知历史（未读/已读/归档），避免账号删除后邮件列表里挂孤儿项。
+ */
 export async function removeAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
+  mailNotificationStore: ReturnType<typeof useMailNotificationStore>,
   accountId: string,
 ): Promise<void> {
   const account = mailAccountStore.getAccount(accountId)
@@ -200,10 +216,46 @@ export async function removeAccount(
     return
   }
 
-  // 顺序：先断开（停止 task）→ 删密码（keyring）→ 移出 store
+  // 顺序：先断开（停止 task）→ 删密码（keyring）→ 清通知历史 → 移出 store
   await mailDisconnect(accountId).catch(() => {
     // 断开失败不阻塞删除流程（task 可能已自行退出）
   })
   await mailDeletePassword(accountId, account.username)
+  mailNotificationStore.removeByAccount(accountId)
   mailAccountStore.removeAccount(accountId)
+}
+
+/**
+ * 切换账号启用状态并建/断连接（设置页账号列表的开关）。
+ *
+ * - 开 → 连：从 keyring 取密码由 Rust 端处理，前端只传连接参数 + lastSeenUid 补发基线。
+ * - 关 → 断：停 IDLE task。账号配置 + keyring 密码都保留（再开即恢复）。
+ *
+ * store 的 enabled 字段由本函数同步更新，调用方无需另 setEnabled。
+ */
+export async function toggleAccountEnabled(
+  mailAccountStore: ReturnType<typeof useMailAccountStore>,
+  accountId: string,
+  enabled: boolean,
+  proxy: string | null,
+): Promise<void> {
+  const account = mailAccountStore.getAccount(accountId)
+  if (!account) {
+    return
+  }
+  mailAccountStore.setEnabled(accountId, enabled)
+  if (enabled) {
+    mailAccountStore.setStatus(accountId, 'connecting')
+    try {
+      await mailConnect(accountId, account.imapHost, account.imapPort, account.username, proxy, account.lastSeenUid ?? 0)
+    } catch (err) {
+      mailAccountStore.setStatus(accountId, 'error')
+      throw err
+    }
+  } else {
+    await mailDisconnect(accountId).catch(() => {
+      // 断开失败不阻塞（task 可能已自行退出）
+    })
+    mailAccountStore.setStatus(accountId, 'idle')
+  }
 }

@@ -290,7 +290,9 @@
           "163": "163 邮箱\n\n1. 登录 mail.163.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码",
           "126": "126 邮箱\n\n1. 登录 mail.126.com\n2. 设置 → POP3/SMTP/IMAP\n3. 开启 IMAP 服务\n4. 设置客户端授权密码",
           "outlook": "Outlook / Hotmail\n\n1. 登录 outlook.live.com\n2. 安全 → 启用两步验证\n3. 生成应用密码",
-          "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 账户安全 → 专用密码\n3. 生成用于邮件的应用专用密码"
+          "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 账户安全 → 专用密码\n3. 生成用于邮件的应用专用密码",
+          "proton": "Proton Mail\n\n1. Proton 不支持直连 IMAP\n2. 下载安装 Proton Mail Bridge 桌面端\n3. Bridge 登录后会在本地监听 IMAP（默认 127.0.0.1:1143）\n4. 把上方 IMAP 服务器/端口改为 Bridge 显示的地址\n5. 用 Bridge 账户设置里的「邮箱密码」填授权码",
+          "yahoo": "Yahoo Mail\n\n1. 登录 mail.yahoo.com\n2. 账户安全 → 开启两步验证\n3. 生成「应用密码」用于 IMAP"
         },
         "mailListMenu": "邮件列表",
         "mailArchiveMenu": "归档邮件",
@@ -307,7 +309,14 @@
         "mailArchiveFooter": "归档项点击仍可跳转 webmail · 归档超过 30 天自动清理",
         "mailArchiveAction": "归档",
         "mailDeleteAction": "删除",
-        "mailConfirmDelete": "确认删除?"
+        "mailConfirmDelete": "确认删除?",
+        "accountsTitle": "已绑定账号",
+        "notificationTitle": "通知设置",
+        "bubbleEnabledTitle": "新邮件气泡提醒",
+        "bubbleAutoDismissTitle": "气泡自动消失",
+        "bubbleAutoDismissDesc": "关闭后气泡常驻直到点击",
+        "unreadOnlyTitle": "仅未读邮件提醒",
+        "unreadOnlyDesc": "忽略已读邮件（通常应开启）"
       }
     }
   }

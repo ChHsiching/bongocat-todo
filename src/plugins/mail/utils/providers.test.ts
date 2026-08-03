@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchProvider, PROVIDER_PRESETS, resolveWebmailUrl } from './providers'
+import { DEFAULT_MAIL_LOGO, matchProvider, matchProviderLogo, PROVIDER_PRESETS, resolveWebmailUrl } from './providers'
 
 describe('matchProvider', () => {
   it('gmail.com 命中 Gmail 预设', () => {
@@ -18,8 +18,11 @@ describe('matchProvider', () => {
     expect(matchProvider('user@qq.com')?.imapHost).toBe('imap.qq.com')
   })
 
-  it('foxmail.com 命中 QQ（共用 imap.qq.com）', () => {
-    expect(matchProvider('user@foxmail.com')?.imapHost).toBe('imap.qq.com')
+  it('foxmail.com 命中 Foxmail（共用 imap.qq.com）', () => {
+    const p = matchProvider('user@foxmail.com')
+    expect(p?.imapHost).toBe('imap.qq.com')
+    expect(p?.hintKey).toBe('qq')
+    expect(p?.displayName).toBe('Foxmail')
   })
 
   it('163.com / 126.com 各自独立 host', () => {
@@ -38,6 +41,15 @@ describe('matchProvider', () => {
     expect(matchProvider('a@me.com')?.imapHost).toBe('imap.mail.me.com')
   })
 
+  it('proton.me / protonmail.com 命中 Proton', () => {
+    expect(matchProvider('a@proton.me')?.hintKey).toBe('proton')
+    expect(matchProvider('a@protonmail.com')?.hintKey).toBe('proton')
+  })
+
+  it('yahoo.com 命中 Yahoo', () => {
+    expect(matchProvider('a@yahoo.com')?.imapHost).toBe('imap.mail.yahoo.com')
+  })
+
   it('域名大小写不敏感', () => {
     expect(matchProvider('Alice@GMAIL.com')?.hintKey).toBe('gmail')
   })
@@ -51,8 +63,13 @@ describe('matchProvider', () => {
   })
 
   it('所有预设端口都是 993（IMAPS）', () => {
+    // Proton 用 Bridge 本地端口 1143，是唯一的例外（注释已说明）
     for (const p of PROVIDER_PRESETS) {
-      expect(p.imapPort).toBe(993)
+      if (p.hintKey === 'proton') {
+        expect(p.imapPort).toBe(1143)
+      } else {
+        expect(p.imapPort).toBe(993)
+      }
     }
   })
 })
@@ -79,6 +96,45 @@ describe('displayName 字段', () => {
 
   it('qq 命中显示名是 QQ', () => {
     expect(matchProvider('a@qq.com')?.displayName).toBe('QQ')
+  })
+})
+
+describe('logo 字段', () => {
+  it('所有预设都有 logo 路径（设置页 + 添加表单 logo 联动用）', () => {
+    for (const p of PROVIDER_PRESETS) {
+      expect(p.logo).toBeTruthy()
+      expect(p.logo).toMatch(/^\/mail-logos\//)
+    }
+  })
+
+  it('gmail 命中 Gmail logo（svg）', () => {
+    expect(matchProvider('a@gmail.com')?.logo).toBe('/mail-logos/logo-gmail.svg')
+  })
+
+  it('qq 命中 QQ logo（png）', () => {
+    expect(matchProvider('a@qq.com')?.logo).toBe('/mail-logos/logo-qq.png')
+  })
+
+  it('foxmail 命中 Foxmail 自己的 logo', () => {
+    expect(matchProvider('a@foxmail.com')?.logo).toBe('/mail-logos/logo-foxmail-icon.png')
+  })
+})
+
+describe('matchProviderLogo', () => {
+  it('命中预设返回该 provider 的 logo', () => {
+    expect(matchProviderLogo('a@gmail.com')).toBe('/mail-logos/logo-gmail.svg')
+  })
+
+  it('未识别域名返回默认信封 logo', () => {
+    expect(matchProviderLogo('a@example.com')).toBe(DEFAULT_MAIL_LOGO)
+  })
+
+  it('无 @ 的地址也返回默认 logo（不崩）', () => {
+    expect(matchProviderLogo('badaddr')).toBe(DEFAULT_MAIL_LOGO)
+  })
+
+  it('空串返回默认 logo（不崩）', () => {
+    expect(matchProviderLogo('')).toBe(DEFAULT_MAIL_LOGO)
   })
 })
 

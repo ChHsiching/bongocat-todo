@@ -109,6 +109,19 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
   }
 
   /**
+   * 切换某账号的启用状态（设置页账号列表的开关）。
+   *
+   * 只改本字段，不直接建/断连接——调用方（设置页）按返回的新状态决定 mailConnect/mailDisconnect。
+   * 关闭后再开相当于「暂停监听」：账号配置 + keyring 密码都保留，仅停止 IDLE task。
+   */
+  function setEnabled(id: string, enabled: boolean) {
+    const account = getAccount(id)
+    if (account) {
+      account.enabled = enabled
+    }
+  }
+
+  /**
    * 更新某账号的 lastSeenUid（由 Rust `mail://last-seen-uid` event 驱动调用）。
    *
    * 只单调递增（新 uid 比已存的小说明是旧数据/乱序，不回退）。持久化由 saveOnChange 落盘。
@@ -152,6 +165,7 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     addAccount,
     getAccount,
     setStatus,
+    setEnabled,
     setLastSeenUid,
     migrateLastSeenUid,
     removeAccount,

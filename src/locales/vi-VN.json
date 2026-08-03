@@ -290,7 +290,9 @@
           "163": "163 Mail\n\n1. Đăng nhập mail.163.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
           "126": "126 Mail\n\n1. Đăng nhập mail.126.com\n2. Cài đặt → POP3/SMTP/IMAP\n3. Bật dịch vụ IMAP\n4. Đặt mật khẩu ủy quyền máy khách",
           "outlook": "Outlook / Hotmail\n\n1. Đăng nhập outlook.live.com\n2. Bảo mật → Bật xác minh hai bước\n3. Tạo mật khẩu ứng dụng",
-          "icloud": "iCloud\n\n1. Vào appleid.apple.com\n2. Bảo mật tài khoản → Mật khẩu ứng dụng\n3. Tạo một mật khẩu cho Mail"
+          "icloud": "iCloud\n\n1. Vào appleid.apple.com\n2. Bảo mật tài khoản → Mật khẩu ứng dụng\n3. Tạo một mật khẩu cho Mail",
+          "proton": "Proton Mail\n\n1. Proton không hỗ trợ IMAP trực tiếp\n2. Tải và cài Proton Mail Bridge (máy tính)\n3. Sau khi đăng nhập, Bridge nghe cục bộ (mặc định 127.0.0.1:1143)\n4. Đổi host/cổng IMAP ở trên theo địa chỉ Bridge hiển thị\n5. Dùng 'Mật khẩu hộp thư' trong Bridge",
+          "yahoo": "Yahoo Mail\n\n1. Đăng nhập mail.yahoo.com\n2. Bảo mật tài khoản → bật xác minh 2 bước\n3. Tạo 'Mật khẩu ứng dụng' cho IMAP"
         },
         "mailListMenu": "Danh sách thư",
         "mailArchiveMenu": "Thư đã lưu",
@@ -307,7 +309,14 @@
         "mailArchiveFooter": "Nhấn để mở webmail · xóa sau 30 ngày",
         "mailArchiveAction": "Lưu",
         "mailDeleteAction": "Xóa",
-        "mailConfirmDelete": "Xác nhận xóa?"
+        "mailConfirmDelete": "Xác nhận xóa?",
+        "accountsTitle": "Tài khoản đã liên kết",
+        "notificationTitle": "Cài đặt thông báo",
+        "bubbleEnabledTitle": "Bong bóng thư mới",
+        "bubbleAutoDismissTitle": "Bong bóng tự ẩn",
+        "bubbleAutoDismissDesc": "Tắt để bong bóng lưu cho đến khi nhấp",
+        "unreadOnlyTitle": "Chỉ thư chưa đọc",
+        "unreadOnlyDesc": "Bỏ qua thư đã đọc (thường bật)"
       }
     }
   }

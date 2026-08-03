@@ -290,7 +290,9 @@
           "163": "163 信箱\n\n1. 登入 mail.163.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
           "126": "126 信箱\n\n1. 登入 mail.126.com\n2. 設定 → POP3/SMTP/IMAP\n3. 開啟 IMAP 服務\n4. 設定用戶端授權密碼",
           "outlook": "Outlook / Hotmail\n\n1. 登入 outlook.live.com\n2. 安全性 → 啟用兩步驟驗證\n3. 產生應用程式密碼",
-          "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 帳戶安全 → 專用密碼\n3. 產生用於郵件的應用專用密碼"
+          "icloud": "iCloud\n\n1. 前往 appleid.apple.com\n2. 帳戶安全 → 專用密碼\n3. 產生用於郵件的應用專用密碼",
+          "proton": "Proton Mail\n\n1. Proton 不支援直連 IMAP\n2. 下載安裝 Proton Mail Bridge 桌面端\n3. Bridge 登入後會在本地監聽 IMAP（預設 127.0.0.1:1143）\n4. 把上方 IMAP 伺服器/連接埠改為 Bridge 顯示的位址\n5. 用 Bridge 帳戶設定裡的「郵箱密碼」填授權碼",
+          "yahoo": "Yahoo Mail\n\n1. 登入 mail.yahoo.com\n2. 帳戶安全 → 開啟兩步驗證\n3. 產生「應用程式密碼」用於 IMAP"
         },
         "mailListMenu": "郵件列表",
         "mailArchiveMenu": "封存郵件",
@@ -307,7 +309,14 @@
         "mailArchiveFooter": "封存項點擊仍可跳轉 webmail · 封存超過 30 天自動清理",
         "mailArchiveAction": "封存",
         "mailDeleteAction": "刪除",
-        "mailConfirmDelete": "確認刪除?"
+        "mailConfirmDelete": "確認刪除?",
+        "accountsTitle": "已綁定帳號",
+        "notificationTitle": "通知設定",
+        "bubbleEnabledTitle": "新郵件氣泡提醒",
+        "bubbleAutoDismissTitle": "氣泡自動消失",
+        "bubbleAutoDismissDesc": "關閉後氣泡常駐直到點擊",
+        "unreadOnlyTitle": "僅未讀郵件提醒",
+        "unreadOnlyDesc": "忽略已讀郵件（通常應開啟）"
       }
     }
   }

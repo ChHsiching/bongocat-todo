@@ -19,6 +19,13 @@ export interface ProviderPreset {
   displayName: string
   /** 该邮箱的 webmail 入口 URL（点气泡跳转用）。 */
   webmailUrl: string
+  /**
+   * 该邮箱的 logo 静态资源路径（vite public 资源，绝对路径 `/mail-logos/...`）。
+   *
+   * 与项目字体加载一致用 public 目录（原样拷贝、不做 hash、生产/开发同路径）。
+   * 全部 RGBA 透明背景，适配暗色模式。
+   */
+  logo: string
 }
 
 /** 内置常见邮箱配置（覆盖国内外主流邮箱）。 */
@@ -30,14 +37,25 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: 'gmail',
     displayName: 'Gmail',
     webmailUrl: 'https://mail.google.com',
+    logo: '/mail-logos/logo-gmail.svg',
   },
   {
-    domains: ['qq.com', 'foxmail.com'],
+    domains: ['qq.com'],
     imapHost: 'imap.qq.com',
     imapPort: 993,
     hintKey: 'qq',
     displayName: 'QQ',
     webmailUrl: 'https://mail.qq.com',
+    logo: '/mail-logos/logo-qq.png',
+  },
+  {
+    domains: ['foxmail.com'],
+    imapHost: 'imap.qq.com',
+    imapPort: 993,
+    hintKey: 'qq',
+    displayName: 'Foxmail',
+    webmailUrl: 'https://mail.qq.com',
+    logo: '/mail-logos/logo-foxmail-icon.png',
   },
   {
     domains: ['163.com', 'yeah.net'],
@@ -46,6 +64,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: '163',
     displayName: '163',
     webmailUrl: 'https://mail.163.com',
+    logo: '/mail-logos/logo-163-icon.png',
   },
   {
     domains: ['126.com'],
@@ -54,6 +73,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: '126',
     displayName: '126',
     webmailUrl: 'https://mail.126.com',
+    logo: '/mail-logos/logo-126-icon.png',
   },
   {
     domains: ['outlook.com', 'hotmail.com', 'live.com', 'msn.com'],
@@ -62,6 +82,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: 'outlook',
     displayName: 'Outlook',
     webmailUrl: 'https://outlook.live.com',
+    logo: '/mail-logos/logo-outlook.svg',
   },
   {
     domains: ['icloud.com', 'me.com', 'mac.com'],
@@ -70,6 +91,27 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: 'icloud',
     displayName: 'iCloud',
     webmailUrl: 'https://www.icloud.com/mail',
+    logo: '/mail-logos/logo-icloud.svg',
+  },
+  {
+    // ⚠️ Proton 不支持直连 IMAP，须本地运行 Proton Mail Bridge 桥接（默认监听 127.0.0.1:1143）。
+    // 此处保留预设只为 logo 自动识别 + 指引文案；连接前请按指引改 host/port 为 Bridge 实际地址。
+    domains: ['proton.me', 'protonmail.com'],
+    imapHost: '127.0.0.1',
+    imapPort: 1143,
+    hintKey: 'proton',
+    displayName: 'Proton',
+    webmailUrl: 'https://mail.proton.me',
+    logo: '/mail-logos/logo-proton.png',
+  },
+  {
+    domains: ['yahoo.com'],
+    imapHost: 'imap.mail.yahoo.com',
+    imapPort: 993,
+    hintKey: 'yahoo',
+    displayName: 'Yahoo',
+    webmailUrl: 'https://mail.yahoo.com',
+    logo: '/mail-logos/logo-yahoo.svg',
   },
 ]
 
@@ -85,6 +127,19 @@ export function matchProvider(address: string): ProviderPreset | null {
   }
   const domain = address.slice(at + 1).toLowerCase()
   return PROVIDER_PRESETS.find(p => p.domains.includes(domain)) ?? null
+}
+
+/** 未识别邮箱的默认 logo（中性灰信封）。 */
+export const DEFAULT_MAIL_LOGO = '/mail-logos/logo-mail-default.svg'
+
+/**
+ * 取邮箱地址对应的 logo 资源路径。
+ *
+ * 命中预设返回 `preset.logo`；未命中（自定义域名邮箱）返回默认信封 logo。
+ * 设置页账号列表 + 添加表单输入框左侧 logo 联动都用本函数。
+ */
+export function matchProviderLogo(address: string): string {
+  return matchProvider(address)?.logo ?? DEFAULT_MAIL_LOGO
 }
 
 /**

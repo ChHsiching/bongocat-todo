@@ -290,7 +290,9 @@
           "163": "163 Mail\n\n1. Acesse mail.163.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
           "126": "126 Mail\n\n1. Acesse mail.126.com\n2. Configurações → POP3/SMTP/IMAP\n3. Ative o serviço IMAP\n4. Defina uma senha de autorização",
           "outlook": "Outlook / Hotmail\n\n1. Acesse outlook.live.com\n2. Segurança → Ative verificação em duas etapas\n3. Gere uma senha de aplicativo",
-          "icloud": "iCloud\n\n1. Acesse appleid.apple.com\n2. Segurança da conta → Senhas de app\n3. Gere uma para Mail"
+          "icloud": "iCloud\n\n1. Acesse appleid.apple.com\n2. Segurança da conta → Senhas de app\n3. Gere uma para Mail",
+          "proton": "Proton Mail\n\n1. Proton não suporta IMAP direto\n2. Baixe e instale o Proton Mail Bridge (desktop)\n3. Após login, Bridge escuta localmente (padrão 127.0.0.1:1143)\n4. Altere host/porta IMAP acima para o endereço do Bridge\n5. Use a 'Senha da caixa de correio' do Bridge",
+          "yahoo": "Yahoo Mail\n\n1. Acesse mail.yahoo.com\n2. Segurança da conta → ativar verificação em duas etapas\n3. Gere uma 'Senha de app' para IMAP"
         },
         "mailListMenu": "Lista de e-mails",
         "mailArchiveMenu": "Arquivados",
@@ -307,7 +309,14 @@
         "mailArchiveFooter": "Clique para abrir o webmail · removido após 30 dias",
         "mailArchiveAction": "Arquivar",
         "mailDeleteAction": "Excluir",
-        "mailConfirmDelete": "Confirmar exclusão?"
+        "mailConfirmDelete": "Confirmar exclusão?",
+        "accountsTitle": "Contas vinculadas",
+        "notificationTitle": "Configurações de notificação",
+        "bubbleEnabledTitle": "Alerta de bolha de novo e-mail",
+        "bubbleAutoDismissTitle": "Bolha some automaticamente",
+        "bubbleAutoDismissDesc": "Desligado: a bolha fica até clicar",
+        "unreadOnlyTitle": "Apenas e-mails não lidos",
+        "unreadOnlyDesc": "Ignorar lidos (geralmente ligado)"
       }
     }
   }

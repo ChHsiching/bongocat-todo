@@ -283,6 +283,15 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **修复**：窗口底部锚定 `catY - 8px`，多气泡/多行内容**向上堆叠**；去掉翻下方分支，空间不足时顶部 clamp 到屏幕顶。宽度自适应（`genBubbleShape` 加 width 参数，取 `max(360, 子组件自然宽度)`），长链接撑宽不溢出。
 - **规则**：**气泡只向上扩展，不向下、不翻下方**。
 
+#### `ReturnType<typeof useXxxStore>` 在 index.ts 需要 `import type`（T3 踩坑，顺带修了 T1 遗留）
+- **坑**：`src/plugins/mail/index.ts` 的 `SetupMailPluginArgs` / `removeAccount` 签名用 `ReturnType<typeof useMailNotificationStore>`，但该 store 只 `export {}`（运行时 re-export）没 `import type`。tsc 报 `Cannot find name 'useMailNotificationStore'`（**静默通过 vite 但 vue-tsc/tsc 报错**）。T1 就埋了这个雷（SetupMailPluginArgs 的 notification/settings 两个字段一直报错），T3 加 removeAccount 签名时暴露。
+- **修复**：文件顶部补 `import type { useMailNotificationStore } from './stores/mailNotification'`（settings 同理）。`useMailAccountStore` 一直有 `import type` 所以没踩。
+- **规则**：**在 index.ts 这类「re-export + 自身签名引用」的聚合文件里，所有被 `ReturnType<typeof X>` 引用的 store 必须在顶部 `import type { X }`**，光 re-export 不够（re-export 不把名字引入当前模块作用域）。
+
+#### 静态资源（logo/图片）用 public 目录，别用 src/assets（T3 决策）
+- **决策**：邮箱 logo 10 个文件放 `public/mail-logos/`（绝对路径 `/mail-logos/xxx`），与项目字体（`public/fonts/`）一致。**不用 `src/assets/`**——后者要 `import logo from '@/assets/...'` + vite hash 文件名，对于按域名动态匹配 logo 的场景（`matchProviderLogo` 返回字符串路径）反而麻烦（import 得静态分析，不能运行时拼路径）。
+- **public 原样拷贝**：开发期 `/mail-logos/...` 直接可访问，生产构建同路径不做 hash，`matchProviderLogo` 返回的字符串路径两端（store + img src）一致。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -304,7 +313,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 工具函数（`src/plugins/todo/utils/`）：
 - `priority.ts`：`PRIORITIES` 数组 + `priorityIndex` + `nextPriority`（循环切换）
 
-## mail 插件组件清单（Phase 2 T1 完成，T2-T6 进行中）
+## mail 插件组件清单（Phase 2 T1-T3 完成，T4-T6 进行中）
 
 > 位于 `src/plugins/mail/`。Rust 后端在 `src-tauri/src/plugins/mail/`（独立 Tauri plugin crate）。
 
@@ -320,15 +329,15 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | 文件 | 说明 |
 |------|------|
 | `commands.ts` | Rust 命令的 TS 封装 |
-| `index.ts` | setupMailPlugin（listen events）+ testAndSaveAccount + removeAccount |
-| `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ vitest 测试 |
-| `stores/mailSettings.ts` | 代理设置 store |
-| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl）+ vitest 测试 |
+| `index.ts` | setupMailPlugin（listen events，**T3：气泡受设置开关控制 bubbleEnabled/unreadOnly**）+ testAndSaveAccount + removeAccount（**T3：级联清 mailNotification**）+ toggleAccountEnabled（**T3 新增**：开关账号建/断连接） |
+| `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ setEnabled（**T3 新增**，开关切换）+ vitest 测试 |
+| `stores/mailSettings.ts` | 代理设置 + **T3 通知三开关**（bubbleEnabled 默认 true / bubbleAutoDismiss 默认 false / unreadOnly 默认 false） |
+| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl + **T3：logo 路径**）+ `matchProviderLogo()` + `DEFAULT_MAIL_LOGO`（**T3 新增**）+ vitest 测试。**T3 扩展**：拆 foxmail 独立预设 + 新增 proton（Bridge 本地 1143）/ yahoo |
 | `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
 | `components/Bubble/index.vue` | **手绘风气泡**（T2 完成，T6 增强）：圆胖 SVG 形状 + 荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。payload 升级为判别联合 `BubblePayload`（mail/todo），type='todo' 渲染红墨手绘时钟 + 红墨波浪 +「已到期」副标题，点击打开 todo 面板 |
 | `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
 | `components/MailItem/index.vue` | 邮件项（T5 新增，T5a 增强）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 + 归档按钮(手绘箱) + 删除按钮(手绘垃圾桶) + inline 二次确认(700ms 死区+3.3s 确认窗口) + meta 两列网格 + 绝对日期 |
-| `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + vitest 测试 |
+| `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + removeByAccount（**T3 新增**，删除账号级联清理）+ vitest 测试 |
 | `utils/retention.ts` | 留存规则纯函数（T5 新增）：24h 归档 / 5min 归档 / 30 天清理 + vitest 测试 |
 | `utils/timeFormat.ts` | 相对时间格式化（T5）：「2 分钟前」/「昨天」+ `absoluteDate(ts)` 绝对日期 `年.月.日`（T5a 新增） |
 
@@ -342,7 +351,8 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - `src/pages/bubble/index.vue`：气泡窗口（独立伴随窗口，定位照抄 todo 面板 clamp+翻边）
 - `src/pages/mail-list/index.vue`：邮件列表窗口（T5 新增）
 - `src/pages/mail-archive/index.vue`：归档邮件窗口（T5 新增）
-- `src/pages/preference/components/mail/index.vue`：邮件设置页（表单 + provider 指引 + 代理）
+- `src/pages/preference/components/mail/index.vue`：邮件设置页（**T3 重写**：账号列表 logo+地址+状态点+IMAP+启用开关+删除 / 添加表单 input-with-icon logo 联动 + 提示区自制 SVG 感叹号三角 + 通知设置三开关，遵循 ProList+ProListItem+Switch）+ 代理）
+- `public/mail-logos/`：10 个邮箱 logo（**T3 新增**，RGBA 透明，域名→logo 映射见 `utils/providers.ts` 的 `logo` 字段）
 - `src-tauri/tauri.conf.json`：bubble / mail-list / mail-archive 窗口 + preference minHeight 720
 - `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
 - 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`

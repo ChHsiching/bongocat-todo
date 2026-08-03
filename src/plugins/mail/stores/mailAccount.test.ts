@@ -141,6 +141,28 @@ describe('useMailAccountStore — setStatus / removeAccount / getAccount', () =>
     store.removeAccount('nope')
     expect(store.accounts).toHaveLength(1)
   })
+
+  it('setEnabled 切换账号启用状态（默认 true，可关可开）', () => {
+    const store = useMailAccountStore()
+    const acc = store.addAccount({
+      address: 'a@b.com',
+      imapHost: 'imap.b.com',
+      imapPort: 993,
+      username: 'a@b.com',
+    })
+    expect(acc.enabled).toBe(true)
+
+    store.setEnabled(acc.id, false)
+    expect(store.getAccount(acc.id)?.enabled).toBe(false)
+
+    store.setEnabled(acc.id, true)
+    expect(store.getAccount(acc.id)?.enabled).toBe(true)
+  })
+
+  it('setEnabled 对不存在的 id 静默无操作', () => {
+    const store = useMailAccountStore()
+    expect(() => store.setEnabled('nope', false)).not.toThrow()
+  })
 })
 
 describe('useMailAccountStore — setLastSeenUid（离线补发持久化）', () => {

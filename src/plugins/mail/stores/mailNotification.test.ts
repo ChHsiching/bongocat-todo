@@ -257,3 +257,30 @@ describe('useMailNotificationStore — getters', () => {
     expect(store.archivedMails).toEqual([])
   })
 })
+
+describe('useMailNotificationStore — removeByAccount', () => {
+  it('清空指定账号的所有邮件（未读+已读+归档）', () => {
+    const store = useMailNotificationStore()
+    store.upsertMail(makeMail({ accountId: 'acc1' }), 1)
+    const read = store.upsertMail(makeMail({ accountId: 'acc1' }), 2)
+    store.markRead(read.id)
+    const archived = store.upsertMail(makeMail({ accountId: 'acc1' }), 3)
+    store.archive(archived.id)
+    // 另一账号的邮件不应被清
+    store.upsertMail(makeMail({ accountId: 'acc2' }), 1)
+
+    store.removeByAccount('acc1')
+
+    expect(store.notifications).toHaveLength(1)
+    expect(store.notifications[0].accountId).toBe('acc2')
+  })
+
+  it('账号不存在时不报错（空操作）', () => {
+    const store = useMailNotificationStore()
+    store.upsertMail(makeMail({ accountId: 'acc1' }), 1)
+
+    store.removeByAccount('nonexistent')
+
+    expect(store.notifications).toHaveLength(1)
+  })
+})

@@ -136,6 +136,16 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
   }
 
   /**
+   * 清空某账号的所有通知历史（删除账号时级联清理用）。
+   *
+   * 删除账号时调用：从本地通知历史移除该账号下所有未读/已读/归档邮件，
+   * 避免「账号已删但邮件列表里还挂着孤儿项」。不影响其他账号。
+   */
+  function removeByAccount(accountId: string) {
+    notifications.value = notifications.value.filter(n => n.accountId !== accountId)
+  }
+
+  /**
    * 留存规则 tick：扫描所有邮件，按 24h/5min/30 天时限迁移状态。
    *
    * 由 setupMailPlugin 在 main 窗口每分钟调一次（单 timer，避免每封邮件各自计时）。
@@ -192,6 +202,7 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     markRead,
     archive,
     purge,
+    removeByAccount,
     tickRetention,
     activeMails,
     archivedMails,

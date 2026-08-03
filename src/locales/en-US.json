@@ -290,7 +290,9 @@
           "163": "163 Mail\n\n1. Log in at mail.163.com\n2. Settings → POP3/SMTP/IMAP\n3. Enable IMAP service\n4. Set a client authorization password",
           "126": "126 Mail\n\n1. Log in at mail.126.com\n2. Settings → POP3/SMTP/IMAP\n3. Enable IMAP service\n4. Set a client authorization password",
           "outlook": "Outlook / Hotmail\n\n1. Log in at outlook.live.com\n2. Security → Enable two-step verification\n3. Generate an app password",
-          "icloud": "iCloud\n\n1. Go to appleid.apple.com\n2. Account Security → App-specific passwords\n3. Generate one for Mail"
+          "icloud": "iCloud\n\n1. Go to appleid.apple.com\n2. Account Security → App-specific passwords\n3. Generate one for Mail",
+          "proton": "Proton Mail\n\n1. Proton does not support direct IMAP\n2. Download and install Proton Mail Bridge (desktop)\n3. After signing in, Bridge listens locally (default 127.0.0.1:1143)\n4. Change the IMAP host/port above to the address Bridge shows\n5. Use the 'Mailbox password' from Bridge account settings",
+          "yahoo": "Yahoo Mail\n\n1. Sign in at mail.yahoo.com\n2. Account security → enable two-step verification\n3. Generate an 'App password' for IMAP"
         },
         "mailListMenu": "Mail List",
         "mailArchiveMenu": "Archived",
@@ -307,7 +309,14 @@
         "mailArchiveFooter": "Click to open webmail · purged after 30 days",
         "mailArchiveAction": "Archive",
         "mailDeleteAction": "Delete",
-        "mailConfirmDelete": "Confirm delete?"
+        "mailConfirmDelete": "Confirm delete?",
+        "accountsTitle": "Bound Accounts",
+        "notificationTitle": "Notification Settings",
+        "bubbleEnabledTitle": "New mail bubble alert",
+        "bubbleAutoDismissTitle": "Bubble auto-dismiss",
+        "bubbleAutoDismissDesc": "When off, bubble stays until clicked",
+        "unreadOnlyTitle": "Unread mail only",
+        "unreadOnlyDesc": "Ignore read mail (usually on)"
       }
     }
   }
