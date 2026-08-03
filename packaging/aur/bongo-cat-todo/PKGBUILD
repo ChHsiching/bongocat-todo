@@ -48,8 +48,11 @@ build() {
 package() {
   cd "$srcdir/bongocat-todo-$pkgver"
 
-  # Release binary (Tauri bin name = "bongo-cat", from Cargo.toml [package].name)
-  install -Dm755 "src-tauri/target/release/bongo-cat" \
+  # Release binary (Tauri bin name = "bongo-cat", from Cargo.toml [package].name).
+  # The repo has a workspace Cargo.toml at the root, so cargo emits the release
+  # binary into the workspace-root target/ (NOT src-tauri/target/). This matches
+  # release.yml's rust-cache `workspaces: target` setting.
+  install -Dm755 "target/release/bongo-cat" \
     "$pkgdir/usr/bin/bongo-cat-todo"
 
   # .desktop
