@@ -1,0 +1,77 @@
+# Maintainer: ChHsiching <https://aur.archlinux.org/account/ChHsich>
+# Source-build package. CI (update-packaging.yml) rewrites pkgver/sha256sums.
+
+pkgname=bongo-cat-todo
+pkgver=1.3.0
+pkgrel=1
+pkgdesc="Tauri 2 desktop pet cat with a todo list and mail notifier (fork of BongoCat, source build)"
+arch=(x86_64 aarch64)
+url="https://github.com/ChHsiching/bongocat-todo"
+license=(MIT)
+depends=(
+  webkit2gtk-4.1
+  gtk3
+  gdk-pixbuf2
+  libsoup3
+  hicolor-icon-theme
+)
+makedepends=(
+  base-devel
+  cargo
+  nodejs
+  pnpm
+  webkit2gtk-4.1
+)
+provides=(bongo-cat-todo)
+conflicts=(bongo-cat-todo-bin bongo-cat-todo-git)
+options=(!lto)
+
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# sha256sums rewritten by CI at release time.
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+
+prepare() {
+  cd "$srcdir/bongocat-todo-$pkgver"
+  # Cargo.lock ships in the repo tarball; resolve deps offline.
+  cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+}
+
+build() {
+  cd "$srcdir/bongocat-todo-$pkgver"
+  # Full Tauri build: pnpm install -> pnpm build (vite, produces dist/) ->
+  # cargo build --release (tauri-build reads dist/ via frontendDist).
+  # `--no-bundle` skips .deb/.rpm/.appimage; we only want the raw binary.
+  pnpm install --frozen-lockfile
+  pnpm tauri build --no-bundle
+}
+
+package() {
+  cd "$srcdir/bongocat-todo-$pkgver"
+
+  # Release binary (Tauri bin name = "bongo-cat", from Cargo.toml [package].name)
+  install -Dm755 "src-tauri/target/release/bongo-cat" \
+    "$pkgdir/usr/bin/bongo-cat-todo"
+
+  # .desktop
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/bongo-cat-todo.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=BongoCat Todo
+Exec=bongo-cat-todo
+Icon=bongo-cat-todo
+Categories=Entertainment;Utility;
+Comment=Tauri 2 desktop pet cat with a todo list and mail notifier
+StartupWMClass=BongoCat Todo
+Terminal=false
+EOF
+
+  # Icons
+  install -Dm644 "src-tauri/icons/128x128.png" \
+    "$pkgdir/usr/share/icons/hicolor/128x128/apps/bongo-cat-todo.png"
+  install -Dm644 "src-tauri/icons/128x128@2x.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/bongo-cat-todo.png"
+  install -Dm644 "src-tauri/icons/icon.png" \
+    "$pkgdir/usr/share/icons/hicolor/512x512/apps/bongo-cat-todo.png"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
