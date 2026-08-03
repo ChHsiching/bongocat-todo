@@ -8,38 +8,8 @@
 
 ## macOS
 
-### 手动下载
-
 - Apple Silicon：下载 `BongoCat_aarch64.dmg`
 - Intel Chip：下载 `BongoCat_x64.dmg`
-
-### Homebrew 下载
-
-1. 添加 BongoCat 的 tap 源：
-
-```bash
-brew tap ayangweb/BongoCat
-```
-
-2. 安装：
-
-```bash
-brew install --no-quarantine bongo-cat
-```
-
-3. 更新：
-
-```bash
-brew upgrade bongo-cat
-```
-
-4. 卸载：
-
-```bash
-brew uninstall --cask bongo-cat
-
-brew untap ayangweb/BongoCat
-```
 
 ## Windows
 
@@ -48,8 +18,6 @@ brew untap ayangweb/BongoCat
 - ARM64 架构：下载 `BongoCat_arm64.exe`
 
 ## Linux(X11)
-
-### 手动下载
 
 - 64 位系统：
   - Debian / Ubuntu：下载 `BongoCat_amd64.deb`
@@ -60,6 +28,11 @@ brew untap ayangweb/BongoCat
   - Fedora / RHEL：下载 `BongoCat_aarch64.rpm`
   - 通用版本：下载 `BongoCat_aarch64.AppImage`
 
-### AUR 下载
+## 邮件通知功能说明
 
-- Manjaro / ArchLinux: `yay -S bongo-cat`
+绑定邮箱后，桌宠会通过 IMAP IDLE 实时监听新邮件。使用此功能需要：
+
+- **邮箱开启 IMAP 服务**：在各邮箱设置中开启 IMAP，并获取**授权码 / 专用密码**（不是登录密码）。
+- **系统钥匙串权限**：邮箱密码通过系统钥匙串（Windows Credential Manager / macOS Keychain / Linux Secret Service）加密存储，不会明文落地。
+- **境外邮箱**：Gmail 等境外邮箱可能需要配置代理（设置页 → 邮件 → 代理地址）。
+- **支持的邮箱**：Gmail、QQ、Foxmail、163、126、Outlook、iCloud、Proton、Yahoo 及教育邮箱（自动识别）。
