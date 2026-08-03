@@ -48,10 +48,14 @@ function pad2(n: number): string {
 
 /**
  * 到期文案（T6）：相对表述 + 具体时分并存。
- * - 今天：`今天 14:30`
+ * - 今天未到期：`今天 14:30`
+ * - 今天已逾期：`已逾期 14:30`（时点已过，精确到分钟）
  * - 明天：`明天 14:30`
- * - 逾期：`已逾期 7/28 14:30`
+ * - 往日逾期：`已逾期 7/28 14:30`
  * - 更远：`7/30 14:30`（相对词不够用时回退到月/日 + 时分）
+ *
+ * 逾期判定精确到分钟（`dueDate < now`），不再按整天比较——避免「今天 10:15 到期、
+ * 现在 10:20 仍显示蓝色「今天」」的体感问题。
  *
  * 所有 dueDate 都带时分（MiniInput 构造的 timestamp 精确到分钟），故一律显示 HH:mm。
  */
@@ -63,12 +67,22 @@ const dueLabel = computed<null | string>(() => {
   const hm = `${pad2(due.getHours())}:${pad2(due.getMinutes())}`
   const md = `${due.getMonth() + 1}/${due.getDate()}`
 
-  const today = startOfDay(Date.now())
+  const now = Date.now()
+  const overdue = todo.dueDate < now
+
+  // 逾期优先显示「已逾期」：今天过时点也显示「已逾期 HH:mm」（不带月日，今天不需要）
+  if (overdue) {
+    const today = startOfDay(now)
+    const dueDay = startOfDay(todo.dueDate)
+    return dueDay < today
+      ? `${t('plugins.todo.labels.dueOverdueShort')} ${md} ${hm}`
+      : `${t('plugins.todo.labels.dueOverdueShort')} ${hm}`
+  }
+
+  const today = startOfDay(now)
   const dueDay = startOfDay(todo.dueDate)
   const diffDays = Math.round((dueDay - today) / 86400000)
 
-  if (diffDays < 0)
-    return `${t('plugins.todo.labels.dueOverdueShort')} ${md} ${hm}`
   if (diffDays === 0)
     return `${t('plugins.todo.labels.dueTodayShort')} ${hm}`
   if (diffDays === 1)
@@ -80,18 +94,14 @@ const dueLabel = computed<null | string>(() => {
 const isUrgent = computed(() => {
   if (!todo.dueDate)
     return false
-  const today = startOfDay(Date.now())
-  const due = startOfDay(todo.dueDate)
-  return due <= today
+  return todo.dueDate <= Date.now()
 })
 
-/** 已逾期（严格早于今天），用红色警告；今天到期用蓝色提示。 */
+/** 已逾期（时点已过，精确到分钟），用红色警告；未到时点用蓝色提示。 */
 const isOverdue = computed(() => {
   if (!todo.dueDate)
     return false
-  const today = startOfDay(Date.now())
-  const due = startOfDay(todo.dueDate)
-  return due < today
+  return todo.dueDate < Date.now()
 })
 
 /** 点击墨点循环切换优先级。 */
@@ -147,7 +157,7 @@ function startOfDay(ts: number): number {
       </div>
     </div>
 
-    <!-- 删除：手绘风，hover 时显隐（小垃圾桶/× 图标） -->
+    <!-- 删除：手绘风垃圾桶（与邮件列表删除按钮一致），hover 时显隐 -->
     <button
       class="remove-btn"
       :title="t('plugins.todo.labels.deleteButton')"
@@ -164,8 +174,12 @@ function startOfDay(ts: number): number {
         viewBox="0 0 24 24"
         width="16"
       >
-        <path d="M 6 6 Q 9 9 12 12 Q 15 15 18 18" />
-        <path d="M 18 6 Q 15 9 12 12 Q 9 15 6 18" />
+        <!-- 手绘垃圾桶：桶盖横线 + 把手 + 桶身 + 两条竖纹（复刻 MailItem） -->
+        <path d="M 4 7 Q 8 6.5 12 7 Q 16 7.5 20 7" />
+        <path d="M 10 5 Q 12 4 14 5" />
+        <path d="M 6 8 Q 5.5 8 5.7 9 L 7 19 Q 7.2 20 8.2 20 L 15.8 20 Q 16.8 20 17 19 L 18.3 9 Q 18.5 8 18 8" />
+        <path d="M 10 11 Q 9.8 14 9.5 17" />
+        <path d="M 14 11 Q 14.2 14 14.5 17" />
       </svg>
     </button>
   </div>

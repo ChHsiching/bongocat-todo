@@ -14,6 +14,7 @@ import { isMac } from '@/utils/platform'
 import About from './components/about/index.vue'
 import Cat from './components/cat/index.vue'
 import General from './components/general/index.vue'
+import Mail from './components/mail/index.vue'
 import Model from './components/model/index.vue'
 import Shortcut from './components/shortcut/index.vue'
 
@@ -53,6 +54,12 @@ const menus = computed(() => [
     label: t('pages.preference.shortcut.title'),
     icon: 'i-solar:keyboard-bold',
     component: Shortcut,
+  },
+  {
+    key: 'mail',
+    label: t('plugins.mail.labels.preferenceTitle'),
+    icon: 'i-solar:letter-bold',
+    component: Mail,
   },
   {
     key: 'about',

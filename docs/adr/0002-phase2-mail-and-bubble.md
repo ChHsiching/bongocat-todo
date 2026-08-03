@@ -33,8 +33,19 @@ Phase 1（v1.2.0）已发版。Phase 2 原候选方向（轮盘菜单 / Android 
 **验证（2026-07-30，docs.rs 权威）**：`async-imap` 的 `extensions::idle` 模块提供 `Handle` / `IdleStream` / `IdleResponse`（`NewData` | `Timeout` | `ManualInterrupt`），API 完全匹配本场景；支持 `runtime-tokio` feature 与 Tauri 2 的 tokio 运行时兼容。
 
 **新依赖（侵入账单）**：
-- `async-imap`（IMAP 协议）
-- TLS 库（`tokio-native-tls` 或 `rustls`）—— async-imap 自身不处理 TLS，需先建立加密连接再传给 `Client::new()`。这是标准用法，非坑，但 spec 必须写清。
+- `async-imap`（IMAP 协议，features: `runtime-tokio`）
+- `tokio-rustls` + `rustls` + `webpki-roots`（TLS 加密）—— async-imap 自身不处理 TLS，需先建立加密连接再传给 `Client::new()`。
+
+> ⚠️ **T1 实现纠正（2026-07-31）**：原计划用 `tokio-native-tls`，**实际改用 `tokio-rustls`**。原因：native-tls 在 Windows 上走 SChannel，默认做证书吊销检查（OCSP/CRL），用户网络下吊销服务器不可达 → `CRYPT_E_REVOCATION_OFFLINE` → TLS 握手失败。**rustls 不检查吊销**，规避此问题。用 `webpki-roots`（内置 Mozilla 根 CA）而非系统证书库。
+>
+> Cargo.toml 依赖（`src-tauri/src/plugins/mail/Cargo.toml`）：
+> ```toml
+> tokio-rustls = "0.26"
+> rustls = { version = "0.23", default-features = false, features = ["ring"] }
+> webpki-roots = "0.26"
+> ```
+>
+> ⚠️ **rustls 0.23 crypto provider 必须显式安装**：首次调 `ClientConfig::builder()` 时需要进程级 crypto provider。不安装会**永久卡死**（不 panic、不超时、`tokio::time::timeout` 都救不了——卡在 provider 初始化的内部锁上）。修复：插件 init 的 setup 里 `rustls::crypto::ring::default_provider().install_default()`。幂等，重复调用返回 Err 忽略。
 
 ### D2. 凭证走 OS keyring，pinia store 不持密码
 
@@ -54,9 +65,11 @@ use keyring::v1::Entry;
 let entry = Entry::new("bongocat-todo/mail/<accountId>", username)?;
 entry.set_password(password)?;
 entry.get_password()?;
-entry.delete_password()?;
+entry.delete_credential()?;  // ⚠️ 不是 delete_password
 ```
 > ⚠️ **grill 时曾误说 v3，验证后纠正为 v4 + `v1` feature flag**（API 路径是 `keyring::v1::Entry`，非顶层 `keyring::Entry`）。spec/implement 必须按 v4 写。
+>
+> ⚠️ **T1 实现纠正（2026-07-31）**：删除凭证的 API 是 `delete_credential()`，**不是** `delete_password()`。写错会编译失败。
 
 **被否决的方案**：
 - **手滚 AES + 主密码**：单人项目自搞加密几乎必然出错，且要用户记主密码。
@@ -70,11 +83,19 @@ entry.delete_password()?;
 - Tauri 2 是「Vue 前端 + Rust 后端」同进程。Rust task 是 app 进程的一部分，窗口只是事件投递目标，不是 task 存活条件。
 - 桌宠常驻 ⇒ app 进程常驻 ⇒ 连接常驻。用户无需开任何子窗口即有邮件推送。
 
-**保活**：IDLE 每 29 分钟自动重置（RFC 2177 建议 30 分钟内，防服务端超时）；网络断开后指数退避重连。多账号后是 N 条独立连接，一条断了不影响其他。
+**保活**：~~IDLE 每 29 分钟自动重置（RFC 2177 建议 30 分钟内，防服务端超时）~~；网络断开后指数退避重连。多账号后是 N 条独立连接，一条断了不影响其他。
+
+> ⚠️ **T1 实现纠正（2026-07-31）**：原计划的「29 分钟 `wait()` 超时」在实际中不可行——async-imap 的 `Handle::wait()` 默认超时在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（29 分钟的 timer future 永久 Pending，`NewData` 路径正常但 `Timeout` 路径完全失效）。
+>
+> 实际实现改为 **`handle.wait_with_timeout(Duration::from_secs(10))` 短周期循环**：每 10 秒触发一次 Timeout，Timeout 分支做兜底 `fetch_new_envelopes` 补查 IDLE 推送间隙漏掉的新邮件。这比 29 分钟更积极，且解决了部分邮箱（如 QQ）IDLE 推送不稳定的问题——10 秒兜底保证体感延迟可控。
+>
+> ⚠️ **T4 实现纠正（2026-08-03）**：
+> - **周期从 10s 缩短到 5s**：用户反馈「邮件来得慢」，`wait_with_timeout` 从 `from_secs(10)` 改为 `from_secs(5)`。
+> - **IDLE 降级轮询**：Coremail（论客）服务器不支持 IDLE 扩展（返回 `BAD command not support`），教育邮箱多由 Coremail 托管。新增 `classify_idle_error` 判定 Unsupported vs Transient，Unsupported 时降级为 `poll_loop`（5s sleep + fetch 纯轮询）。降级时需重新 `build_imap_session`（session 被 idle handle 消耗，无法安全拿回）。
 
 **诚实标注的风险**：Rust 侧长生命周期 task 是 Phase 1 未触碰的新复杂度（Phase 1 全是前端 store + 一次性 Rust 命令）。连接池管理、断线重连、IDLE 超时重置需 TDD 覆盖。
 
-### D4. 多账号：tracer bullet 先行，Phase 2 内闭环
+### D4. 多账号：tracer bullet 先行，Phase 2 内闭环 — ✅ 已完成
 
 **决策**：先以单账号 tracer bullet 打通整条链路（绑定 → IDLE → 推送 → 气泡），验证 IMAP 路线在各目标邮箱上是否成立；多账号紧随其后解禁。**两者均为 Phase 2 必交付**（非下个 Phase）。
 
@@ -120,6 +141,19 @@ entry.delete_password()?;
 
 **理由**：用户反馈「5 秒太短，没看清就没了」。常驻 + 手动关闭让通知不会被错过；3 条上限 + 折入列表防止常驻气泡刷屏。配合 D9 邮件列表，未处理在气泡、已处理/溢出在列表，逻辑自洽。
 
+#### D7.1. 气泡渲染方案：独立伴随窗口（T1 tracer bullet 验证回填）
+
+> **状态（2026-07-31）**：T1（ticket #11）tracer bullet 验证后回填。原 spec #10 标注此项为「待 tracer bullet 验证后回填决策结论」，现回填为 D7.1。
+
+**决策**：气泡用**独立伴随窗口** `WINDOW_LABEL.BUBBLE`（非 main 窗口内渲染），配置照抄 todo 面板（`transparent`/`decorations:false`/`skipTaskbar`/`alwaysOnTop`/`shadow:false`/`visible:false`/`resizable:false`，360×60）。
+
+**理由**：main 窗口是透明置顶且尺寸紧贴桌宠 sprite，透明区域会被 hit-test 穿透（点不到），在 main 内渲染气泡需要扩窗口高度 + 处理 `ignoreCursorEvents` 防穿透，复杂度高于独立窗口。独立窗口定位逻辑直接复用 todo 面板的 `availableMonitors` + clamp + 翻边锚点（锚点 main 窗口、水平居中、垂直正上方），无需额外窗口对齐工程。
+
+**被否决的方案**：
+- **main 窗口内渲染**（原 spec 优先项）：main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域（整气泡 + 右上角 ×）与 main 的拖拽/穿透逻辑冲突，扩窗口尺寸会影响桌宠本身交互。独立窗口隔离干净。
+
+**侵入点**：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE` + `/bubble` 路由 + `tauri.conf.json` bubble 窗口配置（追加，和 todo 窗口并列）。
+
 ### D8. todo 提醒双发（系统通知 + 气泡），不拆 D6
 
 **决策**：todo 到期时同时触发系统通知（`@tauri-apps/plugin-notification`，ADR 0001 D6 保留）+ 桌宠气泡（纯增量）。现有 `reminderStore` 触发点加一行 emit 气泡事件即可，不碰现有逻辑。
@@ -140,15 +174,20 @@ entry.delete_password()?;
 - 新邮件到达触发气泡后，自动进入邮件列表（未读状态）。
 - **默认留存 24 小时**后自动归档（转入归档邮件窗口，从邮件列表移除）。
 - **点击后**标记为本地已读 + **5 分钟后**自动归档。
+- **归档超过 30 天**自动清理（从 store 彻底移除）。来源：设计稿 `mail-list.html` footer 写明，T5 落地。
 
 **状态模型**（本地，不碰邮箱服务端）：
 ```
 MailNotification {
-  id, accountId, from, subject, arrivedAt  // 信封元数据
+  id, accountId, uid, from, subject, arrivedAt  // 信封元数据（uid 来自 IMAP，用于去重）
   status: 'unread' | 'read' | 'archived'  // 纯本地状态
   readAt?, archivedAt?                      // 本地时间戳
 }
 ```
+
+> **T5 实现补充（2026-08-01）**：
+> - `NewMailPayload`（Rust → 前端 event）加了 `uid: u32` 字位，用于前端按 `<accountId>:<uid>` 去重（离线补发 + IDLE 推送可能重复）+ bubble 点击邮件时按 uid 匹配 store 调 `markRead`。
+> - **离线补发链路**（`mail://last-seen-uid` event）：Rust 每批推送新邮件后 emit 当前 last_seen_uid，前端监听后 `setLastSeenUid` 持久化到 mailAccount store。app 启动重连时传持久化的 `initial_last_seen_uid`（而非 fetch_max_uid 跳过），`fetch_new_envelopes` 把离线期间的新邮件补推。**离线补发的关键约束**：前端 `listen` 必须全部 `await` 完成后再 `mailConnect`，否则 Rust emit 的事件被丢弃（竞态）。
 
 **理由**：
 - 常驻气泡（D7 改）让用户「不漏看」，但常驻不等于「记得处理过」。邮件列表补上「历史回看」——用户关掉气泡后还能在列表里找回。
@@ -167,6 +206,18 @@ MailNotification {
 - `src/router/index.ts`：`/mail-list` `/mail-archive` 路由（追加）。
 - `src-tauri/tauri.conf.json`：邮件列表 + 归档窗口配置（照抄 todo 面板的伴随窗口配置）。
 - 新增 `src/plugins/mail/stores/mailNotification.ts`：本地通知历史 store（复用 pinia 持久化）。
+
+### D10. HTTP CONNECT 代理支持（T1 实现中新增，spec 未规划）
+
+**决策**：邮件模块内置 HTTP CONNECT 代理支持。`build_imap_session` 的 `proxy: Option<&str>` 参数：有代理时先 TCP 连代理 → HTTP CONNECT 隧道 → rustls TLS → IMAP。代理地址持久化在 `mailSettings` store，设置页提供代理输入框。
+
+**理由**（T1 手动验证发现的必要功能）：
+- 国内用户的境外邮箱（Gmail 等）需通过代理连接 IMAP。TUN 透明代理对 993 端口转发不稳定（`stack: system` 的已知问题），程序需自带代理支持。
+- `async-http-proxy` crate（HTTP CONNECT 隧道）验证通过（QQ 邮箱走代理 127.0.0.1:7890 成功）。
+
+**依赖**：`async-http-proxy = { version = "1", default-features = false, features = ["runtime-tokio"] }`
+
+**未来扩展（非本 Phase）**：SOCKS5 代理（`fast-socks5` 已在 Cargo.toml 但未实现）、自动检测系统代理设置。
 
 ## 设计稿时机
 

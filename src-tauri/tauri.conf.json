@@ -31,7 +31,7 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "minWidth": 800,
-        "minHeight": 600,
+        "minHeight": 720,
         "skipTaskbar": true
       },
       {
@@ -46,6 +46,48 @@
         "shadow": false,
         "resizable": false,
         "width": 380,
+        "height": 560
+      },
+      {
+        "label": "bubble",
+        "url": "index.html/#/bubble",
+        "title": "气泡",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 360,
+        "height": 60
+      },
+      {
+        "label": "mail-list",
+        "url": "index.html/#/mail-list",
+        "title": "邮件列表",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 400,
+        "height": 560
+      },
+      {
+        "label": "mail-archive",
+        "url": "index.html/#/mail-archive",
+        "title": "归档邮件",
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": false,
+        "width": 400,
         "height": 560
       }
     ],

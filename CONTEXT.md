@@ -211,6 +211,123 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **排查**：identifier 变更后，查数据文件要找**新 identifier 对应的目录**，不是旧上游的。
 - **Windows 路径**：`%APPDATA%/<identifier>/tauri-plugin-pinia/<store-id>.dev.json`（dev 模式带 `.dev` 后缀）。
 
+### Phase 2 邮件模块踩坑（T1 实现，必读）
+
+> 以下 8 个坑都是 T1 实现过程中付出调试代价才发现的，ADR 0002 D1/D2/D3 已更新对应决策。
+
+#### native-tls/SChannel 吊销检查导致 TLS 握手失败 → 用 rustls
+- **问题**：`tokio-native-tls` 在 Windows 上走 SChannel，默认做证书吊销检查（OCSP/CRL）。用户网络下吊销服务器不可达 → `CRYPT_E_REVOCATION_OFFLINE` → TLS 握手失败。curl（同样走 SChannel）复现。
+- **修复**：改用 `tokio-rustls` + `rustls`（不检查吊销）+ `webpki-roots`（内置 Mozilla 根 CA，不用系统证书库）。
+- **详见**：ADR 0002 D1 T1 纠正段。
+
+#### rustls 0.23 crypto provider 必须显式安装（否则永久卡死）
+- **坑**：rustls 0.23 首次调 `ClientConfig::builder()` 时需要进程级 crypto provider。**不安装会永久卡死**——不 panic、不超时、`tokio::time::timeout` 都救不了（卡在 provider 初始化的内部锁上）。
+- **修复**：插件 init 的 setup 里 `rustls::crypto::ring::default_provider().install_default()`。幂等，重复调用返回 Err 忽略。
+
+#### async-imap IDLE `wait()` 在 Tauri runtime 卡死 → `wait_with_timeout(10s)`
+- **坑**：`Handle::wait()` 默认 29 分钟超时，在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（timer future 永久 Pending）。`NewData` 路径正常，但 `Timeout` 路径完全失效。
+- **修复**：改用 `handle.wait_with_timeout(Duration::from_secs(10))`，10 秒短周期循环。Timeout 分支做兜底 `fetch_new_envelopes`，补查 IDLE 推送间隙漏掉的新邮件（QQ 邮箱 IDLE 推送不稳定，10 秒兜底保证体感延迟可控）。
+- **详见**：ADR 0002 D3 T1 纠正段。
+
+#### keyring v4 删除 API 是 `delete_credential`（不是 `delete_password`）
+- **坑**：ADR 0002 D2 原写 `delete_password()`，实际 keyring v4 v1 feature 的 API 是 `delete_credential()`。写错编译失败。
+
+#### Tauri 2 capability 权限要显式 allow
+- **坑**：Tauri 2 权限模型要求插件命令在 `src-tauri/capabilities/default.json` 显式 allow。建插件时漏了，导致 `mail_test_connection not allowed`。
+- **修复**：`capabilities/default.json` 加 `mail:allow-*` 权限。**新建 Tauri plugin 时必须同时加 capability 权限**。
+
+#### vue-i18n 的 `@` 必须 literal 转义
+- **坑**：vue-i18n 把 message 里的 `@` 当 linked-message 语法符（`@:key`）。`addressPlaceholder` 的 `alice@gmail.com` 导致编译失败，启动报 `SyntaxError: Invalid linked format`。
+- **修复**：locale 文件的 `@` 改为 `{'@'}`。
+
+#### TUN 透明代理对 993 端口不稳定 → 程序需自带 HTTP CONNECT 代理
+- **问题**：国内用户的境外邮箱（Gmail 等）需代理。TUN 透明代理对 993 端口转发不稳定（`stack: system` 已知问题）。
+- **修复**：程序内置 HTTP CONNECT 代理支持（`async-http-proxy` crate），设置页提供代理输入框。详见 ADR 0002 D10。
+
+#### WebView2 console.log 不转发到 Tauri stdout（T2 踩坑）
+- **问题**：Windows WebView2 的 `console.log` **不会**出现在 `pnpm tauri dev` 的 Rust stdout 里。前端调试时以为日志没输出，实际是被 WebView2 吞了。
+- **修复**：前端调试用 `@tauri-apps/plugin-log` 的 `info()` / `error()`，这些会转发到 Tauri 日志系统可见。
+
+#### Rust serde 蛇形/驼峰不匹配是静默 bug（T2 修复 T1 遗留）
+- **坑**：Rust struct 字段默认蛇形（`account_id`），前端 JS 读驼峰（`accountId`）。如果 struct 缺 `#[serde(rename_all = "camelCase")]`，前端 `payload.accountId` 会拿到 **`undefined`**——**不报错、不崩溃、静默失败**。
+- **修复**：`NewMailPayload` / `ConnectionStatusPayload` 加 `#[serde(rename_all = "camelCase")]`。
+- **规则**：**后续新增任何 Rust → 前端 event payload struct，必须加这个属性**。
+
+#### SVG path 写死坐标是布局炸弹（T2 踩坑）
+- **坑**：设计稿 `bubble.html` 的气泡 SVG path 坐标是写死的（固定高度）。内容变高时气泡形状不跟着变，文字溢出到气泡外面。`preserveAspectRatio="none"` 会强行拉伸变形。
+- **修复**：新增 `bubbleShape.ts` 的 `genBubbleShape(textHeight)`，按内容高度动态生成 path d。
+- **规则**：**手绘风 UI 的 SVG 形状不能用写死坐标**，必须根据内容尺寸动态生成 path。T5 邮件列表/归档面板也是手绘风，同样适用。
+
+#### Tauri listen 不 await 是竞态炸弹（T5 踩坑）
+- **坑**：`setupMailPlugin` 里 4 个 `listen()` 没 `await`，监听器还没注册完 Rust 就补发 emit `mail://new-mail`，离线补发的邮件被丢弃。正常 IDLE 推送（10 秒后）不暴露这个 bug，但离线补发是「连接后立即 emit」，时序紧得多。
+- **修复**：全部加 `await`，确保注册完再 `mailConnect`。
+- **规则**：**Tauri `listen` 是异步的（返回 Promise）**，如果有「连接后立即 emit」的场景，必须 await 所有 listen 完成后再建立连接。
+
+#### store 加新字段要做数据迁移（T5 踩坑）
+- **坑**：T5 给 mailAccount store 加 `lastSeenUid` 字段，但 T5 前创建的账号持久化 JSON 没这个字段（`undefined`）。`setLastSeenUid` 里 `uid > undefined` 是 `false`（NaN 比较），永远不更新 → 离线补发永不触发。
+- **修复**：`migrateLastSeenUid()` 给旧账号补 `lastSeenUid: 0`；`setLastSeenUid` 用 `?? 0` 兜底。
+- **规则**：**给已有持久化 store 加新字段时，必须写 migrate 函数给旧数据补默认值**，否则 undefined 参与比较运算会静默 false。
+
+#### `monitors.find(m => ...)` 的 m 闭包泄漏（T5 踩坑）
+- **坑**：`mail-list/index.vue` 的 clamp 定位代码 `monitors.find(m => ...)` 里参数名 `m`，在 find 回调外部作用域被误引用 → `ReferenceError`，整个监听回调崩溃，邮件列表窗口打不开。归档窗口用的参数名是 `monitor` 所以没踩。
+- **修复**：`m` → `monitor`。
+- **教训**：ESLint 抓不到这种「find 回调参数名跨作用域泄漏」，只有运行时 ReferenceError 才暴露。**find/filter 回调参数名要语义化、不与外部变量重名**。
+
+#### inline 二次确认必须有强制反应死区（T5a 踩坑）
+- **坑**：inline 二次确认（按钮变形，非弹窗）如果没有死区，用户快速双击会瞬间删除，等于没有二次确认。
+- **修复**：进入确认态后先有 **700ms 死区**（按钮变灰禁用 + `cursor: not-allowed` + 点击忽略），死区结束后才变红色高亮可点击，再过 3.3 秒不点自动恢复。
+- **规则**：**inline 二次确认必须配死区**，否则防不住误双击。死区内按钮视觉必须明确禁用（灰+not-allowed），不能只是「逻辑上忽略点击但视觉正常」。
+
+#### 气泡布局必须向上扩展（T6 踩坑）
+- **坑**：气泡内容多行或多气泡堆叠时，向下扩展会侵入桌宠 sprite 区域（遮挡猫）。原设计有「翻猫下方」分支，但翻下方必然跨猫更糟。
+- **修复**：窗口底部锚定 `catY - 8px`，多气泡/多行内容**向上堆叠**；去掉翻下方分支，空间不足时顶部 clamp 到屏幕顶。宽度自适应（`genBubbleShape` 加 width 参数，取 `max(360, 子组件自然宽度)`），长链接撑宽不溢出。
+- **规则**：**气泡只向上扩展，不向下、不翻下方**。
+
+#### `ReturnType<typeof useXxxStore>` 在 index.ts 需要 `import type`（T3 踩坑，顺带修了 T1 遗留）
+- **坑**：`src/plugins/mail/index.ts` 的 `SetupMailPluginArgs` / `removeAccount` 签名用 `ReturnType<typeof useMailNotificationStore>`，但该 store 只 `export {}`（运行时 re-export）没 `import type`。tsc 报 `Cannot find name 'useMailNotificationStore'`（**静默通过 vite 但 vue-tsc/tsc 报错**）。T1 就埋了这个雷（SetupMailPluginArgs 的 notification/settings 两个字段一直报错），T3 加 removeAccount 签名时暴露。
+- **修复**：文件顶部补 `import type { useMailNotificationStore } from './stores/mailNotification'`（settings 同理）。`useMailAccountStore` 一直有 `import type` 所以没踩。
+- **规则**：**在 index.ts 这类「re-export + 自身签名引用」的聚合文件里，所有被 `ReturnType<typeof X>` 引用的 store 必须在顶部 `import type { X }`**，光 re-export 不够（re-export 不把名字引入当前模块作用域）。
+
+#### 静态资源（logo/图片）用 public 目录，别用 src/assets（T3 决策）
+- **决策**：邮箱 logo 10 个文件放 `public/mail-logos/`（绝对路径 `/mail-logos/xxx`），与项目字体（`public/fonts/`）一致。**不用 `src/assets/`**——后者要 `import logo from '@/assets/...'` + vite hash 文件名，对于按域名动态匹配 logo 的场景（`matchProviderLogo` 返回字符串路径）反而麻烦（import 得静态分析，不能运行时拼路径）。
+- **public 原样拷贝**：开发期 `/mail-logos/...` 直接可访问，生产构建同路径不做 hash，`matchProviderLogo` 返回的字符串路径两端（store + img src）一致。
+
+#### PNG logo「白底转透明」误杀内部白色（QQ logo 踩坑）
+- **坑**：简单白底转透明（`r>235 && g>235 && b>235 → alpha=0`）会把 logo 内部的白色部分也转透明。QQ 企鹅的白肚皮/眼白和背景白色 RGB 接近，简单阈值把肚皮也清了 → 企鹅变成空心轮廓。
+- **正确方法**：**flood fill 重建 alpha**——从图像四角的非 logo 色背景开始扩散，标记「连通到边缘的背景」为透明，被 logo 主体色（黑/红）包围的内部白色（肚皮/眼白）保留不透明。需用浏览器 canvas `getImageData` 逐像素处理（不要手写 node PNG 编解码器）。
+- **规则**：logo 有内部白色区域时，不能用简单阈值转透明，必须 flood fill 按连通性区分背景 vs 内部白色。
+
+#### 账号卡片 logo 尺寸偏离设计稿（T3 用户决策）
+- **设计稿** `mail-settings.html`：容器 36×36，logo 22×22。
+- **用户调整**：放大到容器 48×48（`h-12 w-12`）、logo 32×32（`h-8 w-8`）、`object-contain` 保比例、垂直居中。**不要 `h-full w-full` 撑满容器**（用户明确否决「太难看了盛满容器」）。
+- **IMAP 详情行** `pl-15`（60px = 容器 48 + gap 12）对齐文字起始位置。
+- **设计稿未改**（仍是 36×36 原值），以实际实现 48×48 为准。
+
+#### Coremail 服务器不支持 IDLE → 轮询降级（T4 踩坑）
+- **坑**：Coremail（论客）服务器对 IDLE 命令返回 `BAD command not support`，不实现 IMAP IDLE 扩展。教育邮箱（如 `.edu.cn`）多由 Coremail 教育版 SaaS 托管。
+- **修复**：`logic.rs` 新增 `classify_idle_error(err_msg) -> IdleSupport`（Unsupported vs Transient）纯函数 + `manager.rs` 新增 `poll_loop`：IDLE init 失败且判定 Unsupported 时，重建 session 走纯轮询（`POLL_INTERVAL` 5 秒 sleep + fetch 循环）。
+- **技术细节**：`session.idle()` 消耗 session 进 handle，init 失败后 async-imap 没有安全 API 拿回 session（`done()` 会再次触发 BAD），所以降级时**重新 `build_imap_session` 建新连接**。
+
+#### build_imap_session 代理覆盖 bug（T4 修复 pre-existing）
+- **坑**：`manager.rs` 有重复的 `let tcp = TcpStream::connect(...)`，把代理分支建立的隧道 tcp 覆盖了——**代理路径从未生效过**。
+- **修复**：删除重复代码。注意用户实际没用代理（国内邮箱直连），这个 bug 是潜在的。
+
+#### antdv-next Input type="number" 绑定的仍是 string（T4 踩坑）
+- **坑**：`<Input type="number">` 的 `v-model:value` 绑定的是 **string**（HTML input value 永远是 string），传给 Rust `u16` 报 `invalid type: string "993", expected u16`。
+- **修复**：`handleTestAndSave` 显式 `Number(imapPort.value)` + 范围校验（1-65535）。
+- **规则**：**antdv-next Input type="number" 的 v-model 绑定值是 string 不是 number**，传给 Rust 强类型参数前必须显式转换。
+
+#### 教育邮箱 IMAP 地址公网 DNS 无解析（T4 踩坑）
+- **坑**：学校给的 IMAP 地址（如 `imap.s.ytu.edu.cn`）**公网 DNS 无解析**（仅学校内网 DNS 有记录）。实际可用地址是 `edu.icoremail.net`（Coremail 教育版 SaaS 通用接入）。
+- **修复**：`providers.ts` 新增 `SUFFIX_PATTERNS`（`.edu.cn` / `.edu` → `edu.icoremail.net`）+ `extractEduAbbr`（从域名提取学校简称用于 displayName）。
+- **规则**：学校给的地址不一定校外可用，教育邮箱用户需 fallback 到 `edu.icoremail.net`。
+
+#### 右键菜单偶发失效（未解决，已搁置）
+- **症状**：右键桌宠弹出原生菜单，偶发无法用鼠标点击（不高亮、无法选中），但**键盘方向键能选中**。完全随机，无明确触发条件。
+- **已排除的 6 个方向（不要再试）**：① `setAlwaysOnTop` 没 await ② Win32 `SetForegroundWindow` 前台锁定 hack ③ `handleMouseDown` 的 startDragging 与 menu.popup 竞争 ④ alwaysOnTop 轮询线程 16ms 竞争 ⑤ 鼠标悬停隐藏 setIgnoreCursorEvents ⑥ 鼠标穿透开关。
+- **确定事实**：菜单弹出了（可见）+ 键盘能操作（有焦点）+ 鼠标不行（事件被拦截/穿透）+ 与 alwaysOnTop 无关 + 与穿透无关 + 无其他窗口干扰。
+- **结论**：Tauri/WebView2 在 Windows 上的底层交互问题，fork 代码层面诊断到极限。等 Tauri 上游修复或将来有更多线索再查。
+
 ## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
 
 > 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
@@ -223,7 +340,7 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 | `InkDot` | T2（T6 加 clickable） | 三层 path 墨点，按 priority 变色；`clickable` 模式渲染 button 可点击切换 |
 | `HandClock` | T2 | Q 曲线外圈 + 弧度时分针 + 中心点 |
 | `WaveDivider` | T2 | 手绘波浪分隔线（`Q 25 1 50 3 T 98 3`） |
-| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分 |
+| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分。T6 改动：isOverdue/dueLabel 从整天比较改为精确到分钟（今天 10:15 到期、10:16 即显示红色「已逾期 10:15」）；删除按钮 ×叉号 → 手绘垃圾桶（复刻 MailItem） |
 | `TodoPanel` | T2（T6 增强） | 主面板：标题 + 新建区（标题+优先级+日期+确认取消）+ 列表 + footer |
 | `MiniInput` | T5（T6 复用共享组件） | 迷你快速新建窗（380px 宽），复用 HandDateInput/PriorityPicker |
 | `HandDateInput` | T6（共享） | 5 个手写数字框（年/月/日 + 时:分），focus 自动填充当前系统时间，迷你窗 + 主面板复用 |
@@ -231,6 +348,53 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 
 工具函数（`src/plugins/todo/utils/`）：
 - `priority.ts`：`PRIORITIES` 数组 + `priorityIndex` + `nextPriority`（循环切换）
+
+## mail 插件组件清单（Phase 2 T1-T3 完成，T4-T6 进行中）
+
+> 位于 `src/plugins/mail/`。Rust 后端在 `src-tauri/src/plugins/mail/`（独立 Tauri plugin crate）。
+
+### Rust 后端（`src-tauri/src/plugins/mail/`）
+| 文件 | 说明 |
+|------|------|
+| `src/lib.rs` | init() + rustls crypto provider install_default + ConnectionManager state |
+| `src/commands.rs` | `mail_test_connection` / `mail_connect` / `mail_disconnect` / `mail_store_password` / `mail_delete_password` |
+| `src/manager.rs` | ConnectionManager + idle_loop + idle_wait_loop + **poll_loop（T4：Coremail 降级轮询）** + build_imap_session（含 HTTP CONNECT 代理，**T4 修复代理覆盖 bug**）+ fetch_max_uid + fetch_new_envelopes + decode_mime_words + **has_connection / connection_count（T4 多账号查询）** |
+| `src/logic.rs` | `should_reset_idle` / `backoff_delay` / **`classify_idle_error`（T4：IDLE 不支持判定）** + `IdleSupport` 枚举 + **`POLL_INTERVAL`(5s)** + `#[cfg(test)]` 测试 |
+
+### 前端（`src/plugins/mail/`）
+| 文件 | 说明 |
+|------|------|
+| `commands.ts` | Rust 命令的 TS 封装 |
+| `index.ts` | setupMailPlugin（listen events，**T3：气泡受设置开关控制 bubbleEnabled/unreadOnly**）+ testAndSaveAccount + removeAccount（**T3：级联清 mailNotification**）+ toggleAccountEnabled（**T3 新增**：开关账号建/断连接） |
+| `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ setEnabled（**T3 新增**，开关切换）+ vitest 测试 |
+| `stores/mailSettings.ts` | 代理设置 + **T3 通知三开关**（bubbleEnabled 默认 true / bubbleAutoDismiss 默认 false / unreadOnly 默认 false） |
+| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl + logo 路径）+ `matchProviderLogo()` + `DEFAULT_MAIL_LOGO` + vitest 测试。**T3**：拆 foxmail 独立预设 + 新增 proton / yahoo。**T4**：`SUFFIX_PATTERNS`（`.edu.cn`/`.edu`→`edu.icoremail.net`）+ `extractEduAbbr`（教育邮箱后缀模式匹配） |
+| `utils/errors.ts` | `formatConnectionError(rawErr, t)` 纯函数（**T4 新增**）：Rust 技术错误分类为友好提示（TLS/auth/timeout/unsafe login/domain not local/network），只翻译不写长文 + vitest 测试 |
+| `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
+| `components/Bubble/index.vue` | **手绘风气泡**（T2 完成，T6 增强）：圆胖 SVG 形状 + 荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。payload 升级为判别联合 `BubblePayload`（mail/todo），type='todo' 渲染红墨手绘时钟 + 红墨波浪 +「已到期」副标题，点击打开 todo 面板 |
+| `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
+| `components/MailItem/index.vue` | 邮件项（T5 新增，T5a 增强）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 + 归档按钮(手绘箱) + 删除按钮(手绘垃圾桶) + inline 二次确认(700ms 死区+3.3s 确认窗口) + meta 两列网格 + 绝对日期 |
+| `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + removeByAccount（**T3 新增**，删除账号级联清理）+ vitest 测试 |
+| `utils/retention.ts` | 留存规则纯函数（T5 新增）：24h 归档 / 5min 归档 / 30 天清理 + vitest 测试 |
+| `utils/timeFormat.ts` | 相对时间格式化（T5）：「2 分钟前」/「昨天」+ `absoluteDate(ts)` 绝对日期 `年.月.日`（T5a 新增） |
+
+> **字体变更（T2，用户口头要求）**：手写字体从 851 换成**荆南波波黑**。font-family 名仍叫 `'Handwriting851'`（历史命名，只换了 `@font-face` src）。气泡 `bubble.css` 和 todo `handdrawn.css` 各自定义 `@font-face`，改字体要改两处。
+>
+> **新需求备忘（不在现有 ticket 里）**：用户计划设置页加「字体切换」功能，内置多种字体。Phase 2 范围外，暂不建 ticket。
+
+### 接入点
+- `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` / `MAIL_LIST` / `MAIL_ARCHIVE` + `LISTEN_KEY.SHOW_BUBBLE` / `SHOW_MAIL_LIST` / `SHOW_MAIL_ARCHIVE`
+- `src/router/index.ts`：`/bubble` / `/mail-list` / `/mail-archive` 路由
+- `src/pages/bubble/index.vue`：气泡窗口（独立伴随窗口，定位照抄 todo 面板 clamp+翻边）
+- `src/pages/mail-list/index.vue`：邮件列表窗口（T5 新增）
+- `src/pages/mail-archive/index.vue`：归档邮件窗口（T5 新增）
+- `src/pages/preference/components/mail/index.vue`：邮件设置页（**T3 重写**：账号列表 logo+地址+状态点+IMAP+启用开关+删除 / 添加表单 input-with-icon logo 联动 + 提示区自制 SVG 感叹号三角 + 通知设置三开关，遵循 ProList+ProListItem+Switch）+ 代理）
+- `public/mail-logos/`：11 个邮箱 logo（**T3 新增** 10 个 + **T4 新增** `logo-edu.svg` 毕业帽，全 RGBA 透明，域名→logo 映射见 `utils/providers.ts` 的 `logo` 字段）
+- `src-tauri/tauri.conf.json`：bubble / mail-list / mail-archive 窗口 + preference minHeight 720
+- `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
+- 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`
+
+> **气泡窗口方案（T1 回填）**：用独立伴随窗口 `WINDOW_LABEL.BUBBLE`（非 main 内渲染）。main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域与 main 交互冲突。详见 ADR 0002 D7.1。
 
 ## 设计探索决策（已定稿）
 

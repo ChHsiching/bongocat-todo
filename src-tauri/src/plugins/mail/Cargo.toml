@@ -1,0 +1,36 @@
+[package]
+name = "tauri-plugin-mail"
+version = "0.1.0"
+authors = []
+description = ""
+edition = "2024"
+rust-version = "1.85.0"
+links = "tauri-plugin-mail"
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+# IMAP 协议 + IDLE（async-imap 自身不处理 TLS，需先建立加密连接再传给 Client::new）
+async-imap = { version = "0.11", default-features = false, features = ["runtime-tokio"] }
+# TLS：rustls（纯 Rust TLS，不做证书吊销检查）。native-tls 在 Windows 上走 SChannel，
+# 默认开启 OCSP/CRL 吊销检查，国内网络吊销服务器不可达时握手失败（CRYPT_E_REVOCATION_OFFLINE）。
+# rustls 默认不检查吊销，避免该问题，且无 OpenSSL/SChannel 系统依赖。
+tokio-rustls = "0.26"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+webpki-roots = "0.26"
+# HTTP CONNECT + SOCKS5 代理（绕开 TUN system stack 对非标端口转发不稳定的问题；
+# 让程序通过 mihomo/clash 的 mixed-port 代理建立隧道连 IMAP 服务器）
+async-http-proxy = { version = "1", default-features = false, features = ["runtime-tokio"] }
+# MIME encoded-word 解码（邮件主题 RFC 2047 `=?utf-8?B?...?=`）
+base64 = "0.22"
+# 异步运行时（IDLE task 需要 rt-multi-thread + 时间工具；macros 供 #[tokio::test] 用）
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "net", "macros"] }
+# 异步流处理（fetch 结果 collect）
+futures-lite = "2"
+# OS 钥匙串（密码不落地明文）。⚠️ v4 + v1 feature，API 是 keyring::v1::Entry（非顶层）
+keyring = { version = "4", features = ["v1"] }
+# 日志 facade（tauri-plugin-log 后端）
+log.workspace = true
+
+[build-dependencies]
+tauri-plugin.workspace = true
