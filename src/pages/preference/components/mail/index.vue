@@ -170,10 +170,10 @@ function statusColor(status: MailAccountStatus): string {
     >
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0 flex flex-1 items-center gap-3">
-          <div class="h-9 w-9 flex shrink-0 items-center justify-center overflow-hidden bg-[--ant-color-fill-tertiary] rounded-lg">
+          <div class="h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden bg-[--ant-color-fill-tertiary] rounded-lg">
             <img
               :alt="boundAccount.address"
-              class="h-5.5 w-5.5 object-contain"
+              class="h-8 w-8 object-contain"
               :src="matchProviderLogo(boundAccount.address)"
             >
           </div>
@@ -202,7 +202,7 @@ function statusColor(status: MailAccountStatus): string {
           </Button>
         </div>
       </div>
-      <div class="flex flex-wrap gap-4 pl-12 pt-2 text-3 color-text-quaternary">
+      <div class="flex flex-wrap gap-4 pl-15 pt-2 text-3 color-text-quaternary">
         <span>{{ boundAccount.imapHost }}:{{ boundAccount.imapPort }}</span>
       </div>
     </div>
