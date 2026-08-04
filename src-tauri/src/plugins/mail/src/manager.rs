@@ -479,6 +479,18 @@ pub(crate) async fn build_imap_session(
         .map_err(|_| "IMAP 登录超时（30s 无响应）".to_string())?
         .map_err(|(err, _)| format!("IMAP 登录失败: {err}"))?;
 
+    // 发送 IMAP ID 命令（RFC 2971）。
+    // 网易系邮箱（163/126/yeah.net）要求第三方客户端在 LOGIN 后、SELECT 等操作前
+    // 发送 ID 表明身份，否则后续操作返回 "Unsafe Login"。
+    // 其他邮箱（Gmail/QQ 等）忽略此命令，对所有服务器发送是安全的 RFC 2971 标准行为。
+    // 用 `let _ =` 忽略错误：不支持 ID 的服务器返回 BAD 也不影响后续流程。
+    let _ = session.id([
+        ("name", Some("BongoCat Todo")),
+        ("version", Some(env!("CARGO_PKG_VERSION"))),
+        ("vendor", Some("ChHsiching")),
+        ("support-email", Some("chhsiching@users.noreply.github.com")),
+    ]).await;
+
     timeout(STEP_TIMEOUT, session.select("INBOX"))
         .await
         .map_err(|_| "选 INBOX 超时（30s 无响应）".to_string())?
