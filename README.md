@@ -57,7 +57,24 @@ BongoCat Todo 是 [BongoCat](https://github.com/ayangweb/BongoCat) 的 fork，�
 
 ## 下载
 
-前往 [GitHub Releases](https://github.com/ChHsiching/bongocat-todo/releases) 下载最新版本。
+### macOS（Homebrew）
+
+```bash
+brew tap ChHsiching/tap
+brew install --cask bongo-cat-todo
+```
+
+### Arch / Manjaro（AUR）
+
+> ⚠️ AUR 目前因平台安全锁定暂不可用，恢复后即可使用。
+
+```bash
+yay -S bongo-cat-todo-bin
+```
+
+### 其他平台 / 手动下载
+
+前往 [GitHub Releases](https://github.com/ChHsiching/bongocat-todo/releases) 下载 `.exe` / `.deb` / `.rpm` / `.AppImage`。
 
 不确定下载哪个？参考[下载指南](.github/DOWNLOAD_GUIDE.md)。
 
