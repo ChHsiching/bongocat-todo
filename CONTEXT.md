@@ -324,6 +324,12 @@ T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本�
 - **修复**：`logic.rs` 新增 `classify_idle_error(err_msg) -> IdleSupport`（Unsupported vs Transient）纯函数 + `manager.rs` 新增 `poll_loop`：IDLE init 失败且判定 Unsupported 时，重建 session 走纯轮询（`POLL_INTERVAL` 5 秒 sleep + fetch 循环）。
 - **技术细节**：`session.idle()` 消耗 session 进 handle，init 失败后 async-imap 没有安全 API 拿回 session（`done()` 会再次触发 BAD），所以降级时**重新 `build_imap_session` 建新连接**。
 
+#### 网易系邮箱（163/126）要求 IMAP ID 命令（1.3.1 修复）
+- **坑**：网易邮箱（163/126/yeah.net）要求第三方客户端在 LOGIN 后、SELECT 等操作前发送 IMAP ID 命令（RFC 2971）表明身份（name/version/vendor 等），否则后续操作返回 `Unsafe Login` 错误。之前 `build_imap_session` 跳过了 ID 命令直接 select INBOX，导致 163/126 用户全部被拒。
+- **修复**：`build_imap_session` 在 login 后、select 前调用 `session.id([("name", ...), ("version", ...), ...])`。用 `let _ =` 忽略返回——不支持 ID 的服务器返回 BAD 也不影响后续流程。
+- **ID 命令时序**：163 的要求是**先 LOGIN 后 ID**（不是 LOGIN 前）。LOGIN 本身会成功返回 OK，但不发 ID 的话 SELECT 会被拒。参考：[网易帮助](https://help.mail.163.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac2eda07326646e6eb0)。
+- **async-imap 0.11.3** 的 `Session::id()` 方法签名：`id(identification: impl IntoIterator<Item = (&str, Option<&str>)>) -> Result<Option<HashMap<String, String>>>`。
+
 #### build_imap_session 代理覆盖 bug（T4 修复 pre-existing）
 - **坑**：`manager.rs` 有重复的 `let tcp = TcpStream::connect(...)`，把代理分支建立的隧道 tcp 覆盖了——**代理路径从未生效过**。
 - **修复**：删除重复代码。注意用户实际没用代理（国内邮箱直连），这个 bug 是潜在的。
