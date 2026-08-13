@@ -91,11 +91,9 @@ def emit_srcinfo(vars_: dict[str, list[str] | str]) -> str:
     pkgname = vars_.get('pkgname', '')
     if isinstance(pkgname, list):
         pkgname = pkgname[0] if pkgname else ''
-    # pkgbase = pkgname without -bin/-git suffix for split packages,
-    # but for single packages pkgbase == pkgname
+    # pkgbase: for single packages, pkgbase == pkgname (including -bin/-git).
+    # Only split packages (multiple pkgname entries) have pkgbase != pkgname.
     pkgbase = pkgname
-    if pkgbase.endswith('-bin') or pkgbase.endswith('-git'):
-        pkgbase = re.sub(r'-(bin|git)$', '', pkgbase)
 
     # Build scalar lookup table for $var expansion in source/sha arrays.
     # Only scalars are used for expansion (arrays can't be referenced in
