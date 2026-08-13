@@ -173,17 +173,16 @@ jobs:
             esac
             cp "$src" "$tmp/repo/PKGBUILD"
 
-            # AUR requires PKGBUILD on master. A .SRCINFO alongside it is
-            # recommended but not required; the AUR web UI regenerates it on
-            # demand. Ubuntu runners don't have makepkg, so we skip .SRCINFO
-            # generation here. A maintainer on Arch can regenerate later with:
-            #   makepkg --printsrcinfo > .SRCINFO
-            # and commit it alongside the next PKGBUILD bump.
+            # AUR requires .SRCINFO alongside PKGBUILD. Ubuntu runners don't
+            # have makepkg, so we generate it from the PKGBUILD with a Python
+            # parser that handles bash array syntax and arch-specific arrays.
+            python "$GITHUB_WORKSPACE/scripts/gen-srcinfo.py" \
+              "$tmp/repo/PKGBUILD" > "$tmp/repo/.SRCINFO"
 
             cd "$tmp/repo"
             git config user.name  "ChHsich"
             git config user.email "chhsiching@users.noreply.github.com"
-            git add PKGBUILD
+            git add PKGBUILD .SRCINFO
             if git diff --cached --quiet; then
               echo "no AUR changes for $pkg; skipping"
             else
