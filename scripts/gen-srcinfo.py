@@ -72,6 +72,17 @@ def parse_pkgbuild(text: str) -> dict[str, list[str] | str]:
     return vars_
 
 
+def expand_vars(value: str, scalars: dict[str, str]) -> str:
+    """Expand $var and ${var} references using scalar variable table."""
+    def repl(m: re.Match) -> str:
+        name = m.group(1) or m.group(2)
+        return scalars.get(name, m.group(0))
+    # ${var} first, then $var
+    value = re.sub(r'\$\{(\w+)\}', repl, value)
+    value = re.sub(r'\$(\w+)', repl, value)
+    return value
+
+
 def emit_srcinfo(vars_: dict[str, list[str] | str]) -> str:
     """Emit .SRCINFO format from parsed variables."""
     lines: list[str] = []
@@ -85,6 +96,15 @@ def emit_srcinfo(vars_: dict[str, list[str] | str]) -> str:
     pkgbase = pkgname
     if pkgbase.endswith('-bin') or pkgbase.endswith('-git'):
         pkgbase = re.sub(r'-(bin|git)$', '', pkgbase)
+
+    # Build scalar lookup table for $var expansion in source/sha arrays.
+    # Only scalars are used for expansion (arrays can't be referenced in
+    # source=() or sha256sums=()).
+    scalars: dict[str, str] = {}
+    for k, v in vars_.items():
+        if isinstance(v, str):
+            scalars[k] = v
+    scalars['pkgbase'] = pkgbase
 
     lines.append(f'pkgbase = {pkgbase}')
 
@@ -137,7 +157,7 @@ def emit_srcinfo(vars_: dict[str, list[str] | str]) -> str:
             val = vars_[key]
             if isinstance(val, list):
                 for v in val:
-                    lines.append(f'\t{key} = {v}')
+                    lines.append(f'\t{key} = {expand_vars(v, scalars)}')
 
     # pkgname (for single-package, pkgname = pkgbase)
     lines.append('')
