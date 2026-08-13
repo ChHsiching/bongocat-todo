@@ -163,6 +163,7 @@ jobs:
           GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new"
 
           for pkg in bongo-cat-todo bongo-cat-todo-bin; do
+            cd "$GITHUB_WORKSPACE"
             tmp="$(mktemp -d)"
             GIT_SSH_COMMAND="$GIT_SSH_COMMAND" \
               git clone "ssh://aur@aur.archlinux.org/${pkg}.git" "$tmp/repo"
