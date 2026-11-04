@@ -55,11 +55,30 @@ export const useMailSettingsStore = defineStore('mailSettings', () => {
     unreadOnly.value = value
   }
 
+  /**
+   * issue #19 后续：邮件两窗口（mail-list / mail-archive）用户调整后的面板尺寸
+   * （logical px，null = 未调整用默认 400×560）。存 logical 换屏/改缩放不漂移。
+   */
+  const listPanelSize = ref<{ width: number, height: number } | null>(null)
+  const archivePanelSize = ref<{ width: number, height: number } | null>(null)
+
+  const setListPanelSize = (size: { width: number, height: number } | null) => {
+    listPanelSize.value = size
+  }
+
+  const setArchivePanelSize = (size: { width: number, height: number } | null) => {
+    archivePanelSize.value = size
+  }
+
   return {
     proxy,
     bubbleEnabled,
     bubbleAutoDismiss,
     unreadOnly,
+    listPanelSize,
+    archivePanelSize,
+    setListPanelSize,
+    setArchivePanelSize,
     setProxy,
     setBubbleEnabled,
     setBubbleAutoDismiss,

@@ -20,12 +20,15 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import ResizeHandles from '@/components/ResizeHandles/index.vue'
+import { useResizablePanel } from '@/composables/useResizablePanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import MailItem from '@/plugins/mail/components/MailItem/index.vue'
 import MailPanel from '@/plugins/mail/components/MailPanel/index.vue'
 import { useMailAccountStore } from '@/plugins/mail/stores/mailAccount'
 import { useMailNotificationStore } from '@/plugins/mail/stores/mailNotification'
+import { useMailSettingsStore } from '@/plugins/mail/stores/mailSettings'
 import { matchProvider, resolveWebmailUrl } from '@/plugins/mail/utils/providers'
 import { absoluteDate, relativeTime } from '@/plugins/mail/utils/timeFormat'
 import WaveDivider from '@/plugins/todo/components/WaveDivider/index.vue'
@@ -37,7 +40,17 @@ const appWindow = getCurrentWebviewWindow()
 const FADE_MS = 200
 const PANEL_SIZE = new PhysicalSize(400, 560)
 
+// issue #19 后续：可调尺寸（约束 + 恢复 + 持久化），min 高度按「标题区+一封邮件+底栏」估
+const { applyConstraints } = useResizablePanel({
+  min: { width: 400, height: 320 },
+  max: { width: 720, height: 8192 },
+  fallback: { width: PANEL_SIZE.width, height: PANEL_SIZE.height },
+  restore: () => mailSettingsStore.listPanelSize,
+  persist: size => mailSettingsStore.setListPanelSize(size),
+})
+
 const mailAccountStore = useMailAccountStore()
+const mailSettingsStore = useMailSettingsStore()
 const mailNotificationStore = useMailNotificationStore()
 const { t } = useI18n()
 
@@ -101,7 +114,7 @@ function dateLabel(mail: { arrivedAt: number }): string {
  * 复用 todo 面板 / bubble 的定位范式。
  */
 useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
-  await appWindow.setSize(PANEL_SIZE)
+  const panelTarget = await applyConstraints()
 
   const monitors = await availableMonitors()
   const catWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
@@ -120,18 +133,18 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
     ) ?? monitors[0]
 
     if (monitor) {
-      x = catPos.x + Math.round(catSize.width / 2 - PANEL_SIZE.width / 2)
-      y = catPos.y - PANEL_SIZE.height - 8
+      x = catPos.x + Math.round(catSize.width / 2 - panelTarget.width / 2)
+      y = catPos.y - panelTarget.height - 8
       if (y < monitor.position.y) {
         y = catPos.y + catSize.height + 8
       }
       x = Math.max(
         monitor.position.x,
-        Math.min(x, monitor.position.x + monitor.size.width - PANEL_SIZE.width),
+        Math.min(x, monitor.position.x + monitor.size.width - panelTarget.width),
       )
       y = Math.max(
         monitor.position.y,
-        Math.min(y, monitor.position.y + monitor.size.height - PANEL_SIZE.height),
+        Math.min(y, monitor.position.y + monitor.size.height - panelTarget.height),
       )
     }
   }
@@ -192,6 +205,13 @@ function handleClose() {
     class="bubble-handdrawn mail-list-page fade h-screen w-screen overflow-hidden"
     :class="{ 'fade-shown': shown }"
   >
+    <!-- 贴纸片可见边框的 resize 把手（inset 按 MailPanel 基线校准 L20/R22/T18/B19） -->
+    <ResizeHandles
+      :inset-bottom="19"
+      :inset-left="20"
+      :inset-right="22"
+      :inset-top="18"
+    />
     <MailPanel>
       <!-- 标题区（可拖拽移动窗口；子元素 pointer-events:none 让拖拽穿透） -->
       <div

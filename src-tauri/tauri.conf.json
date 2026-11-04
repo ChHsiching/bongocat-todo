@@ -72,7 +72,7 @@
         "skipTaskbar": true,
         "alwaysOnTop": true,
         "shadow": false,
-        "resizable": false,
+        "resizable": true,
         "width": 400,
         "height": 560
       },
@@ -86,7 +86,7 @@
         "skipTaskbar": true,
         "alwaysOnTop": true,
         "shadow": false,
-        "resizable": false,
+        "resizable": true,
         "width": 400,
         "height": 560
       }
@@ -97,7 +97,9 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**/*"],
+          "allow": [
+            "**/*"
+          ],
           "requireLiteralLeadingDot": false
         }
       }
@@ -107,7 +109,14 @@
     "active": true,
     "category": "Entertainment",
     "createUpdaterArtifacts": true,
-    "targets": ["nsis", "dmg", "app", "appimage", "deb", "rpm"],
+    "targets": [
+      "nsis",
+      "dmg",
+      "app",
+      "appimage",
+      "deb",
+      "rpm"
+    ],
     "shortDescription": "BongoCat Todo",
     "icon": [
       "icons/32x32.png",
@@ -116,7 +125,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["assets/tray.png", "assets/models"]
+    "resources": [
+      "assets/tray.png",
+      "assets/models"
+    ]
   },
   "plugins": {
     "updater": {
