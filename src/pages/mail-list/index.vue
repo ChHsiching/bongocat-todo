@@ -65,6 +65,9 @@ onMounted(async () => {
   // 独立 webview，必须各自加载持久化 store（见 CONTEXT.md T2 踩坑清单）
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
+  // issue #19：面板尺寸持久化依赖本窗口 start mailSettings（此前漏 start，
+  // persist 写进未启动 store，saveOnChange 静默跳过、文件从未落盘）
+  await mailSettingsStore.$tauri.start()
   appWindow.setTitle(t('plugins.mail.labels.mailListTitle'))
 
   // 每分钟刷新相对时间文案 + 跑留存规则（本窗口点了 markRead 的邮件 5 分钟后归档）。

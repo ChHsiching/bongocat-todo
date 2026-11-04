@@ -63,6 +63,9 @@ let nowTimer: ReturnType<typeof setInterval> | undefined
 onMounted(async () => {
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
+  // issue #19：面板尺寸持久化依赖本窗口 start mailSettings（此前漏 start，
+  // persist 写进未启动 store，saveOnChange 静默跳过、文件从未落盘）
+  await mailSettingsStore.$tauri.start()
   appWindow.setTitle(t('plugins.mail.labels.mailArchiveTitle'))
 
   nowTimer = setInterval(() => {
