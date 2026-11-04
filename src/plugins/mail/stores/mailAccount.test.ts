@@ -26,7 +26,7 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
     expect(store.accounts).toHaveLength(1)
   })
 
-  it('T4 放开限制后，可添加多个不同 provider 的账号', () => {
+  it('放开限制后可添加多个不同 provider 的账号（T4）', () => {
     // ticket #14：放开单账号限制，支持 N 个账号同时 IDLE 监听
     const store = useMailAccountStore()
     store.addAccount({

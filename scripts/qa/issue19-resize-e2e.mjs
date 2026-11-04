@@ -104,12 +104,27 @@ await sleep(700)
   assert('T4 重开后恢复用户尺寸', Math.abs(restored.width - target.width) <= TOL && Math.abs(restored.height - target.height) <= TOL, `target=${target.width}x${target.height} restored=${restored.width}x${restored.height}`)
 }
 
-// T5 mini 形态不被钳制
+// T5 mini 形态：恢复 miniWidth（宽度在 380-720 内、高度恒 130 单轴锁）
 {
   await emitAppEvent('show-todo-mini')
-  await sleep(700)
+  await sleep(900)
   const mini = await todoWindowInfo()
-  assert('T5 mini 形态 380×130', Math.abs(mini.width - 380) <= TOL && Math.abs(mini.height - 130) <= TOL, `got=${mini.width}x${mini.height}`)
+  assert('T5a mini 高度恒 130（单轴锁）', Math.abs(mini.height - 130) <= TOL, `h=${mini.height}`)
+  assert('T5b mini 宽度在持久区间 [380,720]', mini.width >= 380 - TOL && mini.width <= 720 + TOL, `w=${mini.width}`)
+  // T5c 横向拖宽 +50（抓带状把手虚空位置：边内 12px）
+  const grabX = mini.x + mini.width - 12
+  const grabY = mini.y + Math.round(mini.height / 2)
+  ps(['-Action', 'drag', '-FromX', String(grabX), '-FromY', String(grabY), '-ToX', String(grabX + 50), '-ToY', String(grabY), '-Steps', '20'])
+  await sleep(500)
+  const widened = await todoWindowInfo()
+  assert('T5c mini 带状把手拖宽 +50', Math.abs(widened.width - mini.width - 50) <= TOL, `before=${mini.width} after=${widened.width}`)
+  // T5d 竖直拖锁死（原生底边缘 +80）
+  const bx = widened.x + Math.round(widened.width / 2)
+  const by = widened.y + widened.height - 3
+  ps(['-Action', 'drag', '-FromX', String(bx), '-FromY', String(by), '-ToX', String(bx), '-ToY', String(by + 80), '-Steps', '20'])
+  await sleep(500)
+  const locked = await todoWindowInfo()
+  assert('T5d mini 竖直锁死', Math.abs(locked.height - 130) <= TOL, `h=${locked.height}`)
   // 收尾：回到 panel 形态方便人工查看
   await emitAppEvent('show-todo-full')
   await sleep(500)

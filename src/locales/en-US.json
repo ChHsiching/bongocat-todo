@@ -320,8 +320,6 @@
         "bubbleAutoDismissDesc": "When off, bubble stays until clicked",
         "unreadOnlyTitle": "Unread mail only",
         "unreadOnlyDesc": "Ignore read mail (usually on)",
-        "invalidPort": "Port must be an integer between 1 and 65535",
-        "invalidPort": "Port must be an integer between 1 and 65535",
         "invalidPort": "Port must be an integer between 1 and 65535"
       }
     }
