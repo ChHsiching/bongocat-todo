@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
+import { LogicalSize, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
 import { computed, nextTick, onMounted, ref } from 'vue'
@@ -32,13 +32,30 @@ const FADE_MS = 200
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
-/** 主面板尺寸（与 tauri.conf.json 的 todo 窗口 width/height 一致）。 */
+/** 主面板默认尺寸（与 tauri.conf.json 的 todo 窗口 width/height 一致）。 */
 const FULL_SIZE = new PhysicalSize(380, 560)
-/** 迷你窗物理尺寸（含阴影余量），MiniInput 的 SVG viewBox 380×130 同口径。
- * T6 加优先级 + 日期控件后加宽到与主面板同宽（380），保持 130 高（两行布局）。 */
+/**
+ * 迷你窗物理尺寸（含阴影余量），MiniInput 的 SVG viewBox 380×130 同口径。
+ * T6 加优先级 + 日期控件后加宽到与主面板同宽（380），保持 130 高（两行布局）。
+ */
 const MINI_SIZE = new PhysicalSize(380, 130)
 /** 高度阈值：低于此值判定为 mini 形态（mini 110 << 200 << panel 560）。 */
 const MINI_HEIGHT_MAX = 200
+
+// ── issue #19：panel 形态可拖拽调整大小（logical px 约束） ──
+// 勿在 tauri.conf.json 静态配置 minHeight/maxHeight：会钳死 mini 形态的程序化 setSize(380×130)。
+// panel 打开时动态设置、进 mini 前清空（见 applyPanelConstraints / clearPanelConstraints）。
+/** 宽度下限 = 默认宽（MiniInput/PaperPanel 的 viewBox 基准）。 */
+const PANEL_MIN_WIDTH = 380
+/**
+ * 高度下限 280：完整显示「标题区 + 分区标签 + 一条待办 + 底部新建」的实测最小值，
+ * 且远高于 mini 形态阈值 200，杜绝拖拽中掉进 mini 误判。
+ */
+const PANEL_MIN_HEIGHT = 280
+/** 宽度上限 720：依 W3C《中文排版需求》正文行长 17–40 字，17px 字号下 720 ≈ 40 字取上沿。 */
+const PANEL_MAX_WIDTH = 720
+/** 高度不设实质上限（无排版学依据不拍数字），用 8K 高度兜底表达「不限制」。 */
+const PANEL_MAX_HEIGHT = 8192
 
 /**
  * 当前窗口形态：panel（主面板 380×560）/ mini（迷你输入窗 280×110）。
@@ -57,6 +74,71 @@ function classifyByHeight(height: number) {
   mode.value = height < MINI_HEIGHT_MAX ? 'mini' : 'panel'
 }
 
+/**
+ * issue #19：程序化 setSize 期间置 true，让 onResized 的持久化跳过这一波事件
+ * （程序化尺寸不该写回 store，否则「恢复尺寸」和「记录尺寸」互相打架）。
+ * 覆盖时长 > 持久化 debounce（300ms），拖拽中最后一次事件不受影响。
+ */
+let programmaticResize = false
+let programmaticTimer: ReturnType<typeof setTimeout> | undefined
+
+function markProgrammaticResize() {
+  programmaticResize = true
+  if (programmaticTimer)
+    clearTimeout(programmaticTimer)
+  programmaticTimer = setTimeout(() => {
+    programmaticResize = false
+  }, 500)
+}
+
+/** 持久化 debounce 定时器：拖拽中每帧 resize 都会重置，最后一次事件后 300ms 才落库。 */
+let persistTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * issue #19：用户拖拽结束后把 panel 尺寸存入 store（logical）。
+ * 仅 panel 形态、非程序化 resize 时记录；恢复时按当前 scaleFactor 换算 physical。
+ */
+function schedulePersistPanelSize() {
+  if (persistTimer)
+    clearTimeout(persistTimer)
+  persistTimer = setTimeout(async () => {
+    if (mode.value !== 'panel' || programmaticResize)
+      return
+    const [size, scale] = await Promise.all([appWindow.outerSize(), appWindow.scaleFactor()])
+    const logical = size.toLogical(scale)
+    todoStore.setPanelSize({ width: Math.round(logical.width), height: Math.round(logical.height) })
+  }, 300)
+}
+
+/** panel 形态打开时套上尺寸约束 + 恢复用户上次的尺寸（无记录则默认 FULL_SIZE）。 */
+async function applyPanelConstraints() {
+  await appWindow.setResizable(true)
+  await appWindow.setMinSize(new LogicalSize(PANEL_MIN_WIDTH, PANEL_MIN_HEIGHT))
+  await appWindow.setMaxSize(new LogicalSize(PANEL_MAX_WIDTH, PANEL_MAX_HEIGHT))
+
+  const stored = todoStore.panelSize
+  const scale = await appWindow.scaleFactor()
+  // 恢复值 clamp 到当前约束内（防换小屏/改约束后旧值越界）
+  const logical = stored
+    ? {
+        width: Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, stored.width)),
+        height: Math.min(PANEL_MAX_HEIGHT, Math.max(PANEL_MIN_HEIGHT, stored.height)),
+      }
+    : { width: FULL_SIZE.width / scale, height: FULL_SIZE.height / scale }
+  const target = new PhysicalSize(Math.round(logical.width * scale), Math.round(logical.height * scale))
+
+  markProgrammaticResize()
+  await appWindow.setSize(target)
+  return target
+}
+
+/** 进 mini 前清空约束：mini 尺寸固定 380×130，低于 panel 的 minHeight，不清会被钳死。 */
+async function clearPanelConstraints() {
+  await appWindow.setResizable(false)
+  await appWindow.setMinSize(null)
+  await appWindow.setMaxSize(null)
+}
+
 onMounted(async () => {
   appWindow.setTitle(t('plugins.todo.labels.windowTitle'))
 
@@ -66,6 +148,7 @@ onMounted(async () => {
   appWindow.onResized(async () => {
     const size = await appWindow.outerSize()
     classifyByHeight(size.height)
+    schedulePersistPanelSize()
   })
 })
 
@@ -79,7 +162,8 @@ onMounted(async () => {
  * 不直接调 core:window:show，避免新增 capability 权限）。
  */
 useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
-  await appWindow.setSize(FULL_SIZE)
+  // issue #19：套约束 + 恢复用户上次尺寸（含程序化标记），贴猫定位按恢复后的实际尺寸计算
+  const panelTarget = await applyPanelConstraints()
 
   const monitors = await availableMonitors()
   const catWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
@@ -97,15 +181,15 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
 
     if (monitor) {
       // 水平：面板中心对齐猫中心
-      x = catPos.x + Math.round(catSize.width / 2 - FULL_SIZE.width / 2)
+      x = catPos.x + Math.round(catSize.width / 2 - panelTarget.width / 2)
       // 垂直：猫正上方留 8px
-      y = catPos.y - FULL_SIZE.height - 8
+      y = catPos.y - panelTarget.height - 8
       // 上方放不下 → 翻到猫下方
       if (y < monitor.position.y)
         y = catPos.y + catSize.height + 8
       // clamp 到屏内
-      x = Math.max(monitor.position.x, Math.min(x, monitor.position.x + monitor.size.width - FULL_SIZE.width))
-      y = Math.max(monitor.position.y, Math.min(y, monitor.position.y + monitor.size.height - FULL_SIZE.height))
+      x = Math.max(monitor.position.x, Math.min(x, monitor.position.x + monitor.size.width - panelTarget.width))
+      y = Math.max(monitor.position.y, Math.min(y, monitor.position.y + monitor.size.height - panelTarget.height))
     }
   }
 
@@ -165,6 +249,9 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   }
 
   await appWindow.setPosition(new PhysicalPosition(x, y))
+  // issue #19：mini 尺寸低于 panel 的 minHeight，先清约束再 setSize，否则被钳死
+  await clearPanelConstraints()
+  markProgrammaticResize()
   await appWindow.setSize(MINI_SIZE)
   miniKey.value++
   mode.value = 'mini'

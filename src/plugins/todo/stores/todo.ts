@@ -115,6 +115,18 @@ export const useTodoStore = defineStore('todo', () => {
     todo.updatedAt = now
   }
 
+  /**
+   * 用户上次调整后的面板尺寸（issue #19，logical px）。
+   * null = 从未调整过，打开时用默认尺寸。存 logical 而非 physical：
+   * 换显示器/改系统缩放后按当前 scaleFactor 换算恢复，尺寸观感不漂移。
+   */
+  const panelSize = ref<{ width: number, height: number } | null>(null)
+
+  /** 记录（或清除）用户调整后的面板尺寸，随 saveOnChange 自动持久化。 */
+  const setPanelSize = (size: { width: number, height: number } | null) => {
+    panelSize.value = size
+  }
+
   return {
     todos,
     visibleTodos,
@@ -122,5 +134,7 @@ export const useTodoStore = defineStore('todo', () => {
     updateTodo,
     toggleTodo,
     removeTodo,
+    panelSize,
+    setPanelSize,
   }
 })
