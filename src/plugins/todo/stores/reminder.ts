@@ -1,7 +1,10 @@
 import type { useI18n } from 'vue-i18n'
 
+import { emit } from '@tauri-apps/api/event'
 import { error } from '@tauri-apps/plugin-log'
 import { requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
+
+import { LISTEN_KEY } from '@/constants'
 
 import type { useReminderStore } from './reminderStore'
 import type { Todo, useTodoStore } from './todo'
@@ -24,8 +27,8 @@ export function findDueTodos(todos: Todo[], now: number): Todo[] {
   return todos.filter(todo => !todo.completed && todo.dueDate !== undefined && todo.dueDate <= now)
 }
 
-/** 轮询间隔（ms）。spec D6：每分钟轮询一次。 */
-const POLL_INTERVAL_MS = 60_000
+/** 轮询间隔（ms）。10s 轮询，最大延迟 10s（用户基本无感）。原 spec D6 写 60s，实测延迟体感差。 */
+const POLL_INTERVAL_MS = 10_000
 
 /**
  * 启动到期提醒轮询器（T4 副作用层）。
@@ -66,6 +69,9 @@ export async function startReminder(
           body: t('plugins.todo.labels.reminderBody', { title: todo.title }),
         })
         reminderStore.markNotified(todo.id, due)
+        // D8 双发：系统通知之后纯增量 emit 桌宠气泡（type:'todo'）。
+        // isNotified 去重对气泡同样生效（同一 todo 不会重复弹气泡）。
+        emit(LISTEN_KEY.SHOW_BUBBLE, { type: 'todo', id: todo.id, title: todo.title, dueDate: due })
       } catch (err) {
         // 通知失败（如权限被拒）记录日志，避免静默吞错，便于排查「无运行时权限错误」
         await error(`todo reminder sendNotification failed for ${todo.id}: ${String(err)}`)

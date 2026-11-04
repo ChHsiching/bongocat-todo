@@ -20,7 +20,7 @@ body,
 @font-face {
   font-family: 'Handwriting851';
   /* vite public 资源：开发期绝对路径 /fonts/...，生产构建同路径，不做 hash（public 原样拷贝）*/
-  src: url('/fonts/851-handwriting.ttf') format('truetype');
+  src: url('/fonts/jingnan-pop-black.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

@@ -108,11 +108,13 @@ interface Todo {
 
 **理由**：Q4b 用户明确要求保留日期提醒。
 
-### D7. 菜单 Phase 1 用原生 Menu，Phase 2 升级轮盘
+### D7. ~~菜单 Phase 1 用原生 Menu，Phase 2 升级轮盘~~ — ❌ REJECTED（轮盘取消）
 
-**决策**：Phase 1 保留 `main/index.vue:142` 的 `menu.popup()`（Tauri 原生菜单），姿态 D 的 store 把 todo 项喂进去。轮盘明确列为 Phase 2 UI 升级项，届时加 `RadialMenu.vue` 组件替换 `menu.popup()`，插件数据零改动。
+> **状态变更（2026-07-30）**：轮盘菜单方案被用户否决。保留原生右键菜单（`menu.popup()`），不替换为轮盘 UI。原决策文本保留如下供追溯。
 
-**理由**：轮盘是体验加分项非功能项；姿态 D 的 store 化让轮盘成为纯增量升级，推迟成本几乎为零。
+**原决策（已废弃）**：Phase 1 保留 `main/index.vue:142` 的 `menu.popup()`（Tauri 原生菜单），姿态 D 的 store 把 todo 项喂进去。轮盘明确列为 Phase 2 UI 升级项，届时加 `RadialMenu.vue` 组件替换 `menu.popup()`，插件数据零改动。
+
+**原理由（已不适用）**：轮盘是体验加分项非功能项；姿态 D 的 store 化让轮盘成为纯增量升级，推迟成本几乎为零。
 
 ## 侵入账单（规划时 8 点 → 实际 T1-T5 后更新）
 
@@ -151,10 +153,10 @@ interface Todo {
 
 ## Phase 2 明确推迟项
 
-- 轮盘菜单 UI（`RadialMenu.vue` 替换 `menu.popup()`）
+- ~~轮盘菜单 UI（`RadialMenu.vue` 替换 `menu.popup()`）~~ — ❌ 已取消（用户否决，D7 rejected）
+- ~~面板可拖拽 + 位置记忆~~ — ✅ 已完成（面板支持 `data-tauri-drag-region` 拖拽 + 以猫为锚点自动定位）
 - Android 客户端 + 局域网配对 + 同步协议
 - 同步冲突解决（依赖 D5 预留的 4 字段）
-- 面板可拖拽 + 位置记忆
 
 ## Consequences
 

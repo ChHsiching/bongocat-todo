@@ -15,6 +15,7 @@ import { useTauriListen } from './composables/useTauriListen'
 import { useWindowState } from './composables/useWindowState'
 import { LANGUAGE, LISTEN_KEY } from './constants'
 import { getAntdLocale } from './locales/index.ts'
+import { setupMailPlugin, useMailAccountStore, useMailNotificationStore, useMailSettingsStore } from './plugins/mail'
 import { setupTodoPlugin, useDeviceStore, useReminderStore, useTodoStore } from './plugins/todo'
 import { hideWindow, showWindow } from './plugins/window'
 import { useAppStore } from './stores/app'
@@ -33,6 +34,9 @@ const shortcutStore = useShortcutStore()
 const todoStore = useTodoStore()
 const deviceStore = useDeviceStore()
 const reminderStore = useReminderStore()
+const mailAccountStore = useMailAccountStore()
+const mailNotificationStore = useMailNotificationStore()
+const mailSettingsStore = useMailSettingsStore()
 const menuBus = useMenuBusStore()
 const appWindow = getCurrentWebviewWindow()
 const { isRestored, restoreState } = useWindowState()
@@ -52,6 +56,10 @@ onMounted(async () => {
   await restoreState()
   // 插件登记菜单项 + 启动其持久化（必须在 stores 启动后调用，i18n 才就绪）
   await setupTodoPlugin({ todoStore, deviceStore, reminderStore, menuBus, t, windowLabel: appWindow.label })
+  await mailAccountStore.$tauri.start()
+  await mailNotificationStore.$tauri.start()
+  await mailSettingsStore.$tauri.start()
+  await setupMailPlugin({ mailAccountStore, mailNotificationStore, mailSettingsStore, menuBus, t, windowLabel: appWindow.label })
 })
 
 watch(() => generalStore.appearance.language, (value) => {
