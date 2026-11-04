@@ -23,20 +23,9 @@
 
 <template>
   <div class="paper-panel">
-    <!-- 错位米色纸影：整体拉伸（在阴影 filter 之外，避免双重投影） -->
-    <svg
-      class="paper-underlay"
-      preserveAspectRatio="none"
-      viewBox="0 0 360 540"
-    >
-      <path
-        d="M 16 14 Q 18 12 24 13 L 338 16 Q 346 18 345 24 L 348 524 Q 346 532 338 532 L 22 528 Q 14 526 15 520 Z"
-        fill="var(--paper-shadow)"
-        opacity="0.6"
-      />
-    </svg>
-
-    <!-- 边框分片层：柔化阴影只作用于纸片几何（本层），不包含内容文字 -->
+    <!-- 边框分片层：纸影与柔化阴影都以 drop-shadow 作用于本层合成轮廓
+         （跟随 9-slice 几何，任何窗口尺寸都严丝合缝，替代旧的独立拉伸 SVG 纸影——
+         那个在拖拽时非均匀拉伸，角部与纸片分家、观感诡异） -->
     <div class="paper-frame">
       <!-- 四角：固定尺寸，viewBox 取原 path 对应角区（含描边余量） -->
       <svg
@@ -211,26 +200,16 @@
   height: 100%;
 }
 
-/* 错位米色纸影：最底层，整体非均匀拉伸（模糊观感掩盖形变） */
-.paper-underlay {
-  position: absolute;
-  inset: 0;
-  /* 必须显式 100%：inline SVG 是替换元素，inset+auto 尺寸会回退到固有 300×150
-     （错位纸影变成左上角一块悬空半透明矩形，超出白纸的部分裸露） */
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* 分片层：只含纸片几何，柔化阴影随几何走；不拦内容点击 */
+/* 分片层：只含纸片几何；纸影与柔化阴影都随本层合成轮廓走（任何尺寸贴合） */
 .paper-frame {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* 柔化阴影（原 feGaussianBlur dx2/dy4/blur3/α0.12 的 CSS 等价，α 源即黑） */
-  filter: drop-shadow(2px 4px 3px rgba(0, 0, 0, 0.12));
+  /* 双层投影 = 原视觉的 CSS 化：
+     1) 错位米色纸影：原独立 SVG path（#f0e8de@0.6，偏移 2/4 无模糊）→ 0 blur drop-shadow；
+     2) 柔化阴影：原 feGaussianBlur（dx2/dy4/blur3/α0.12）→ 3px blur drop-shadow */
+  filter: drop-shadow(2px 4px 0 rgba(240, 232, 222, 0.6)) drop-shadow(2px 4px 3px rgba(0, 0, 0, 0.12));
 }
 
 /* 分片公共：填充与描边 */
@@ -258,20 +237,24 @@
   height: 30px;
 }
 
+/* 归位偏移：原设计纸片在 360×540 viewBox 里自带内建边距（左边框在 x≈13.5、
+   顶在 y≈9.5、右 ≈346、底 ≈528），9-slice 切片若贴容器 0 位放置会把纸
+   撑大 ~6px（默认尺寸与基线漂移）。以下偏移把边框线归位回原始几何：
+   左片 +8px、右片 -2px、顶片 +3px（左右均按实测像素校准）、底片 0（实测对齐基线 x=24/353）。 */
 .corner-tl {
-  left: 0;
-  top: 0;
+  left: 8px;
+  top: 3px;
 }
 .corner-tr {
-  right: 0;
-  top: 0;
+  right: -2px;
+  top: 3px;
 }
 .corner-bl {
-  left: 0;
+  left: 8px;
   bottom: 0;
 }
 .corner-br {
-  right: 0;
+  right: -2px;
   bottom: 0;
 }
 
@@ -286,31 +269,31 @@
   height: 100%;
 }
 
-/* 与角片重叠 2px 对接（同色不透明叠印不可见） */
+/* 与角片重叠 2px 对接（同色不透明叠印不可见），left/right 含归位偏移 */
 .edge-top {
-  top: 0;
-  left: 28px;
-  right: 28px;
+  top: 3px;
+  left: 36px;
+  right: 30px;
   height: 30px;
 }
 
 .edge-bottom {
   bottom: 0;
-  left: 28px;
-  right: 28px;
+  left: 36px;
+  right: 30px;
   height: 33px;
 }
 
 .edge-left {
-  left: 0;
-  top: 28px;
+  left: 8px;
+  top: 31px;
   bottom: 28px;
   width: 30px;
 }
 
 .edge-right {
-  right: 0;
-  top: 28px;
+  right: -2px;
+  top: 31px;
   bottom: 28px;
   width: 30px;
 }
