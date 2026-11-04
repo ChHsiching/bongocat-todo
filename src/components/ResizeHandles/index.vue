@@ -29,8 +29,13 @@ const props = withDefaults(
     depth?: number
     /** 只挂载指定方向（如 mini 单轴横向：['East','West']）；缺省全 8 向 */
     directions?: string[]
+    /**
+     * 带状模式：边把手从窗口边缘整条覆盖到边框线内侧 2px——透明页边距
+     *  （边线到窗口边的"虚空"死区）全部可抓，不再要求精确点中 12px 细条
+     */
+    band?: boolean
   }>(),
-  { insetLeft: 24, insetRight: 27, insetTop: 21, insetBottom: 26, depth: 12, directions: () => [] },
+  { insetLeft: 24, insetRight: 27, insetTop: 21, insetBottom: 26, depth: 12, directions: () => [], band: false },
 )
 
 /** inset 归一化为 CSS 长度（number→px，string 原样） */
@@ -58,16 +63,24 @@ interface Handle {
 const d = () => props.depth
 const c = () => props.depth * 1.4 // 角把手略大更好抓
 
-const allHandles: Handle[] = [
-  { dir: 'North', cursor: 'ns-resize', style: { top: `calc(${len(props.insetTop)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
-  { dir: 'South', cursor: 'ns-resize', style: { bottom: `calc(${len(props.insetBottom)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
-  { dir: 'West', cursor: 'ew-resize', style: { left: `calc(${len(props.insetLeft)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
-  { dir: 'East', cursor: 'ew-resize', style: { right: `calc(${len(props.insetRight)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
-  { dir: 'NorthWest', cursor: 'nwse-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'NorthEast', cursor: 'nesw-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'SouthWest', cursor: 'nesw-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'SouthEast', cursor: 'nwse-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-]
+const allHandles: Handle[] = props.band
+  ? [
+      // 带状：边线到窗口边缘整条可抓（内界 = inset + 2px，不进纸面内容区）
+      { dir: 'North', cursor: 'ns-resize', style: { top: '0', bottom: `calc(100% - ${len(props.insetTop)} - 2px)`, left: '40px', right: '40px' } },
+      { dir: 'South', cursor: 'ns-resize', style: { bottom: '0', top: `calc(100% - ${len(props.insetBottom)} - 2px)`, left: '40px', right: '40px' } },
+      { dir: 'West', cursor: 'ew-resize', style: { left: '0', right: `calc(100% - ${len(props.insetLeft)} - 2px)`, top: '40px', bottom: '40px' } },
+      { dir: 'East', cursor: 'ew-resize', style: { right: '0', left: `calc(100% - ${len(props.insetRight)} - 2px)`, top: '40px', bottom: '40px' } },
+    ]
+  : [
+      { dir: 'North', cursor: 'ns-resize', style: { top: `calc(${len(props.insetTop)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
+      { dir: 'South', cursor: 'ns-resize', style: { bottom: `calc(${len(props.insetBottom)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
+      { dir: 'West', cursor: 'ew-resize', style: { left: `calc(${len(props.insetLeft)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
+      { dir: 'East', cursor: 'ew-resize', style: { right: `calc(${len(props.insetRight)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
+      { dir: 'NorthWest', cursor: 'nwse-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+      { dir: 'NorthEast', cursor: 'nesw-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+      { dir: 'SouthWest', cursor: 'nesw-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+      { dir: 'SouthEast', cursor: 'nwse-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+    ]
 
 const handles = props.directions.length > 0
   ? allHandles.filter(h => props.directions.includes(h.dir))

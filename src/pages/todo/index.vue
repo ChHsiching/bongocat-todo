@@ -302,13 +302,14 @@ function handleClose() {
     <!-- 贴纸片可见边框的 resize 把手：panel 全 8 向；mini 单轴横向仅 E/W，
          inset 用百分比跟随 monolithic SVG 的等比边框（380 时 ≈7%/8%≈27/30px） -->
     <ResizeHandles v-if="mode === 'panel'" />
+    <!-- mini 带状把手：边线到窗口边缘整条透明区可抓（消灭"虚空"死区），
+         内界 = 仿射边框位置 + 2px，不进纸面内容区 -->
     <ResizeHandles
       v-else
+      band
       :directions="['East', 'West']"
-      inset-bottom="40%"
-      inset-left="calc(5.1% + 3.6px)"
-      inset-right="calc(3% + 15.6px)"
-      inset-top="40%"
+      inset-left="calc(5% + 4px)"
+      inset-right="calc(4.56% + 11.2px)"
     />
     <TodoPanel
       v-if="mode === 'panel'"
