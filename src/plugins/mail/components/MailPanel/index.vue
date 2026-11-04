@@ -249,14 +249,14 @@
 .edge-left {
   left: 8px;
   top: 32px;
-  bottom: 39px;
+  bottom: 20px;
   width: 30px;
 }
 
 .edge-right {
   right: -4px;
   top: 32px;
-  bottom: 39px;
+  bottom: 20px;
   width: 30px;
 }
 
