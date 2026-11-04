@@ -306,8 +306,8 @@ function handleClose() {
       v-else
       :directions="['East', 'West']"
       inset-bottom="40%"
-      inset-left="7%"
-      inset-right="8%"
+      inset-left="calc(5.1% + 3.6px)"
+      inset-right="calc(3% + 15.6px)"
       inset-top="40%"
     />
     <TodoPanel

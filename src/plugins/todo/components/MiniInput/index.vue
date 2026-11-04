@@ -165,10 +165,8 @@ function clearTimers() {
         :fill="state === 'saved' ? '#e0f0d8' : '#e8dcc8'"
         opacity="0.6"
       />
-      <!-- 主框（变体 B 中笔画；按 280→380 等比缩放，四边中间有起伏）。
-           vector-effect：横向拉宽（issue #19 mini 可调）时描边保持 2px 不变细。
-           原作 SVG 整体保留不重绘——曾尝试 6-slice 重构，边线笔触被数学近似
-           抹掉神韵（作者否决），monolithic + 本属性 + 百分比内容锚定即可。 -->
+      <!-- 主框：原作 SVG 完全未动（含阴影层与 filter）。横向拉宽时的描边/纸影
+           同比变化即原版自然行为，作者确认接受——任何"视觉增强"都不加。 -->
       <path
         d="M 14.9 9 Q 17.6 6 23.1 6.5 Q 190 5 356.9 8 Q 365.1 10 364.4 14 Q 366.4 55 363.7 98 Q 362.4 104 355.6 104.5 Q 190 106 17.6 103 Q 10.9 101 12.2 97 Q 13.6 50 14.9 9 Z"
         :fill="state === 'saved' ? '#f6fbf2' : 'var(--paper)'"
@@ -177,7 +175,6 @@ function clearTimers() {
         stroke-linecap="round"
         stroke-linejoin="round"
         stroke-width="2"
-        vector-effect="non-scaling-stroke"
       />
     </svg>
 
