@@ -127,6 +127,16 @@ export const useTodoStore = defineStore('todo', () => {
     panelSize.value = size
   }
 
+  /**
+   * 用户上次调整后的迷你窗宽度（issue #19，logical px；高度恒 130 单轴锁定）。
+   * null = 未调整过，用默认 380。
+   */
+  const miniWidth = ref<number | null>(null)
+
+  const setMiniWidth = (width: number | null) => {
+    miniWidth.value = width
+  }
+
   return {
     todos,
     visibleTodos,
@@ -136,5 +146,7 @@ export const useTodoStore = defineStore('todo', () => {
     removeTodo,
     panelSize,
     setPanelSize,
+    miniWidth,
+    setMiniWidth,
   }
 })

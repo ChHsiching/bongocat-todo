@@ -165,7 +165,10 @@ function clearTimers() {
         :fill="state === 'saved' ? '#e0f0d8' : '#e8dcc8'"
         opacity="0.6"
       />
-      <!-- 主框（变体 B 中笔画；按 280→380 等比缩放，四边中间有起伏） -->
+      <!-- 主框（变体 B 中笔画；按 280→380 等比缩放，四边中间有起伏）。
+           vector-effect：横向拉宽（issue #19 mini 可调）时描边保持 2px 不变细。
+           原作 SVG 整体保留不重绘——曾尝试 6-slice 重构，边线笔触被数学近似
+           抹掉神韵（作者否决），monolithic + 本属性 + 百分比内容锚定即可。 -->
       <path
         d="M 14.9 9 Q 17.6 6 23.1 6.5 Q 190 5 356.9 8 Q 365.1 10 364.4 14 Q 366.4 55 363.7 98 Q 362.4 104 355.6 104.5 Q 190 106 17.6 103 Q 10.9 101 12.2 97 Q 13.6 50 14.9 9 Z"
         :fill="state === 'saved' ? '#f6fbf2' : 'var(--paper)'"
@@ -174,6 +177,7 @@ function clearTimers() {
         stroke-linecap="round"
         stroke-linejoin="round"
         stroke-width="2"
+        vector-effect="non-scaling-stroke"
       />
     </svg>
 
@@ -287,23 +291,26 @@ function clearTimers() {
   z-index: 0;
 }
 
+/* 内容锚定纸内：左右用百分比（纸片随窗口等比伸缩，百分比 inset 在任何宽度
+   都贴着墨线内侧 —— px padding 在拉宽后会把元素顶出边框外，作者反馈的溢出）。
+   380 时 5.1% ≈ 18px，与原 padding 逐像素一致；上下高度恒 130 用 px。 */
 .mini-content {
-  position: relative;
+  position: absolute;
+  top: 14px;
+  right: 5.1%;
+  bottom: 14px;
+  left: 5.1%;
   z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 100%;
-  height: 100%;
-  padding: 14px 18px;
-  box-sizing: border-box;
 }
 
 /* 右上角关闭 × */
 .close-btn {
   position: absolute;
   top: 6px;
-  right: 14px;
+  right: 3.9%;
   display: flex;
   align-items: center;
   justify-content: center;

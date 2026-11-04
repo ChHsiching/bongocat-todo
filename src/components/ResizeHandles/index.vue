@@ -17,16 +17,24 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const props = withDefaults(
   defineProps<{
-    /** 纸片可见边框线距窗口边的留白（px），按窗口几何逐向配置 */
-    insetLeft?: number
-    insetRight?: number
-    insetTop?: number
-    insetBottom?: number
+    /**
+     * 纸片可见边框线距窗口边的留白；number=px，string=百分比（如 '7.5%'，
+     * 供边框随窗口等比缩放的窗口（mini monolithic SVG）锚定用）
+     */
+    insetLeft?: number | string
+    insetRight?: number | string
+    insetTop?: number | string
+    insetBottom?: number | string
     /** 把手厚度（垂直于边方向，px） */
     depth?: number
+    /** 只挂载指定方向（如 mini 单轴横向：['East','West']）；缺省全 8 向 */
+    directions?: string[]
   }>(),
-  { insetLeft: 24, insetRight: 27, insetTop: 21, insetBottom: 26, depth: 12 },
+  { insetLeft: 24, insetRight: 27, insetTop: 21, insetBottom: 26, depth: 12, directions: () => [] },
 )
+
+/** inset 归一化为 CSS 长度（number→px，string 原样） */
+const len = (v: number | string): string => (typeof v === 'number' ? `${v}px` : v)
 
 const appWindow = getCurrentWindow()
 
@@ -50,16 +58,20 @@ interface Handle {
 const d = () => props.depth
 const c = () => props.depth * 1.4 // 角把手略大更好抓
 
-const handles: Handle[] = [
-  { dir: 'North', cursor: 'ns-resize', style: { top: `calc(${props.insetTop}px - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
-  { dir: 'South', cursor: 'ns-resize', style: { bottom: `calc(${props.insetBottom}px - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
-  { dir: 'West', cursor: 'ew-resize', style: { left: `calc(${props.insetLeft}px - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
-  { dir: 'East', cursor: 'ew-resize', style: { right: `calc(${props.insetRight}px - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
-  { dir: 'NorthWest', cursor: 'nwse-resize', style: { left: `calc(${props.insetLeft}px - ${c() / 2}px)`, top: `calc(${props.insetTop}px - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'NorthEast', cursor: 'nesw-resize', style: { right: `calc(${props.insetRight}px - ${c() / 2}px)`, top: `calc(${props.insetTop}px - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'SouthWest', cursor: 'nesw-resize', style: { left: `calc(${props.insetLeft}px - ${c() / 2}px)`, bottom: `calc(${props.insetBottom}px - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
-  { dir: 'SouthEast', cursor: 'nwse-resize', style: { right: `calc(${props.insetRight}px - ${c() / 2}px)`, bottom: `calc(${props.insetBottom}px - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+const allHandles: Handle[] = [
+  { dir: 'North', cursor: 'ns-resize', style: { top: `calc(${len(props.insetTop)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
+  { dir: 'South', cursor: 'ns-resize', style: { bottom: `calc(${len(props.insetBottom)} - ${d() / 2}px)`, left: '60px', right: '60px', height: `${d()}px` } },
+  { dir: 'West', cursor: 'ew-resize', style: { left: `calc(${len(props.insetLeft)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
+  { dir: 'East', cursor: 'ew-resize', style: { right: `calc(${len(props.insetRight)} - ${d() / 2}px)`, top: '60px', bottom: '60px', width: `${d()}px` } },
+  { dir: 'NorthWest', cursor: 'nwse-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+  { dir: 'NorthEast', cursor: 'nesw-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, top: `calc(${len(props.insetTop)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+  { dir: 'SouthWest', cursor: 'nesw-resize', style: { left: `calc(${len(props.insetLeft)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
+  { dir: 'SouthEast', cursor: 'nwse-resize', style: { right: `calc(${len(props.insetRight)} - ${c() / 2}px)`, bottom: `calc(${len(props.insetBottom)} - ${c() / 2}px)`, width: `${c()}px`, height: `${c()}px` } },
 ]
+
+const handles = props.directions.length > 0
+  ? allHandles.filter(h => props.directions.includes(h.dir))
+  : allHandles
 </script>
 
 <template>

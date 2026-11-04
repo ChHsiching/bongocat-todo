@@ -103,11 +103,16 @@ function schedulePersistPanelSize() {
   if (persistTimer)
     clearTimeout(persistTimer)
   persistTimer = setTimeout(async () => {
-    if (mode.value !== 'panel' || programmaticResize)
+    if (programmaticResize)
       return
     const [size, scale] = await Promise.all([appWindow.outerSize(), appWindow.scaleFactor()])
     const logical = size.toLogical(scale)
-    todoStore.setPanelSize({ width: Math.round(logical.width), height: Math.round(logical.height) })
+    if (mode.value === 'panel') {
+      todoStore.setPanelSize({ width: Math.round(logical.width), height: Math.round(logical.height) })
+    } else if (mode.value === 'mini') {
+      // 高度恒 130 单轴锁，只记宽度
+      todoStore.setMiniWidth(Math.round(logical.width))
+    }
   }, 300)
 }
 
@@ -131,13 +136,6 @@ async function applyPanelConstraints() {
   markProgrammaticResize()
   await appWindow.setSize(target)
   return target
-}
-
-/** 进 mini 前清空约束：mini 尺寸固定 380×130，低于 panel 的 minHeight，不清会被钳死。 */
-async function clearPanelConstraints() {
-  await appWindow.setResizable(false)
-  await appWindow.setMinSize(null)
-  await appWindow.setMaxSize(null)
 }
 
 onMounted(async () => {
@@ -249,11 +247,20 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
     y = Math.min(y, maxY)
   }
 
-  await appWindow.setPosition(new PhysicalPosition(x, y))
-  // issue #19：mini 尺寸低于 panel 的 minHeight，先清约束再 setSize，否则被钳死
-  await clearPanelConstraints()
+  // issue #19：mini 横向可调（作者方案）——单轴约束：高度 min=max=130 锁死竖直
+  // （低于 panel 的 minHeight 且不碰 200 形态阈值），横向 380-720 与面板同口径
+  await appWindow.setResizable(true)
+  await appWindow.setMinSize(new LogicalSize(PANEL_MIN_WIDTH, MINI_SIZE.height))
+  await appWindow.setMaxSize(new LogicalSize(PANEL_MAX_WIDTH, MINI_SIZE.height))
+  const miniScale = await appWindow.scaleFactor()
+  const miniW = todoStore.miniWidth
+    ? Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, todoStore.miniWidth))
+    : MINI_SIZE.width / miniScale
+  const miniTarget = new PhysicalSize(Math.round(miniW * miniScale), MINI_SIZE.height)
+
+  await appWindow.setPosition(new PhysicalPosition(x - (miniTarget.width - MINI_SIZE.width) / 2, y))
   markProgrammaticResize()
-  await appWindow.setSize(MINI_SIZE)
+  await appWindow.setSize(miniTarget)
   miniKey.value++
   mode.value = 'mini'
   shown.value = false
@@ -292,8 +299,17 @@ function handleClose() {
     class="todo-handdrawn fade h-screen w-screen overflow-hidden p-3"
     :class="{ 'fade-shown': shown }"
   >
-    <!-- 贴纸片可见边框的 resize 把手（仅 panel 形态可调；mini 固定尺寸） -->
+    <!-- 贴纸片可见边框的 resize 把手：panel 全 8 向；mini 单轴横向仅 E/W，
+         inset 用百分比跟随 monolithic SVG 的等比边框（380 时 ≈7%/8%≈27/30px） -->
     <ResizeHandles v-if="mode === 'panel'" />
+    <ResizeHandles
+      v-else
+      :directions="['East', 'West']"
+      inset-bottom="40%"
+      inset-left="7%"
+      inset-right="8%"
+      inset-top="40%"
+    />
     <TodoPanel
       v-if="mode === 'panel'"
       :todos="visibleTodos"
