@@ -7,10 +7,11 @@ import { useI18n } from 'vue-i18n'
 
 import type { TodoPriority } from '@/plugins/todo'
 
+import ResizeHandles from '@/components/ResizeHandles/index.vue'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
-import { useDeviceStore, useTodoStore } from '@/plugins/todo'
 import '@/plugins/todo/styles/handdrawn.css'
+import { useDeviceStore, useTodoStore } from '@/plugins/todo'
 import MiniInput from '@/plugins/todo/components/MiniInput/index.vue'
 import TodoPanel from '@/plugins/todo/components/TodoPanel/index.vue'
 import { hideWindow, showWindow } from '@/plugins/window'
@@ -291,6 +292,8 @@ function handleClose() {
     class="todo-handdrawn fade h-screen w-screen overflow-hidden p-3"
     :class="{ 'fade-shown': shown }"
   >
+    <!-- 贴纸片可见边框的 resize 把手（仅 panel 形态可调；mini 固定尺寸） -->
+    <ResizeHandles v-if="mode === 'panel'" />
     <TodoPanel
       v-if="mode === 'panel'"
       :todos="visibleTodos"
