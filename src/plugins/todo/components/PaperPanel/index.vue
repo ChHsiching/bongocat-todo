@@ -215,6 +215,10 @@
 .paper-underlay {
   position: absolute;
   inset: 0;
+  /* 必须显式 100%：inline SVG 是替换元素，inset+auto 尺寸会回退到固有 300×150
+     （错位纸影变成左上角一块悬空半透明矩形，超出白纸的部分裸露） */
+  width: 100%;
+  height: 100%;
   z-index: 0;
   pointer-events: none;
 }
