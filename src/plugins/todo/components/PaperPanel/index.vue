@@ -273,14 +273,14 @@
 .edge-top {
   top: 3px;
   left: 36px;
-  right: 30px;
+  right: 26px;
   height: 30px;
 }
 
 .edge-bottom {
   bottom: 0;
   left: 36px;
-  right: 30px;
+  right: 26px;
   height: 33px;
 }
 
