@@ -17,6 +17,8 @@ jobs:
         id: vars
         run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
 
+      - uses: pnpm/action-setup@v3
+
       - name: Setup node
         uses: actions/setup-node@v5
         with:
