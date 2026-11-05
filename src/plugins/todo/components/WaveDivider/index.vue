@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * 手绘波浪分隔线（WaveDivider）：`Q 25 1 50 3 T 98 3` 波浪，不是直线。
- * 用于分组标签下划线。preserveAspectRatio="none" 横向拉伸填满容器。
- * SVG path 抠自 docs/designs/todo-panel-exploration/panel.html。
+ * Hand-drawn wavy divider (WaveDivider): a `Q 25 1 50 3 T 98 3` wave, not a straight line.
+ * Used as the underline of section labels. preserveAspectRatio="none" stretches it horizontally to fill the container.
+ * SVG path lifted from docs/designs/todo-panel-exploration/panel.html.
  */
 </script>
 

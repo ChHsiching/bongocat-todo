@@ -26,7 +26,7 @@ describe('useDeviceStore', () => {
     deviceStore.init()
     const firstId = deviceStore.deviceId
 
-    // 再次 init 不应覆盖
+    // A second init must not overwrite
     deviceStore.init()
 
     expect(deviceStore.deviceId).toBe(firstId)
@@ -46,7 +46,7 @@ describe('useDeviceStore', () => {
   })
 
   it('不同 store 实例生成不同 deviceId', () => {
-    // 新 pinia 实例 = 全新持久化状态
+    // A new pinia instance = fresh persistence state
     setActivePinia(createPinia())
     const store1 = useDeviceStore()
     store1.init()

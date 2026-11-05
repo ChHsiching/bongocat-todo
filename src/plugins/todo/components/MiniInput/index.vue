@@ -9,28 +9,34 @@ import PawLogo from '../PawLogo/index.vue'
 import PriorityPicker from '../PriorityPicker/index.vue'
 
 /**
- * 迷你输入窗（MiniInput / T5，T6 补优先级选择）。
+ * Mini input window (MiniInput / T5, with priority selection added in T6).
  *
- * 定位锚点是桌宠（main 窗口）上方偏右，而非光标——实测桌宠右键菜单弹出位置距光标远，
- * 跟随光标会让迷你窗出现在意料外的地方。
+ * The positioning anchor is the upper right of the desktop pet (main window), not the cursor —
+ * in practice the pet's right-click menu pops up far from the cursor, and following the
+ * cursor would put the mini window somewhere unexpected.
  *
- * 三态：idle（占位符）→ typing（用户输入）→ saved（绿色「已添加」整窗居中放大，淡出后关闭）。
- * 布局（T6 两行）：
- *   Row1 = PawLogo（拖动）+ 标题 input + 关闭×
- *   Row2 = PriorityPicker（三档墨点，默认 medium）+ HandDateInput（复用 T5 的 5 个手写数字框）
+ * Three states: idle (placeholder) → typing (user input) → saved (green "Added", centered and
+ * enlarged across the window, closes after fading out).
+ * Layout (T6, two rows):
+ *   Row1 = PawLogo (drag) + title input + close ×
+ *   Row2 = PriorityPicker (three ink dots, default medium) + HandDateInput (reuses T5's 5 handwritten digit boxes)
  *
- * 日期时间全部手写数字输入框（无日历弹层、无 antd 依赖），皮肤完全手绘可控。
- * T6 起日期输入抽成 HandDateInput 组件供主面板新建复用，本组件不再内联数字框逻辑。
+ * Date-time entry is all handwritten digit boxes (no calendar popup, no antd dependency); the
+ * skin is fully hand-drawn and controllable. Since T6 the date input is extracted into the
+ * HandDateInput component for the main panel's create form to reuse; this component no longer
+ * inlines the digit-box logic.
  *
- * 拖动：爪印、Row2/Row3 的非 input 区显式挂 data-tauri-drag-region；input/button 天然豁免。
+ * Dragging: the paw print and the non-input areas of Row2/Row3 explicitly carry
+ * data-tauri-drag-region; inputs/buttons are naturally exempt.
  *
- * 关闭路径：右上角 × / Esc / 提交后淡出 timer。**不**用 input blur 或窗口失焦自动关闭
- * （前者会破坏 tab 到下一框）。
+ * Close paths: top-right × / Esc / a fade-out timer after submit. Does **not** auto-close on
+ * input blur or window focus loss (the former would break tabbing to the next box).
  *
- * 视觉复用 T2 资产：851 手写字体（.todo-handdrawn 继承）、粉墨水系 CSS 变量、PawLogo、HandClock。
- * 边框 SVG path 抠自 docs/designs/todo-panel-exploration/mini-input.html 变体 B（中笔画）。
+ * Visuals reuse T2 assets: the 851 handwriting font (inherited via .todo-handdrawn), pink-ink
+ * CSS variables, PawLogo, HandClock. The border SVG path is lifted from
+ * docs/designs/todo-panel-exploration/mini-input.html variant B (medium stroke).
  *
- * @see docs/designs/todo-panel-exploration/mini-input.html 视觉事实来源
+ * @see docs/designs/todo-panel-exploration/mini-input.html source of visual truth
  */
 const emit = defineEmits<{
   close: []
@@ -41,18 +47,18 @@ const { t } = useI18n()
 
 type State = 'idle' | 'typing' | 'saved'
 const state = ref<State>('idle')
-/** saved 态淡出标志：true 时整个迷你窗 opacity→0 平滑淡出。 */
+/** Fade-out flag for the saved state: when true the whole mini window smoothly fades opacity→0. */
 const fading = ref(false)
 
 const title = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 
-/** 新建 todo 的优先级（默认 medium）。 */
+/** Priority of the new todo (default medium). */
 const priority = ref<TodoPriority>('medium')
-/** 新建 todo 的截止日期 timestamp（未填日期时 undefined）。 */
+/** Due-date timestamp of the new todo (undefined when no date is filled). */
 const dueDate = ref<number | undefined>(undefined)
 
-/** saved 展示时长：前半段静止显示「已添加」，后半段淡出。 */
+/** saved display duration: the first half shows "Added" statically, the second half fades out. */
 const SAVED_HOLD_MS = 300
 const SAVED_FADE_MS = 300
 let holdTimer: null | ReturnType<typeof setTimeout> = null
@@ -78,7 +84,7 @@ function onDateChange(value: number | undefined) {
   markTyping()
 }
 
-/** 日期框回车：标题有内容则提交，无内容则聚焦标题框。 */
+/** Enter in the date boxes: submit if the title has content, otherwise focus the title box. */
 function handleDateEnter() {
   if (title.value.trim()) {
     handleSubmit()
@@ -95,7 +101,7 @@ function handleSubmit() {
   emit('create', trimmed, dueDate.value, priority.value)
 
   state.value = 'saved'
-  // 前半段静止展示「已添加」，后半段淡出，然后关闭。
+  // The first half shows "Added" statically, the second half fades out, then it closes.
   holdTimer = setTimeout(() => {
     fading.value = true
   }, SAVED_HOLD_MS)
@@ -105,7 +111,7 @@ function handleSubmit() {
 }
 
 function handleClose() {
-  // 已保存态由 timer 驱动关闭，避免重复 emit。
+  // The saved state closes via its own timer, avoiding duplicate emits.
   if (state.value === 'saved')
     return
   clearTimers()
@@ -129,8 +135,8 @@ function clearTimers() {
     class="mini-window"
     :class="{ 'is-fading': fading }"
   >
-    <!-- SVG 手绘边框：viewBox 与窗口尺寸一致，preserveAspectRatio="none" 拉伸填满。
-         saved 态描边/底色变绿（#6b9c47 / #f6fbf2）；其他态白底 + 棕墨描边。 -->
+    <!-- SVG hand-drawn border: viewBox matches the window size; preserveAspectRatio="none" stretches it to fill.
+         In the saved state the stroke/fill turn green (#6b9c47 / #f6fbf2); other states use white fill + brown ink stroke. -->
     <svg
       class="frame-bg"
       preserveAspectRatio="none"
@@ -159,14 +165,15 @@ function clearTimers() {
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      <!-- 阴影层（按 280→380 等比缩放） -->
+      <!-- Shadow layer (scaled proportionally for 280→380) -->
       <path
         d="M 19 12 Q 21.7 10 27.1 10 L 361 12 Q 369.1 14 367.8 18 L 370.5 98 Q 367.8 104 361 104 L 24.4 102 Q 16.3 100 17.6 96 Z"
         :fill="state === 'saved' ? '#e0f0d8' : '#e8dcc8'"
         opacity="0.6"
       />
-      <!-- 主框：原作 SVG 完全未动（含阴影层与 filter）。横向拉宽时的描边/纸影
-           同比变化即原版自然行为，作者确认接受——任何"视觉增强"都不加。 -->
+      <!-- Main frame: the original SVG is completely untouched (including the shadow layer and filter).
+           When widened horizontally, the stroke/paper shadow scaling proportionally is the original's
+           natural behavior, which the author confirmed accepting — no "visual enhancement" is added. -->
       <path
         d="M 14.9 9 Q 17.6 6 23.1 6.5 Q 190 5 356.9 8 Q 365.1 10 364.4 14 Q 366.4 55 363.7 98 Q 362.4 104 355.6 104.5 Q 190 106 17.6 103 Q 10.9 101 12.2 97 Q 13.6 50 14.9 9 Z"
         :fill="state === 'saved' ? '#f6fbf2' : 'var(--paper)'"
@@ -179,7 +186,7 @@ function clearTimers() {
     </svg>
 
     <div class="mini-content">
-      <!-- 右上角关闭 ×（复用 TodoPanel 的手绘 × path，缩小到 16px） -->
+      <!-- Top-right close × (reuses TodoPanel's hand-drawn × path, shrunk to 16px) -->
       <button
         class="close-btn"
         :title="t('plugins.todo.labels.closeButton')"
@@ -200,7 +207,7 @@ function clearTimers() {
         </svg>
       </button>
 
-      <!-- saved 态：整窗上下居中放大显示「已添加」+ 手绘对勾 -->
+      <!-- saved state: "Added" + hand-drawn check mark, centered and enlarged across the window -->
       <div
         v-if="state === 'saved'"
         class="saved-view"
@@ -221,12 +228,12 @@ function clearTimers() {
         <span class="saved-text">{{ t('plugins.todo.labels.miniSaved') }}</span>
       </div>
 
-      <!-- 输入态：标题 + 优先级 + 日期三行。
-           可拖动区显式挂 data-tauri-drag-region（爪印、优先级行空白、日期行空白），
-           input/button 天然豁免仍可交互。 -->
+      <!-- Input state: title + priority + date across the rows.
+           Draggable areas explicitly carry data-tauri-drag-region (paw print, priority-row blanks, date-row blanks);
+           inputs/buttons are naturally exempt and stay interactive. -->
       <template v-else>
-        <!-- Row1：整行 drag-region（学 TodoPanel .panel-header 模式）。
-             爪印设 pointer-events:none 透传给行 drag-region；title input 天然豁免仍可交互。 -->
+        <!-- Row1: the whole row is a drag-region (following TodoPanel's .panel-header pattern).
+             The paw print sets pointer-events:none to pass through to the row's drag-region; the title input is naturally exempt and stays interactive. -->
         <div
           class="title-row"
           data-tauri-drag-region
@@ -246,9 +253,9 @@ function clearTimers() {
           >
         </div>
 
-        <!-- Row2：优先级 + 日期时间同一行（与主面板新建区一致的紧凑布局）。
-             整行 drag-region，PriorityPicker 按钮和 HandDateInput 的 input 天然豁免可交互。
-             HandDateInput 内含左侧时钟图标，右侧不再放图标避免溢出（用户反馈）。 -->
+        <!-- Row2: priority + date-time on one row (compact layout consistent with the main panel's create area).
+             The whole row is a drag-region; PriorityPicker buttons and HandDateInput inputs are naturally exempt and interactive.
+             HandDateInput already contains the clock icon on the left, so no icon on the right to avoid overflow (user feedback). -->
         <div
           class="controls-row"
           data-tauri-drag-region
@@ -266,12 +273,12 @@ function clearTimers() {
 </template>
 
 <style scoped>
-/* 迷你窗尺寸与窗口 setSize 一致（380×130，与主面板同宽）。透明背景透出桌面。 */
+/* Mini window size matches the window's setSize (380×130, same width as the main panel). Transparent background lets the desktop show through. */
 .mini-window {
   position: relative;
   width: 100%;
   height: 100%;
-  /* saved 淡出：opacity 平滑过渡到 0（spec「淡出关闭」）。 */
+  /* saved fade-out: opacity smoothly transitions to 0 (spec "fade out to close"). */
   transition: opacity 300ms ease-out;
 }
 
@@ -288,9 +295,10 @@ function clearTimers() {
   z-index: 0;
 }
 
-/* 内容锚定纸内：左右用百分比（纸片随窗口等比伸缩，百分比 inset 在任何宽度
-   都贴着墨线内侧 —— px padding 在拉宽后会把元素顶出边框外，作者反馈的溢出）。
-   380 时 5.1% ≈ 18px，与原 padding 逐像素一致；上下高度恒 130 用 px。 */
+/* Content anchored inside the paper: left/right use percentages (the paper scales with the
+   window, so a percentage inset hugs the inner edge of the ink border stroke at any width —
+   px padding would push elements outside the border once widened, the overflow the author reported).
+   At 380, 5.1% ≈ 18px, pixel-identical to the original padding; top/bottom use px since the height is fixed at 130. */
 .mini-content {
   position: absolute;
   top: 14px;
@@ -303,7 +311,7 @@ function clearTimers() {
   gap: 8px;
 }
 
-/* 右上角关闭 × */
+/* Top-right close × */
 .close-btn {
   position: absolute;
   top: 6px;
@@ -334,7 +342,7 @@ function clearTimers() {
   margin-top: 6px;
 }
 
-/* 爪印：装饰，pointer-events:none 让点击/拖动透传给行 drag-region（TodoPanel proven 模式）。 */
+/* Paw print: decorative; pointer-events:none lets clicks/drags pass through to the row's drag-region (TodoPanel proven pattern). */
 .paw-deco {
   display: flex;
   align-items: center;
@@ -361,8 +369,8 @@ function clearTimers() {
   font-weight: 500;
 }
 
-/* Row2：优先级 + 日期横排，两端对齐（优先级贴左、日期贴右）。
-   整行空白可拖动（drag-region），PriorityPicker 按钮 / HandDateInput 的 input 天然豁免。 */
+/* Row2: priority + date in one row, justified (priority to the left, date to the right).
+   The row's blank space is draggable (drag-region); PriorityPicker buttons / HandDateInput inputs are naturally exempt. */
 .controls-row {
   display: flex;
   align-items: center;
@@ -370,12 +378,12 @@ function clearTimers() {
   gap: 12px;
 }
 
-/* HandDateInput 外层包裹：日期组不收缩，贴右排布。 */
+/* HandDateInput outer wrapper: the date group does not shrink and sits to the right. */
 .date-row-wrap {
   flex-shrink: 0;
 }
 
-/* saved 态：整窗上下居中放大，对勾也放大。 */
+/* saved state: centered and enlarged across the window; the check mark scales up too. */
 .saved-view {
   display: flex;
   flex: 1;

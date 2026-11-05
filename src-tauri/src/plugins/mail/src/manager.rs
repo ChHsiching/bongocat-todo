@@ -1,15 +1,15 @@
-//! IMAP IDLE 连接管理器。
+//! IMAP IDLE connection manager.
 //!
-//! 每个绑定账号在 [`ConnectionManager`] 里有一个独立的 tokio task 维护 IMAP IDLE 长连接。
-//! 新邮件到达时（`IdleResponse::NewData`）读取信封元数据（发件人 + 主题），
-//! 通过 `app.emit("mail://new-mail", payload)` 推给前端。
+//! Each bound account has an independent tokio task in [`ConnectionManager`] maintaining its IMAP IDLE long-poll connection.
+//! When a new mail arrives (`IdleResponse::NewData`), the envelope metadata (sender + subject) is read and
+//! pushed to the frontend via `app.emit("mail://new-mail", payload)`.
 //!
-//! 生命周期绑 app 进程（不绑窗口）—— task 由 `ConnectionManager`（app state）托管，
-//! 桌宠（main）是常驻窗口，app 进程在跑就有连接。
+//! Lifecycle is bound to the app process (not to a window) — tasks are hosted by the `ConnectionManager` (app state);
+//! the desktop pet (main) is an always-on window, so connections live as long as the app process runs.
 //!
-//! 保活：`Handle::wait()` 内部自带 29 分钟超时（async-imap 实现，RFC 2177 建议 30 分钟内），
-//! 超时返回 `Timeout` 后循环顶部重新 idle 即完成保活。
-//! 断线：指数退避重连（[`crate::logic::backoff_delay`]）。多账号的 N 条连接相互独立。
+//! Keep-alive: `Handle::wait()` has a built-in 29-minute timeout (async-imap implementation; RFC 2177 recommends under 30 minutes);
+//! when it returns `Timeout`, restarting idle at the top of the loop completes the keep-alive.
+//! Disconnects: reconnect with exponential backoff ([`crate::logic::backoff_delay`]). The N connections of multiple accounts are mutually independent.
 
 use std::collections::HashMap;
 
@@ -19,55 +19,55 @@ use keyring::v1::Entry;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio::sync::Mutex;
-// 用 tauri::async_runtime::spawn 返回的 JoinHandle 类型（非 tokio::task::JoinHandle，
-// 两者是不同类型，HashMap 必须用前者匹配 spawn 的返回值）。
+// Use the JoinHandle type returned by tauri::async_runtime::spawn (not tokio::task::JoinHandle;
+// they are different types, and the HashMap must use the former to match spawn's return value).
 use tauri::async_runtime::JoinHandle;
 
 use crate::logic::{POLL_INTERVAL, backoff_delay, classify_idle_error};
 
-/// 退避重连的最大尝试次数（避免无限重试刷日志；达到后保持等待上限持续重试）。
+/// Max backoff reconnect attempts (avoids infinite retries flooding the log; after reaching it, keep retrying at the capped wait).
 const MAX_BACKOFF_RETRIES: u32 = 8;
 
-/// keyring 里存邮箱密码的 key 前缀（完整 key = `<KEY_PREFIX>/<accountId>`）。
+/// Key prefix for mailbox passwords in the keyring (full key = `<KEY_PREFIX>/<accountId>`).
 pub const KEYRING_KEY_PREFIX: &str = "bongocat-todo/mail";
 
-/// 取某账号在 keyring 里的完整 key。
+/// Get an account's full keyring key.
 pub fn keyring_key(account_id: &str) -> String {
     format!("{KEYRING_KEY_PREFIX}/{account_id}")
 }
 
-/// 推给前端的「新邮件」事件 payload（`mail://new-mail`）。
+/// Payload of the "new mail" event pushed to the frontend (`mail://new-mail`).
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NewMailPayload {
     pub account_id: String,
-    /// 邮箱 UID（前端用于离线补发去重：`<accountId>:<uid>` 唯一）。
+    /// Mail UID (used by the frontend for offline catch-up dedup: unique per `<accountId>:<uid>`).
     pub uid: u32,
-    /// 发件人邮箱（`mailbox@host`）；解析失败时给原始字符串。
+    /// Sender address (`mailbox@host`); the raw string when parsing fails.
     pub from: String,
-    /// 主题（UTF-8 解码，mime-encoded 暂不深度解码，T1 用 from_utf8_lossy）。
+    /// Subject (UTF-8 decoded; mime-encoded is not deeply decoded for now, T1 uses from_utf8_lossy).
     pub subject: String,
-    /// 到达时间（ms 时间戳）。
+    /// Arrival time (ms timestamp).
     pub arrived_at: i64,
 }
 
-/// 推给前端的「连接状态」事件 payload（`mail://connection-status`）。
+/// Payload of the "connection status" event pushed to the frontend (`mail://connection-status`).
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionStatusPayload {
     pub account_id: String,
     pub status: ConnectionStatus,
-    /// 附加信息（如错误原因）。
+    /// Extra info (e.g. the error reason).
     pub message: Option<String>,
 }
 
-/// 推给前端的「最新已见 UID」事件 payload（`mail://last-seen-uid`）。
+/// Payload of the "latest seen UID" event pushed to the frontend (`mail://last-seen-uid`).
 ///
-/// Rust 每推送一批新邮件后 emit 本事件，前端持久化到 mailAccount.lastSeenUid，
-/// 作为下次启动/重连时的离线补发基线（`fetch_new_envelopes(lastSeenUid)` 把离线期间
-/// 到达的新邮件补推，app 关闭再打开也不漏邮件）。
+/// Rust emits this event after each batch of new mails is pushed; the frontend persists it into
+/// mailAccount.lastSeenUid as the offline catch-up baseline for the next startup/reconnect
+/// (`fetch_new_envelopes(lastSeenUid)` re-pushes mails that arrived while offline, so no mails are missed across app restarts).
 ///
-/// @see #15 comment（离线补发需求）
+/// @see #15 comment (offline catch-up requirement)
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LastSeenUidPayload {
@@ -78,18 +78,18 @@ pub struct LastSeenUidPayload {
 #[derive(Debug, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum ConnectionStatus {
-    /// 已连接，IDLE 监听中。
+    /// Connected, IDLE watching.
     Connected,
-    /// 正在连接。
+    /// Connecting.
     Connecting,
-    /// 连接失败。
+    /// Connection failed.
     Error,
 }
 
-/// 连接管理器（作为 Tauri app state 托管）。
+/// Connection manager (hosted as Tauri app state).
 ///
-/// 内部用 `Mutex<HashMap<accountId, JoinHandle>>` 管理每个账号的 IDLE task。
-/// `Mutex` 保护并发增删账号时的 map 一致性。
+/// Internally uses `Mutex<HashMap<accountId, JoinHandle>>` to manage each account's IDLE task.
+/// The `Mutex` protects map consistency while accounts are added/removed concurrently.
 pub struct ConnectionManager {
     tasks: Mutex<HashMap<String, JoinHandle<()>>>,
 }
@@ -101,14 +101,14 @@ impl ConnectionManager {
         }
     }
 
-    /// 启动某账号的 IDLE 监听 task。
+    /// Start an account's IDLE watch task.
     ///
-    /// 先从 keyring 取密码（不在内存长期持有），取不到直接返回错误。
-    /// 已存在同名 task 会先取消再覆盖。
+    /// First fetches the password from the keyring (not held in memory long-term); returns an error if unavailable.
+    /// An existing task with the same id is cancelled first and then overwritten.
     ///
-    /// `initial_last_seen_uid` 来自前端持久化的 `mailAccount.lastSeenUid`：非 0 时作为
-    /// 离线补发基线（fetch 离线期间到达的新邮件 UID > last_seen_uid）；0 时回退到
-    /// `fetch_max_uid`（跳过当前所有已有邮件，T1 行为）。
+    /// `initial_last_seen_uid` comes from the frontend-persisted `mailAccount.lastSeenUid`: when non-zero it serves
+    /// as the offline catch-up baseline (fetch new mails that arrived offline with UID > last_seen_uid); when 0 it falls
+    /// back to `fetch_max_uid` (skipping all currently existing mails, T1 behavior).
     pub async fn connect<R: Runtime>(
         &self,
         app: AppHandle<R>,
@@ -119,14 +119,14 @@ impl ConnectionManager {
         proxy: Option<String>,
         initial_last_seen_uid: u32,
     ) -> Result<(), String> {
-        // 先从 keyring 取密码
+        // Fetch the password from the keyring first
         let entry = Entry::new(&keyring_key(&account_id), &username)
             .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
         let password = entry
             .get_password()
             .map_err(|e| format!("keyring 取密码失败（账号 {}）: {e}", account_id))?;
 
-        // 取消已存在的 task
+        // Cancel the existing task, if any
         self.disconnect(&account_id).await;
 
         let _ = app.emit(
@@ -153,22 +153,22 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// 断开某账号的 IDLE task（取消 task 即断开连接）。
+    /// Stop an account's IDLE task (cancelling the task closes the connection).
     pub async fn disconnect(&self, account_id: &str) {
         if let Some(handle) = self.tasks.lock().await.remove(account_id) {
             handle.abort();
         }
     }
 
-    /// 查询某账号当前是否有活跃的 IDLE 连接（task 存在即视为活跃）。
+    /// Whether an account currently has an active IDLE connection (an existing task counts as active).
     ///
-    /// 多账号场景下各账号状态相互独立：断开/查询账号 A 不影响账号 B 的连接。
-    /// 供 UI 状态展示与多账号隔离测试（`#[cfg(test)]`）使用。
+    /// In the multi-account scenario each account's state is independent: disconnecting/querying account A does not affect account B's connection.
+    /// Used for UI state display and multi-account isolation tests (`#[cfg(test)]`).
     pub async fn has_connection(&self, account_id: &str) -> bool {
         self.tasks.lock().await.contains_key(account_id)
     }
 
-    /// 当前活跃连接数（多账号场景的诊断/日志用）。
+    /// Current number of active connections (for diagnostics/logging in the multi-account scenario).
     pub async fn connection_count(&self) -> usize {
         self.tasks.lock().await.len()
     }
@@ -184,21 +184,21 @@ impl Default for ConnectionManager {
 mod tests {
     use super::*;
 
-    /// 多账号连接池隔离测试（ticket #14 AC）。
+    /// Multi-account connection pool isolation tests (ticket #14 AC).
     ///
-    /// `connect()` 依赖 keyring + 真实网络 + AppHandle，无法在 `#[cfg(test)]` 里跑；
-    /// 但隔离性取决于 `tasks: HashMap<accountId, JoinHandle>` 的按-key 增删语义，
-    /// 这一层是纯数据结构操作，可以脱离 IMAP 直接验证：
+    /// `connect()` depends on the keyring + a real network + an AppHandle, so it cannot run under `#[cfg(test)]`;
+    /// but isolation hinges on the per-key insert/remove semantics of `tasks: HashMap<accountId, JoinHandle>`,
+    /// which is a pure data-structure layer that can be verified directly without IMAP:
     ///
-    /// - N 个账号各自插一个 dummy handle（模拟 `connect` 的 `spawn` + insert）
-    /// - `disconnect(A)` 只移除 A，不影响 B/C 的 handle
-    /// - `has_connection` 按 accountId 独立查询
+    /// - Each of N accounts inserts a dummy handle (simulating `connect`'s `spawn` + insert)
+    /// - `disconnect(A)` removes only A, leaving B/C's handles untouched
+    /// - `has_connection` queries independently by accountId
     ///
-    /// 这样就覆盖了「给定 N 个账号各自状态 → 查询/切换不影响其他」的 AC，
-    /// 而真正的端到端（2 个 provider 同时 IDLE）靠手动 tracer bullet 验证。
+    /// This covers the AC of "given N accounts each with its own state → querying/toggling one does not affect the others",
+    /// while the real end-to-end (2 providers on simultaneous IDLE) is verified by a manual tracer bullet.
     fn make_dummy_handle() -> JoinHandle<()> {
-        // spawn 一个永不返回的 task 作为「活跃连接」替身（模拟 idle_loop 长连接）。
-        // 测试结束时 abort 掉，不实际占用运行时。
+        // Spawn a never-returning task as an "active connection" stand-in (simulating the idle_loop long-poll connection).
+        // Aborted at test end, so it never really occupies the runtime.
         tauri::async_runtime::spawn(async {
             std::future::pending::<()>().await;
         })
@@ -209,7 +209,7 @@ mod tests {
         let manager = ConnectionManager::new();
         let ids = ["acc-a".to_string(), "acc-b".to_string(), "acc-c".to_string()];
 
-        // 模拟 3 个账号各自 connect（spawn + insert）
+        // Simulate 3 accounts each connecting (spawn + insert)
         for id in &ids {
             let handle = make_dummy_handle();
             manager.tasks.lock().await.insert(id.clone(), handle);
@@ -228,10 +228,10 @@ mod tests {
             manager.tasks.lock().await.insert(id.clone(), make_dummy_handle());
         }
 
-        // 断开 B
+        // Disconnect B
         manager.disconnect("acc-b").await;
 
-        // B 已无连接，A/C 仍活跃
+        // B has no connection; A/C remain active
         assert!(!manager.has_connection("acc-b").await, "acc-b 应已断开");
         assert!(manager.has_connection("acc-a").await, "acc-a 不应受 acc-b 断开影响");
         assert!(manager.has_connection("acc-c").await, "acc-c 不应受 acc-b 断开影响");
@@ -243,7 +243,7 @@ mod tests {
         let manager = ConnectionManager::new();
         manager.tasks.lock().await.insert("acc-a".to_string(), make_dummy_handle());
 
-        // 断开一个未连接的 accountId —— 不应影响已有连接
+        // Disconnect an accountId that was never connected — must not affect existing connections
         manager.disconnect("acc-not-exist").await;
 
         assert!(manager.has_connection("acc-a").await);
@@ -256,8 +256,8 @@ mod tests {
         manager.tasks.lock().await.insert("acc-a".to_string(), make_dummy_handle());
         assert_eq!(manager.connection_count().await, 1);
 
-        // 模拟「重连」：插入新 handle 覆盖旧 key
-        // （connect 内部会先 disconnect 再 insert；这里直接覆盖测试 map 语义）
+        // Simulate a "reconnect": insert a new handle overwriting the old key
+        // (connect internally does disconnect then insert; here we overwrite directly to test the map semantics)
         let old = manager.tasks.lock().await.remove("acc-a");
         if let Some(h) = old {
             h.abort();
@@ -294,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn 多账号断开顺序无关_结果一致() {
-        // 验证断开顺序不影响最终状态（先断 A 再断 B == 先断 B 再断 A）
+        // Verify that disconnect order does not affect the final state (A then B == B then A)
         let manager1 = ConnectionManager::new();
         for id in ["a", "b"] {
             manager1.tasks.lock().await.insert(id.to_string(), make_dummy_handle());
@@ -313,13 +313,13 @@ mod tests {
     }
 }
 
-/// 单账号的 IDLE 主循环。
+/// The IDLE main loop for a single account.
 ///
-/// 结构：外层重连循环（出错 → 退避 → 重连），内层 IDLE 循环（NewData → fetch → 重启 idle）。
-/// 29 分钟保活由 `Handle::wait()` 自带超时实现，超时返回 `Timeout` 后内层循环重启 idle。
+/// Structure: an outer reconnect loop (error → backoff → reconnect) wrapping an inner IDLE loop (NewData → fetch → restart idle).
+/// The 29-minute keep-alive is provided by `Handle::wait()`'s built-in timeout; when it returns `Timeout`, the inner loop restarts idle.
 ///
-/// `initial_last_seen_uid` 非零时作为离线补发基线（前端持久化传入）；0 时回退到 fetch_max_uid。
-/// 重连时**沿用**已推进的 last_seen_uid（不重置为初始值），避免补发过的邮件重复推送。
+/// When `initial_last_seen_uid` is non-zero it serves as the offline catch-up baseline (passed in persisted by the frontend); when 0, fall back to fetch_max_uid.
+/// On reconnect, **keep** the already-advanced last_seen_uid (do not reset to the initial value), avoiding re-pushing mails that were already caught up.
 async fn idle_loop<R: Runtime>(
     app: AppHandle<R>,
     account_id: String,
@@ -330,14 +330,14 @@ async fn idle_loop<R: Runtime>(
     proxy: Option<String>,
     initial_last_seen_uid: u32,
 ) {
-    // 跨重连保留：首次连接用前端传入的 last_seen_uid（离线补发基线），
-    // 后续重连沿用同一基线值（每次推送后已通过 mail://last-seen-uid event 让前端持久化，
-    // 进程重启时前端会传入更新后的 lastSeenUid；同一进程内 task 正常退出即不再重连）。
+    // Preserved across reconnects: the first connection uses the frontend-supplied last_seen_uid (the offline catch-up baseline),
+    // and subsequent reconnects keep the same baseline value (after each push the frontend has persisted it via the mail://last-seen-uid event;
+    // on process restart the frontend passes the updated lastSeenUid; within the same process, a task exiting normally simply never reconnects).
     let last_seen_uid = initial_last_seen_uid;
     let mut retries: u32 = 0;
 
     loop {
-        // 尝试建立连接并跑一轮 IDLE
+        // Try to establish a connection and run one IDLE round
         match run_idle_session(
             &app,
             &account_id,
@@ -351,9 +351,9 @@ async fn idle_loop<R: Runtime>(
         .await
         {
             Ok(_returned_uid) => {
-                // 正常退出（如手动取消）—— 不重连。
-                // 正常退出即 task 被取消/进程结束，无需保留最新 uid（前端已通过
-                // mail://last-seen-uid event 持久化每次推送后的 uid）。
+                // Normal exit (e.g. manual cancellation) — do not reconnect.
+                // A normal exit means the task was cancelled / the process is ending; no need to keep the latest uid
+                // (the frontend has already persisted the uid after each push via the mail://last-seen-uid event).
                 break;
             }
             Err(err) => {
@@ -367,7 +367,7 @@ async fn idle_loop<R: Runtime>(
                 );
                 log::warn!("mail {} IDLE 异常退出，准备重连: {err}", account_id);
 
-                // 指数退避
+                // Exponential backoff
                 let delay = backoff_delay(retries.min(MAX_BACKOFF_RETRIES));
                 retries = retries.saturating_add(1);
                 tokio::time::sleep(delay).await;
@@ -376,10 +376,10 @@ async fn idle_loop<R: Runtime>(
     }
 }
 
-/// 建立一次完整的 IMAP 连接并跑 IDLE 直到出错或取消。
+/// Establish one complete IMAP connection and run IDLE until an error or cancellation.
 ///
-/// 成功返回 `Ok(last_seen_uid)` 表示正常结束（task 被取消），携带最新已推送 UID
-/// 供外层重连沿用；`Err` 表示需要重连。
+/// Returning `Ok(last_seen_uid)` means a normal end (task cancelled), carrying the latest pushed UID
+/// for the outer reconnect loop to keep; `Err` means a reconnect is needed.
 async fn run_idle_session<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -390,7 +390,7 @@ async fn run_idle_session<R: Runtime>(
     proxy: Option<&str>,
     initial_last_seen_uid: u32,
 ) -> Result<u32, String> {
-    // 1-3. 建立 TLS 连接 + 登录 + 选 INBOX（与 mail_test_connection 共用）
+    // 1-3. Establish the TLS connection + login + select INBOX (shared with mail_test_connection)
     let session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
 
     let _ = app.emit(
@@ -402,24 +402,24 @@ async fn run_idle_session<R: Runtime>(
         },
     );
 
-    // 4. IDLE 循环（idle() 消耗 session，done() 归还 session）
-    //    wait() 内部自带 29 分钟超时（见 async-imap idle.rs），超时返回 Timeout，
-    //    循环顶部重新 idle 即完成 RFC 2177 保活，无需额外的 should_reset_idle 判定。
-    //    连接参数传入：IDLE 不支持时 idle_wait_loop 需重建 session 走 poll_loop。
+    // 4. IDLE loop (idle() consumes the session, done() returns it)
+    //    wait() has a built-in 29-minute timeout (see async-imap idle.rs); it returns Timeout when it fires,
+    //    and restarting idle at the top of the loop completes the RFC 2177 keep-alive — no extra should_reset_idle check needed.
+    //    Connection params are passed in: if IDLE is unsupported, idle_wait_loop needs to rebuild a session and fall back to poll_loop.
     let (mut session, last_seen_uid) = idle_wait_loop(app, account_id, session, initial_last_seen_uid, imap_host, imap_port, username, password, proxy).await?;
 
-    // 5. 退出时登出（优雅关闭）
+    // 5. Log out on exit (graceful shutdown)
     let _ = session.logout().await;
     Ok(last_seen_uid)
 }
 
-/// 建立 IMAP 会话：TLS 连接 → 登录 → 选 INBOX。
+/// Establish an IMAP session: TLS connection → login → select INBOX.
 ///
-/// `mail_test_connection`（验证连通）和 `run_idle_session`（IDLE 监听）共用本函数，
-/// 避免连接序列的重复代码。返回已选 INBOX 的 Session，调用方负责后续 idle/logout。
+/// Shared by `mail_test_connection` (connectivity check) and `run_idle_session` (IDLE watch),
+/// avoiding duplicated connection sequences. Returns a Session with INBOX selected; the caller handles the subsequent idle/logout.
 ///
-/// `proxy` 非空时通过 HTTP CONNECT 代理建立隧道（绕开 TUN system stack 对非标端口
-/// 转发不稳定的问题）。格式如 `"127.0.0.1:7890"`。
+/// When `proxy` is non-empty, the tunnel is established via an HTTP CONNECT proxy (bypassing the TUN
+/// system stack's unstable forwarding of non-standard ports). Format like `"127.0.0.1:7890"`.
 pub(crate) async fn build_imap_session(
     imap_host: &str,
     imap_port: u16,
@@ -430,13 +430,13 @@ pub(crate) async fn build_imap_session(
     use tokio::time::timeout;
     use std::time::Duration;
 
-    // 每个网络步骤的超时（TCP/TLS/登录/选文件夹）。代理转发不通时会卡死，
-    // 必须有超时让 UI 能报错退出而不是永久转圈。
+    // Per-network-step timeout (TCP/TLS/login/select). A dead proxy forward would hang forever,
+    // so a timeout is required to let the UI error out instead of spinning forever.
     const STEP_TIMEOUT: Duration = Duration::from_secs(30);
 
-    // rustls TLS：用 webpki-roots 内置 Mozilla 根 CA，不做证书吊销检查（OCSP/CRL）。
-    // native-tls/SChannel 默认检查吊销，国内吊销服务器不可达时握手失败
-    // （CRYPT_E_REVOCATION_OFFLINE），rustls 规避此问题。
+    // rustls TLS: uses webpki-roots' built-in Mozilla root CAs, with no certificate revocation checks (OCSP/CRL).
+    // native-tls/SChannel checks revocation by default and the handshake fails when the revocation
+    // servers are unreachable on domestic networks (CRYPT_E_REVOCATION_OFFLINE); rustls avoids that.
     let mut root_cert_store = rustls::RootCertStore::empty();
     root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = rustls::ClientConfig::builder()
@@ -444,15 +444,15 @@ pub(crate) async fn build_imap_session(
         .with_no_client_auth();
     let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
 
-    // 建立 TCP 连接：有代理走 HTTP CONNECT 隧道，无代理直连。
+    // Establish the TCP connection: through an HTTP CONNECT tunnel when a proxy is set, direct otherwise.
     let tcp = if let Some(proxy_addr) = proxy {
         log::info!("[mail] 使用代理 {proxy_addr} 建立到 {imap_host}:{imap_port} 的隧道");
-        // 先 TCP 连代理服务器
+        // First TCP-connect to the proxy server
         let mut proxy_tcp = timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect(proxy_addr))
             .await
             .map_err(|_| format!("连接代理超时（{proxy_addr}，30s 无响应）"))?
             .map_err(|e| format!("连接代理失败 {proxy_addr}: {e}"))?;
-        // HTTP CONNECT 隧道到目标 IMAP 服务器
+        // HTTP CONNECT tunnel to the target IMAP server
         timeout(STEP_TIMEOUT, async_http_proxy::http_connect_tokio(&mut proxy_tcp, imap_host, imap_port))
             .await
             .map_err(|_| "代理隧道建立超时（30s 无响应）".to_string())?
@@ -479,12 +479,12 @@ pub(crate) async fn build_imap_session(
         .map_err(|_| "IMAP 登录超时（30s 无响应）".to_string())?
         .map_err(|(err, _)| format!("IMAP 登录失败: {err}"))?;
 
-    // 发送 IMAP ID 命令（RFC 2971）。
-    // 网易系邮箱（163/126/yeah.net）要求第三方客户端在 LOGIN 后、SELECT 等操作前
-    // 发送 ID 表明身份，否则后续操作返回 "Unsafe Login"。
-    // 其他邮箱（Gmail/QQ 等）忽略此命令，对所有服务器发送是安全的 RFC 2971 标准行为。
-    // 用 `let _ =` 忽略错误：不支持 ID 的服务器返回 BAD 也不影响后续流程。
-    // version 用主 crate 的版本（env! 在插件 crate 里取的是插件的 0.1.0）。
+    // Send the IMAP ID command (RFC 2971).
+    // NetEase-family mailboxes (163/126/yeah.net) require third-party clients to send ID
+    // to identify themselves after LOGIN and before SELECT etc., otherwise later operations return "Unsafe Login".
+    // Other mailboxes (Gmail/QQ etc.) ignore the command; sending it to all servers is a safe, standard RFC 2971 behavior.
+    // Errors are ignored via `let _ =`: servers that don't support ID return BAD without affecting the rest of the flow.
+    // The version uses the main crate's version (env! inside the plugin crate would yield the plugin's 0.1.0).
     let _ = session.id([
         ("name", Some("BongoCat Todo")),
         ("version", Some(env!("CARGO_PKG_VERSION"))),
@@ -501,16 +501,16 @@ pub(crate) async fn build_imap_session(
     Ok(session)
 }
 
-/// IDLE 等待循环：发起 IDLE → wait → 匹配响应 → NewData 时 fetch envelope → 重新 idle。
+/// IDLE wait loop: start IDLE → wait → match the response → on NewData fetch envelopes → re-idle.
 ///
-/// `session.idle()` 会消耗 session（返回 Handle），`handle.done()` 发 DONE 结束 IDLE 并归还 session。
-/// `wait()` 自带 29 分钟超时（async-imap 内置保活），超时返回 Timeout 后循环重启 idle。
+/// `session.idle()` consumes the session (returning a Handle); `handle.done()` sends DONE to end IDLE and returns the session.
+/// `wait()` has a built-in 29-minute timeout (async-imap's internal keep-alive); when it returns Timeout, the loop restarts idle.
 ///
-/// `initial_last_seen_uid` 非零时作为离线补发基线（首连接时把离线期间到达的新邮件补推）；
-/// 为零时回退到 `fetch_max_uid`（T1 行为：跳过当前所有已有邮件）。循环内 fetch 推进该值后
-/// emit `mail://last-seen-uid` 让前端持久化（重连/重启后作为下次补发基线）。
+/// When `initial_last_seen_uid` is non-zero it serves as the offline catch-up baseline (on first connect, re-push mails that arrived while offline);
+/// when zero, fall back to `fetch_max_uid` (T1 behavior: skip all currently existing mails). After a fetch inside the loop advances the value,
+/// emit `mail://last-seen-uid` so the frontend persists it (as the next catch-up baseline after reconnect/restart).
 ///
-/// 返回 `(session, last_seen_uid)`：session 供外层 logout，last_seen_uid 供重连沿用。
+/// Returns `(session, last_seen_uid)`: the session for the outer logout, the last_seen_uid for reconnects to keep.
 async fn idle_wait_loop<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -522,15 +522,15 @@ async fn idle_wait_loop<R: Runtime>(
     password: &str,
     proxy: Option<&str>,
 ) -> Result<(async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, u32), String> {
-    // 初始化去重基线：
-    // - 前端传入非 0 的 initial_last_seen_uid → 直接用作补发基线（离线补发：fetch 离线期间新邮件）
-    // - 为 0（首次绑定 / T5 前旧账号 migrate 后）→ 回退到当前 INBOX 最大 UID（跳过已有邮件，T1 行为），
-    //   并 emit last-seen-uid 让前端持久化这个基线（否则前端永远是 0，离线补发永不触发）
+    // Initialize the dedup baseline:
+    // - Frontend passed a non-zero initial_last_seen_uid → use it directly as the catch-up baseline (offline catch-up: fetch mails that arrived while offline)
+    // - Zero (first bind / a pre-T5 legacy account after migration) → fall back to the current max INBOX UID (skip existing mails, T1 behavior),
+    //   and emit last-seen-uid so the frontend persists this baseline (otherwise the frontend stays at 0 forever and offline catch-up never triggers)
     let mut last_seen_uid: u32 = if initial_last_seen_uid > 0 {
         initial_last_seen_uid
     } else {
         let max_uid = fetch_max_uid(&mut session).await.unwrap_or(0);
-        // 把 fetch_max_uid 得到的基线 emit 给前端持久化，下次启动就能用它做离线补发
+        // Emit the baseline obtained from fetch_max_uid for the frontend to persist, so the next startup can use it for offline catch-up
         if max_uid > 0 {
             let _ = app.emit(
                 "mail://last-seen-uid",
@@ -543,9 +543,9 @@ async fn idle_wait_loop<R: Runtime>(
         max_uid
     };
 
-    // 离线补发：initial_last_seen_uid 非零时，先把离线期间到达的新邮件补推一遍。
-    // 这一步只在 initial_last_seen_uid > 0（前端有持久化基线）时执行，避免首次绑定时
-    // 把已有邮件全推（initial=0 走 fetch_max_uid 已是基线，fetch_new_envelopes 不会推已存在的）。
+    // Offline catch-up: when initial_last_seen_uid is non-zero, first re-push the mails that arrived while offline.
+    // This step runs only when initial_last_seen_uid > 0 (the frontend has a persisted baseline), avoiding pushing
+    // all existing mails on first bind (initial=0 already became the baseline via fetch_max_uid, and fetch_new_envelopes won't push existing ones).
     if initial_last_seen_uid > 0 {
         match fetch_new_envelopes(account_id, &mut session, &mut last_seen_uid).await {
             Ok(payloads) => {
@@ -576,10 +576,10 @@ async fn idle_wait_loop<R: Runtime>(
                 let err_str = format!("{e}");
                 match classify_idle_error(&err_str) {
                     crate::logic::IdleSupport::Unsupported => {
-                        // 服务器不支持 IDLE（Coremail 等返回 BAD command not support）。
-                        // session.idle() 消耗了 session 进 handle，init 失败后 async-imap
-                        // 没有安全 API 拿回 session（done() 会再次发命令触发 BAD）。
-                        // 重新建一个 session 给 poll_loop（多一次连接，仅降级时发生一次）。
+                        // The server does not support IDLE (Coremail etc. return BAD command not support).
+                        // session.idle() consumed the session into the handle; after init fails, async-imap
+                        // has no safe API to get the session back (done() would send another command and trigger BAD).
+                        // Rebuild a session for poll_loop (one extra connection, happening only once at degradation).
                         log::info!("mail {account_id} 服务器不支持 IDLE，降级为轮询模式（{POLL_INTERVAL:?} 周期）");
                         drop(handle);
                         let new_session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
@@ -592,15 +592,15 @@ async fn idle_wait_loop<R: Runtime>(
             }
         }
 
-        // wait_with_timeout 显式 5 秒超时。IDLE 推送正常时收到 NewData 立即返回；
-        // 部分邮箱（如 QQ）IDLE 推送不稳定，done→重新 init 间隙可能漏推，
-        // 5 秒 Timeout 兜底 fetch 补查漏掉的新邮件，保证体感延迟可控。
+        // wait_with_timeout with an explicit 5-second timeout. When IDLE pushes work normally, NewData returns immediately;
+        // some mailboxes (e.g. QQ) have unreliable IDLE pushes and may miss pushes during the done→re-init gap,
+        // so the 5-second Timeout falls back to a catch-up fetch for missed new mails, keeping perceived latency under control.
         let (wait_future, _stop_token) = handle.wait_with_timeout(std::time::Duration::from_secs(5));
         let response = wait_future.await;
 
         match response {
             Ok(IdleResponse::NewData(_response_data)) => {
-                // 有新数据：发 DONE 结束 IDLE，拿回 session → fetch envelope → emit
+                // New data: send DONE to end IDLE, get the session back → fetch envelopes → emit
                 session = handle
                     .done()
                     .await
@@ -625,11 +625,11 @@ async fn idle_wait_loop<R: Runtime>(
                         log::warn!("mail {account_id} fetch envelope 失败: {e}");
                     }
                 }
-                // 继续循环重新 idle
+                // Continue the loop and re-idle
             }
             Ok(IdleResponse::Timeout) => {
-                // 超时保活：发 DONE 拿回 session，顺便轮询检查新邮件（QQ 等邮箱 IDLE 推送不稳定，
-                // 主动 fetch 兜底），然后回顶部重新 idle
+                // Keep-alive timeout: send DONE to get the session back, and opportunistically poll for new mails
+                // (QQ-like mailboxes have unreliable IDLE pushes, so an active fetch is the fallback), then return to the top to re-idle
                 session = handle
                     .done()
                     .await
@@ -656,7 +656,7 @@ async fn idle_wait_loop<R: Runtime>(
                 }
             }
             Ok(IdleResponse::ManualInterrupt) => {
-                // 手动中断（task 取消）：正常退出
+                // Manual interrupt (task cancelled): normal exit
                 session = handle
                     .done()
                     .await
@@ -664,7 +664,7 @@ async fn idle_wait_loop<R: Runtime>(
                 return Ok((session, last_seen_uid));
             }
             Err(e) => {
-                // wait 出错：尝试发 DONE 归还 session（失败也无妨，外层会重连）
+                // wait failed: try sending DONE to return the session (failure is fine, the outer loop will reconnect)
                 let _ = handle.done().await;
                 return Err(format!("IDLE wait 出错: {e}"));
             }
@@ -672,11 +672,11 @@ async fn idle_wait_loop<R: Runtime>(
     }
 }
 
-/// 轮询模式：服务器不支持 IDLE 时的降级循环。
+/// Polling mode: the degraded loop used when the server does not support IDLE.
 ///
-/// 不发起 IDLE，纯 `sleep(POLL_INTERVAL) → fetch_new_envelopes` 循环。
-/// fetch 逻辑与 [`idle_wait_loop`] 的 Timeout/NewData 分支一致（emit 新邮件 + 推进 last_seen_uid）。
-/// fetch 出错返回 Err 交由外层重连。
+/// No IDLE at all, just a `sleep(POLL_INTERVAL) → fetch_new_envelopes` loop.
+/// The fetch logic matches the Timeout/NewData branches of [`idle_wait_loop`] (emit new mails + advance last_seen_uid).
+/// A fetch error returns Err for the outer loop to reconnect.
 async fn poll_loop<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -701,7 +701,7 @@ async fn poll_loop<R: Runtime>(
     }
 }
 
-/// 取 INBOX 当前最大 UID（用于初始化去重基线，避免启动时把已有邮件全推一遍）。
+/// Get INBOX's current max UID (used to initialize the dedup baseline, avoiding pushing all existing mails at startup).
 async fn fetch_max_uid(
     session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
 ) -> Result<u32, String> {
@@ -720,16 +720,16 @@ async fn fetch_max_uid(
     Ok(max_uid)
 }
 
-/// 取 last_seen_uid 之后的新邮件信封元数据（去重 + MIME 解码）。
+/// Fetch envelope metadata for new mails after last_seen_uid (dedup + MIME decoding).
 ///
-/// 只推送 UID > last_seen_uid 的邮件，避免把已有邮件或 flag 变化重复推送。
-/// 主题做 MIME encoded-word 解码（`=?utf-8?B?...?=` / `=?utf-8?Q?...?=`）。
+/// Only mails with UID > last_seen_uid are pushed, avoiding re-pushing existing mails or flag changes.
+/// Subjects get MIME encoded-word decoding (`=?utf-8?B?...?=` / `=?utf-8?Q?...?=`).
 async fn fetch_new_envelopes(
     account_id: &str,
     session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
     last_seen_uid: &mut u32,
 ) -> Result<Vec<NewMailPayload>, String> {
-    // 取 last_seen_uid+1 到 * 的邮件
+    // Fetch mails from last_seen_uid+1 to *
     let range = format!("{}:*", last_seen_uid.saturating_add(1));
     let mut fetch_stream = session
         .uid_fetch(&range, "ENVELOPE")
@@ -742,7 +742,7 @@ async fn fetch_new_envelopes(
         let Ok(fetch) = fetch else { continue };
         let Some(uid) = fetch.uid else { continue };
 
-        // 跳过已推送过的
+        // Skip already-pushed ones
         if uid <= *last_seen_uid {
             continue;
         }
@@ -782,29 +782,29 @@ async fn fetch_new_envelopes(
     Ok(payloads)
 }
 
-/// 解码 MIME encoded-word（RFC 2047）：`=?charset?B?base64?=` 或 `=?charset?Q?quoted?=`。
+/// Decode MIME encoded-words (RFC 2047): `=?charset?B?base64?=` or `=?charset?Q?quoted?=`.
 ///
-/// 邮件主题含非 ASCII 字符时会被编码。本函数处理 UTF-8 的 Base64 和 Quoted-Printable，
-/// 其他编码用原始 lossy 字符串兜底。支持多个 encoded-word 拼接。
+/// Mail subjects with non-ASCII characters get encoded. This function handles UTF-8 Base64 and Quoted-Printable;
+/// other encodings fall back to the raw lossy string. Supports multiple concatenated encoded-words.
 fn decode_mime_words(input: &str) -> String {
     use base64::Engine;
 
-    // 正则匹配太重，手动扫描 `=?charset?enc?data?=` 片段
+    // Regex matching is too heavy; manually scan `=?charset?enc?data?=` segments
     let mut result = String::new();
     let mut rest = input;
 
     while let Some(start) = rest.find("=?") {
-        // 普通文本部分
+        // Plain-text part
         result.push_str(&rest[..start]);
 
         let after = &rest[start + 2..];
-        // 找结束 ?=
+        // Find the closing ?=
         let Some(end_rel) = after.find("?=") else {
             result.push_str(&rest[start..]);
             return result;
         };
 
-        // encoded-word 内容：charset?enc?data
+        // encoded-word content: charset?enc?data
         let encoded = &after[..end_rel];
         let parts: Vec<&str> = encoded.splitn(3, '?').collect();
         if parts.len() < 3 {
@@ -821,7 +821,7 @@ fn decode_mime_words(input: &str) -> String {
             base64::engine::general_purpose::STANDARD.decode(data).ok()
         }
         else if enc == "q" {
-            // Quoted-Printable: '_' = 空格，=XX 为十六进制字节
+            // Quoted-Printable: '_' = space, =XX is a hex byte
             let mut bytes = Vec::new();
             let bytes_iter = data.as_bytes();
             let mut i = 0;
@@ -860,7 +860,7 @@ fn decode_mime_words(input: &str) -> String {
                     result.push_str(&String::from_utf8_lossy(&b));
                 }
                 else {
-                    // 非 UTF-8 用 lossy 兜底（tracer bullet 简化）
+                    // Non-UTF-8 falls back to lossy (tracer bullet simplification)
                     result.push_str(&String::from_utf8_lossy(&b));
                 }
             }
@@ -874,7 +874,7 @@ fn decode_mime_words(input: &str) -> String {
     result
 }
 
-/// 取当前 Unix 时间戳（ms）。基于 SystemTime，无 chrono 依赖。
+/// Get the current Unix timestamp (ms). Based on SystemTime, no chrono dependency.
 fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()

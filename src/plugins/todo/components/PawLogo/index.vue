@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * 爪印 logo（PawLogo）：SVG 画的 4 圆 + 椭圆（真爪印形状），不用 emoji。
- * SVG path 抠自 docs/designs/todo-panel-exploration/panel.html。
+ * Paw print logo (PawLogo): 4 circles + an ellipse drawn in SVG (a real paw shape), not an emoji.
+ * SVG path lifted from docs/designs/todo-panel-exploration/panel.html.
  */
 defineProps<{
-  /** 尺寸 px，默认 34（设计稿标题区尺寸） */
+  /** Size in px, default 34 (the design's header-area size) */
   size?: number
 }>()
 </script>

@@ -11,58 +11,58 @@ import {
 } from '../utils/retention'
 
 /**
- * 邮件本地状态（纯本地，绝不向邮箱服务端发 IMAP STORE/MOVE——D5-actual 零写约束）。
+ * Mail local status (frontend-only; never sends IMAP STORE/MOVE to the mail server — D5-actual zero-write constraint).
  *
- * - `unread`：刚被气泡提醒的新邮件（默认状态）。
- * - `read`：用户点过气泡/列表项（标本地已读），5 分钟后归档。
- * - `archived`：已归档（转入归档列表），30 天后从列表清理。
+ * - `unread`: a new mail just announced by a bubble notification (default state).
+ * - `read`: the user clicked the bubble/list item (marked read locally), archived after 5 minutes.
+ * - `archived`: archived (moved into the archive list), purged from the list after 30 days.
  */
 export type MailNotificationStatus = 'unread' | 'read' | 'archived'
 
-/** 本地通知历史中的一封邮件（信封元数据 + 本地状态）。 */
+/** A single mail in the local notification history (envelope metadata + local status). */
 export interface MailNotification {
-  /** 本地唯一 id（nanoid，与邮箱 UID 无关，同一封邮件可能因补推出现多条——靠 uidKey 去重）。 */
+  /** Locally unique id (nanoid, unrelated to the mail UID; the same mail may appear multiple times due to re-pushes — deduplicated by uidKey). */
   id: string
-  /** 源账号 id（关联 mailAccountStore.accounts[*].id）。 */
+  /** Source account id (links to mailAccountStore.accounts[*].id). */
   accountId: string
-  /** 邮箱 UID（离线补发去重用，`<accountId>:<uid>` 唯一）。0 表示未知（不应出现，防御）。 */
+  /** Mail UID (used for offline catch-up dedup, unique per `<accountId>:<uid>`). 0 means unknown (should not happen, defensive). */
   uid: number
-  /** 发件人（解析自 IMAP ENVELOPE.from，可能是 `mailbox@host` 或显示名）。 */
+  /** Sender (parsed from IMAP ENVELOPE.from, may be `mailbox@host` or a display name). */
   from: string
-  /** 主题（MIME decoded）。 */
+  /** Subject (MIME decoded). */
   subject: string
-  /** 到达时间戳（ms，来自 Rust 推送）。 */
+  /** Arrival timestamp (ms, pushed from Rust). */
   arrivedAt: number
-  /** 本地状态。 */
+  /** Local status. */
   status: MailNotificationStatus
-  /** 标记已读的时间戳（status=read/archived 时有）。 */
+  /** Timestamp when marked read (present when status=read/archived). */
   readAt?: number
-  /** 归档时间戳（status=archived 时有）。 */
+  /** Archive timestamp (present when status=archived). */
   archivedAt?: number
 }
 
 /**
- * 邮件本地通知历史 store（D9 本地通知中心）。
+ * Mail local notification history store (D9 local notification center).
  *
- * 被「气泡」「邮件列表」「归档邮件」三处窗口共同读写——每个窗口都是独立 webview，
- * 各自调 `$tauri.start()` 加载同一份落盘 JSON。写操作通过 saveOnChange 落盘后，
- * 其他窗口需重开或由 event 通知刷新（当前不跨窗口实时同步，T5 范围内可接受）。
+ * Read/written jointly by the "bubble", "mail list" and "archived mail" windows — each window is an independent webview
+ * that calls `$tauri.start()` to load the same persisted JSON. After a write is persisted via saveOnChange,
+ * other windows need to be reopened or notified via an event to refresh (no cross-window realtime sync for now, acceptable within T5 scope).
  *
- * 状态机：unread → read（点击）→ archived（5min 后 / 24h 超时）。归档 30 天后清理。
- * **绝不向邮箱服务端写**（已读/归档全是本地状态，D5-actual）。
+ * State machine: unread → read (click) → archived (after 5min / 24h timeout). Archived items are purged after 30 days.
+ * **Never writes to the mail server** (read/archived are purely local states, D5-actual).
  *
  * @see docs/adr/0002-phase2-mail-and-bubble.md D9
  */
 export const useMailNotificationStore = defineStore('mailNotification', () => {
-  /** 所有邮件（未读 + 已读 + 归档）。UI 通过 getters 分组展示。 */
+  /** All mails (unread + read + archived). The UI renders them grouped via getters. */
   const notifications = ref<MailNotification[]>([])
 
-  /** 按 `<accountId>:<uid>` 去重的 Map（upsertMail 用）。 */
+  /** Dedup key by `<accountId>:<uid>` (used by upsertMail). */
   function uidKey(accountId: string, uid: number): string {
     return `${accountId}:${uid}`
   }
 
-  /** 已存在的 uidKey → notification.id（O(1) 查重）。 */
+  /** Existing uidKey → notification.id (O(1) duplicate lookup). */
   const byUid = computed(() => {
     const m = new Map<string, string>()
     for (const n of notifications.value) {
@@ -74,13 +74,14 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
   })
 
   /**
-   * 新邮件到达：upsert 到 notifications。
+   * New mail arrived: upsert into notifications.
    *
-   * 去重：同 `<accountId>:<uid>` 已存在则**不覆盖**（保留用户的已读/归档状态——
-   * 离线补发场景下用户可能已先在列表里点过）。payload 不带 uid（Rust NewMailPayload 没有）
-   * 时 uid=0，跳过去重（每次都新增）——当前调用方在 setupMailPlugin 里补 uid 后再调。
+   * Dedup: if the same `<accountId>:<uid>` already exists, **do not overwrite** (preserve the user's read/archived state —
+   * in the offline catch-up scenario the user may have already clicked it in the list). When the payload has no uid
+   * (Rust NewMailPayload lacks it), uid=0 and dedup is skipped (append every time) — the current caller fills in the uid
+   * in setupMailPlugin before calling.
    *
-   * @returns 新建/已存在的 MailNotification；新建时 status='unread'。
+   * @returns The newly created or existing MailNotification; newly created ones get status='unread'.
    */
   function upsertMail(mail: NewMailPayload, uid: number): MailNotification {
     if (uid > 0) {
@@ -107,9 +108,9 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
   }
 
   /**
-   * 标记本地已读（status: unread → read，记 readAt）。
+   * Mark read locally (status: unread → read, records readAt).
    *
-   * 已读/归档的邮件再次调用无副作用（幂等）。**不向邮箱服务端发 STORE**（D5-actual）。
+   * Calling again on already-read/archived mails has no side effect (idempotent). **Never sends STORE to the mail server** (D5-actual).
    */
   function markRead(id: string, now: number = Date.now()) {
     const n = notifications.value.find(x => x.id === id)
@@ -120,7 +121,7 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     n.readAt = now
   }
 
-  /** 手动归档（status → archived，记 archivedAt）。已归档再调无副作用。 */
+  /** Archive manually (status → archived, records archivedAt). Calling again on archived mails has no side effect. */
   function archive(id: string, now: number = Date.now()) {
     const n = notifications.value.find(x => x.id === id)
     if (!n || n.status === 'archived') {
@@ -130,28 +131,28 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     n.archivedAt = now
   }
 
-  /** 从列表彻底移除（清理 30 天归档项用）。 */
+  /** Remove from the list entirely (used to purge 30-day-old archived items). */
   function purge(id: string) {
     notifications.value = notifications.value.filter(n => n.id !== id)
   }
 
   /**
-   * 清空某账号的所有通知历史（删除账号时级联清理用）。
+   * Clear all notification history of an account (cascade cleanup when deleting an account).
    *
-   * 删除账号时调用：从本地通知历史移除该账号下所有未读/已读/归档邮件，
-   * 避免「账号已删但邮件列表里还挂着孤儿项」。不影响其他账号。
+   * Called on account deletion: removes all unread/read/archived mails of that account from the local notification history,
+   * avoiding "the account is deleted but orphan items still hang in the mail list". Does not affect other accounts.
    */
   function removeByAccount(accountId: string) {
     notifications.value = notifications.value.filter(n => n.accountId !== accountId)
   }
 
   /**
-   * 留存规则 tick：扫描所有邮件，按 24h/5min/30 天时限迁移状态。
+   * Retention rule tick: scans all mails and transitions states per the 24h/5min/30-day deadlines.
    *
-   * 由 setupMailPlugin 在 main 窗口每分钟调一次（单 timer，避免每封邮件各自计时）。
-   * 纯本地状态迁移，零副作用到邮箱服务端。
+   * Called once per minute by setupMailPlugin in the main window (a single timer, avoiding per-mail timers).
+   * Purely local state transitions, zero side effects on the mail server.
    *
-   * @returns {changed} 是否有变化（UI 可据此刷新）。
+   * @returns {changed} Whether anything changed (the UI can refresh accordingly).
    */
   function tickRetention(now: number = Date.now()): { changed: boolean } {
     let changed = false
@@ -168,7 +169,7 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
       }
     }
 
-    // 清理 30 天以上归档项
+    // Purge archived items older than 30 days
     const before = notifications.value.length
     notifications.value = notifications.value.filter(
       n => !(n.status === 'archived' && n.archivedAt && shouldPurgeArchived(n.archivedAt, now)),
@@ -180,16 +181,16 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     return { changed }
   }
 
-  // ── UI getters（邮件列表 / 归档窗口按状态分组消费）──
+  // ── UI getters (consumed grouped by status in the mail list / archive windows) ──
 
-  /** 邮件列表窗口展示的项：未读 + 已读（不含归档）。 */
+  /** Items shown in the mail list window: unread + read (archived excluded). */
   const activeMails = computed(() =>
     notifications.value
       .filter(n => n.status === 'unread' || n.status === 'read')
       .sort((a, b) => b.arrivedAt - a.arrivedAt),
   )
 
-  /** 归档窗口展示的项（按归档时间倒序）。 */
+  /** Items shown in the archive window (newest archived first). */
   const archivedMails = computed(() =>
     notifications.value
       .filter(n => n.status === 'archived')

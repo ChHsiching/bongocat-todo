@@ -1,44 +1,45 @@
 <script setup lang="ts">
 /**
- * ResizeHandles：贴视觉边框的隐形 resize 把手（issue #19 后续）。
+ * ResizeHandles: invisible resize handles hugging the visual border (issue #19 follow-up).
  *
- * 为什么需要：Tauri 原生 resize 命中带贴窗口矩形外缘（约 4px），而手绘纸片
- * 窗口有 ~20-26px 透明页边距——用户必须抓到纸片可见边框外的"空气"里才能拖，
- * 观感是"把手在虚空位置"。本组件把 8 个隐形把手精确贴到纸片可见边框线上。
+ * Why needed: Tauri's native resize hit zone hugs the window rectangle's outer edge (~4px), but hand-drawn paper
+ * windows have a ~20-26px transparent margin — the user must grab the "air" outside the paper's visible border to drag,
+ * which looks like "the handle floats in the void". This component sticks 8 invisible handles precisely onto the paper's visible border line.
  *
- * 实现：mousedown 时调 startResizeDragging(direction)（Win/Linux 可用；
- * macOS 该 API 返回 NotSupported——catch 静默，macOS 用户回落到原生边缘拖拽）。
- * 方案依据：docs/research/2026-11-03-issue19-todo-window-resize.md §2.1。
+ * Implementation: on mousedown, call startResizeDragging(direction) (works on Win/Linux;
+ * on macOS the API returns NotSupported — silently caught, macOS users fall back to native edge dragging).
+ * Rationale: docs/research/2026-11-03-issue19-todo-window-resize.md §2.1.
  *
- * 通用性：inset 四向可配（不同窗口纸片边框距窗口边的留白不同），mail 窗口复用。
- * 用法：<ResizeHandles v-if="可调态" :inset-left="24" :inset-right="27" … />
+ * Generality: insets are configurable per direction (different windows have different margins between the paper border and the window edge); reused by the mail windows.
+ * Usage: <ResizeHandles v-if="resizable" :inset-left="24" :inset-right="27" … />
  */
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const props = withDefaults(
   defineProps<{
     /**
-     * 纸片可见边框线距窗口边的留白；number=px，string=百分比（如 '7.5%'，
-     * 供边框随窗口等比缩放的窗口（mini monolithic SVG）锚定用）
+     * Margin between the paper's visible border line and the window edge; number=px, string=percentage (e.g. '7.5%',
+     * for windows whose border scales proportionally with the window (mini monolithic SVG) to anchor against)
      */
     insetLeft?: number | string
     insetRight?: number | string
     insetTop?: number | string
     insetBottom?: number | string
-    /** 把手厚度（垂直于边方向，px） */
+    /** Handle thickness (perpendicular to the edge, px) */
     depth?: number
-    /** 只挂载指定方向（如 mini 单轴横向：['East','West']）；缺省全 8 向 */
+    /** Mount only the specified directions (e.g. mini single horizontal axis: ['East','West']); defaults to all 8 */
     directions?: string[]
     /**
-     * 带状模式：边把手从窗口边缘整条覆盖到边框线内侧 2px——透明页边距
-     *  （边线到窗口边的"虚空"死区）全部可抓，不再要求精确点中 12px 细条
+     * Band mode: edge handles cover the whole strip from the window edge to 2px inside the border line — the entire
+     * transparent margin (the "void" dead zone between the border line and the window edge) becomes grabbable,
+     * no longer requiring a precise hit on a 12px-thin strip
      */
     band?: boolean
   }>(),
   { insetLeft: 24, insetRight: 27, insetTop: 21, insetBottom: 26, depth: 12, directions: () => [], band: false },
 )
 
-/** inset 归一化为 CSS 长度（number→px，string 原样） */
+/** Normalize an inset into a CSS length (number→px, string as-is) */
 const len = (v: number | string): string => (typeof v === 'number' ? `${v}px` : v)
 
 const appWindow = getCurrentWindow()
@@ -49,23 +50,23 @@ async function start(dir: Dir) {
   try {
     await appWindow.startResizeDragging(dir)
   } catch {
-    // macOS NotSupported 等：静默，用户回落原生边缘拖拽
+    // macOS NotSupported etc.: silent; the user falls back to native edge dragging
   }
 }
 
 interface Handle {
   dir: Dir
   cursor: string
-  /** CSS 定位（相对窗口根容器） */
+  /** CSS positioning (relative to the window root container) */
   style: Record<string, string>
 }
 
 const d = () => props.depth
-const c = () => props.depth * 1.4 // 角把手略大更好抓
+const c = () => props.depth * 1.4 // corner handles are slightly larger and easier to grab
 
 const allHandles: Handle[] = props.band
   ? [
-      // 带状：边线到窗口边缘整条可抓（内界 = inset + 2px，不进纸面内容区）
+      // Band mode: the whole strip from the border line to the window edge is grabbable (inner boundary = inset + 2px, never entering the paper content area)
       { dir: 'North', cursor: 'ns-resize', style: { top: '0', bottom: `calc(100% - ${len(props.insetTop)} - 2px)`, left: '40px', right: '40px' } },
       { dir: 'South', cursor: 'ns-resize', style: { bottom: '0', top: `calc(100% - ${len(props.insetBottom)} - 2px)`, left: '40px', right: '40px' } },
       { dir: 'West', cursor: 'ew-resize', style: { left: '0', right: `calc(100% - ${len(props.insetLeft)} - 2px)`, top: '40px', bottom: '40px' } },
@@ -100,7 +101,7 @@ const handles = props.directions.length > 0
 </template>
 
 <style scoped>
-/* 容器不拦截事件，仅把手本身可命中 */
+/* The container does not intercept events; only the handles themselves are hittable */
 .resize-handles {
   position: absolute;
   inset: 0;

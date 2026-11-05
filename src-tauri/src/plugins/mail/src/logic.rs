@@ -1,47 +1,47 @@
-//! 邮件连接管理的纯逻辑（TDD 重点，不依赖网络/keyring/Tauri）。
+//! Pure logic for mail connection management (TDD focus; no network/keyring/Tauri dependencies).
 //!
-//! 这些函数决定「何时重置 IDLE / 何时重连 / 重连等多久」，
-//! 抽成纯函数后可在 `#[cfg(test)]` 里覆盖边界，实际 IMAP 连接靠 tracer bullet 手动验证。
+//! These functions decide "when to reset IDLE / when to reconnect / how long to wait before reconnecting";
+//! extracted as pure functions so boundaries can be covered under `#[cfg(test)]`, while actual IMAP connections are verified manually via tracer bullets.
 
 use std::time::Duration;
 
-/// 不支持 IDLE 的服务器（如 Coremail/论客 老版本）轮询周期。
+/// Polling interval for servers without IDLE support (e.g. old Coremail/论客 versions).
 ///
-/// IDLE 不可用时降级为定期 FETCH 检查新邮件，5 秒周期与 IDLE 路径的
-/// `wait_with_timeout` 兜底周期一致，保证体感延迟可控。
+/// When IDLE is unavailable, degrade to periodic FETCH checks for new mails; the 5-second interval matches
+/// the `wait_with_timeout` fallback period on the IDLE path, keeping perceived latency under control.
 pub const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
-/// IDLE 自动重置阈值。RFC 2177 建议 30 分钟内重置一次，防服务端超时；
-/// 取 29 分钟留 1 分钟余量。
+/// IDLE auto-reset threshold. RFC 2177 recommends resetting within 30 minutes to guard against server timeouts;
+/// 29 minutes leaves a 1-minute margin.
 ///
-/// 当前 IDLE 保活由 async-imap `Handle::wait()` 内置 29min 超时实现（见 manager.rs），
-/// 本常量 + [`should_reset_idle`] 作为纯逻辑 seam 保留，供 ticket #11 AC 要求的单元测试覆盖，
-/// 也为未来需要手动判定保活时机的场景（如非 wait_with_timeout 的自定义循环）预留。
+/// IDLE keep-alive is currently provided by async-imap `Handle::wait()`'s built-in 29min timeout (see manager.rs);
+/// this constant + [`should_reset_idle`] are kept as a pure-logic seam for the unit-test coverage required by
+/// ticket #11's AC, and reserved for future scenarios needing manual keep-alive timing (e.g. a custom loop not using wait_with_timeout).
 #[allow(dead_code)]
 pub const IDLE_RESET_INTERVAL: Duration = Duration::from_secs(29 * 60);
 
-/// IDLE 命令失败的分类（决定降级还是重连）。
+/// Classification of IDLE command failures (decides degradation vs reconnection).
 ///
-/// Coremail（论客）等服务器不支持 IMAP IDLE 扩展，对 IDLE 命令返回
-/// `BAD command not support`。这种情况下重试 IDLE 永远不会成功，应降级为轮询。
-/// 临时错误（网络抖动等）则应重连后重试 IDLE。
+/// Servers like Coremail (论客) do not support the IMAP IDLE extension and return
+/// `BAD command not support` for the IDLE command. Retrying IDLE will never succeed in that case, so degrade to polling.
+/// Transient errors (network jitter etc.) should retry IDLE after reconnecting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdleSupport {
-    /// 服务器不支持 IDLE（BAD command not support）→ 降级轮询，不再尝试 IDLE。
+    /// The server does not support IDLE (BAD command not support) → degrade to polling, never try IDLE again.
     Unsupported,
-    /// 临时错误（网络抖动等）→ 重连后重试 IDLE。
+    /// Transient error (network jitter etc.) → retry IDLE after reconnecting.
     Transient,
 }
 
-/// 根据错误信息判定是「不支持 IDLE」还是「临时错误」。
+/// Classify an error message as "IDLE unsupported" vs "transient error".
 ///
-/// 纯函数，便于单测。错误信息的匹配基于实际观察到的服务器响应：
-/// - Coremail: `BAD command not support`（init 返回的 io error message）
-/// - 临时错误：网络抖动、连接重置等，不含 "not support" / "unknown command"
+/// Pure function, easy to unit test. The message matching is based on actually observed server responses:
+/// - Coremail: `BAD command not support` (the io error message returned by init)
+/// - Transient errors: network jitter, connection reset etc., not containing "not support" / "unknown command"
 pub fn classify_idle_error(err_msg: &str) -> IdleSupport {
     let lower = err_msg.to_lowercase();
     // Coremail: "command not support"
-    // 通用 IMAP: "unknown command"（RFC 3501 对未识别命令的标准 BAD 响应）
+    // Generic IMAP: "unknown command" (RFC 3501's standard BAD response for unrecognized commands)
     if lower.contains("not support") || lower.contains("unknown command") {
         IdleSupport::Unsupported
     } else {
@@ -49,33 +49,33 @@ pub fn classify_idle_error(err_msg: &str) -> IdleSupport {
     }
 }
 
-/// 断线重连退避上限（指数退避封顶，避免无限增长到离谱的等待时间）。
+/// Reconnect backoff cap (exponential backoff ceiling, avoiding absurdly long waits from unbounded growth).
 pub const BACKOFF_MAX: Duration = Duration::from_secs(5 * 60);
 
-/// 判定 IDLE 是否到了该重置的时间点。
+/// Whether IDLE has reached the point where it should be reset.
 ///
-/// @param elapsed 自上次 IDLE 重置（或启动）以来经过的时间
-/// @returns 是否已达到/超过 [`IDLE_RESET_INTERVAL`]
+/// @param elapsed Time elapsed since the last IDLE reset (or start)
+/// @returns Whether [`IDLE_RESET_INTERVAL`] has been reached/exceeded
 ///
-/// 纯函数，不读系统时钟，便于单测。当前运行时由 `wait()` 内置超时覆盖，
-/// 本函数作为纯逻辑 seam 保留（ticket #11 AC 要求有单元测试）。
+/// Pure function, does not read the system clock, easy to unit test. Currently the runtime is covered by `wait()`'s built-in timeout;
+/// this function is kept as a pure-logic seam (ticket #11's AC requires unit tests).
 #[allow(dead_code)]
 pub fn should_reset_idle(elapsed: Duration) -> bool {
     elapsed >= IDLE_RESET_INTERVAL
 }
 
-/// 计算第 `retries` 次重连前的等待时间（指数退避，封顶 [`BACKOFF_MAX`]）。
+/// Compute the wait before the `retries`-th reconnect (exponential backoff, capped at [`BACKOFF_MAX`]).
 ///
-/// 策略：初始 2s，每次翻倍（2 → 4 → 8 → 16 → 32 → 64 → 128 → 240=MAX），
-/// 到达上限后不再增长。`retries` 从 0 开始（首次重试 = retries=0 → 等 2s）。
+/// Strategy: start at 2s, double each time (2 → 4 → 8 → 16 → 32 → 64 → 128 → 240=MAX),
+/// and stop growing once the cap is reached. `retries` starts at 0 (first retry = retries=0 → wait 2s).
 ///
-/// 纯函数，便于单测。
+/// Pure function, easy to unit test.
 pub fn backoff_delay(retries: u32) -> Duration {
-    // 初始 2 秒；每多一次重试翻一倍。用 checked_shl + saturating_mul 防溢出，
-    // 最后用 min 封顶到 BACKOFF_MAX。
+    // Start at 2 seconds; double for each additional retry. Use checked_shl + saturating_mul to prevent overflow,
+    // then cap at BACKOFF_MAX with min.
     let base = Duration::from_secs(2);
-    // Duration::saturating_mul 取 u32；retries 很大时 factor 会 saturate 到 u32::MAX
-    //（随后被 BACKOFF_MAX 封顶，不会越界）。
+    // Duration::saturating_mul takes a u32; with a huge retries the factor saturates to u32::MAX
+    // (subsequently capped by BACKOFF_MAX, so no overflow).
     let factor = 1u32.checked_shl(retries).unwrap_or(u32::MAX);
     let delay = base.saturating_mul(factor);
     delay.min(BACKOFF_MAX)
@@ -141,8 +141,8 @@ mod tests {
 
         #[test]
         fn 达到上限后封顶不再增长() {
-            // BACKOFF_MAX = 5min = 300s。2 * 2^7 = 256s < 300s（未封顶），
-            // 2 * 2^8 = 512s > 300s → retries=8 起封顶到 300s。
+            // BACKOFF_MAX = 5min = 300s. 2 * 2^7 = 256s < 300s (not capped),
+            // 2 * 2^8 = 512s > 300s → capped at 300s from retries=8 on.
             assert_eq!(backoff_delay(8), BACKOFF_MAX);
             assert_eq!(backoff_delay(9), BACKOFF_MAX);
             assert_eq!(backoff_delay(20), BACKOFF_MAX);
@@ -151,7 +151,7 @@ mod tests {
 
         #[test]
         fn retries7_未封顶_256秒() {
-            // 2 * 2^7 = 256s < 300s(BACKOFF_MAX)，还未到上限
+            // 2 * 2^7 = 256s < 300s (BACKOFF_MAX), not yet at the cap
             assert_eq!(backoff_delay(7), Duration::from_secs(256));
         }
 
@@ -181,14 +181,14 @@ mod tests {
 
         #[test]
         fn coremail_不支持的响应判定为不支持() {
-            // 实际观察到的 Coremail 响应（日志 A0004 BAD command not support）
+            // Actually observed Coremail responses (log: A0004 BAD command not support)
             assert_eq!(classify_idle_error("io: command not support"), IdleSupport::Unsupported);
             assert_eq!(classify_idle_error("BAD command not support"), IdleSupport::Unsupported);
         }
 
         #[test]
         fn 通用unknown_command也判定为不支持() {
-            // RFC 3501 标准的「未识别命令」响应
+            // RFC 3501's standard "unrecognized command" response
             assert_eq!(classify_idle_error("BAD unknown command"), IdleSupport::Unsupported);
             assert_eq!(classify_idle_error("BAD Error: unknown command IDLE"), IdleSupport::Unsupported);
         }

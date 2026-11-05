@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { formatConnectionError } from './errors'
 
-// 测试用翻译函数：返回 key 本身（验证取了正确的 i18n key）
+// Test translation function: returns the key itself (verifies the correct i18n key was fetched)
 const t = (key: string) => key
 
 describe('formatConnectionError', () => {

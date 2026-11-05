@@ -1,15 +1,15 @@
-//! Tauri 命令层：前端调用的 `mail_*` 命令 + keyring 凭证 CRUD。
+//! Tauri command layer: the `mail_*` commands called by the frontend + keyring credential CRUD.
 //!
-//! 命令前缀 `plugin:mail|<name>`（见 build.rs 的 COMMANDS）。
-//! 密码**绝不**进 pinia store，只走 keyring（[`crate::manager::keyring_key`]）。
+//! Command prefix `plugin:mail|<name>` (see COMMANDS in build.rs).
+//! Passwords **never** enter the pinia store; they only go through the keyring ([`crate::manager::keyring_key`]).
 
 use tauri::{AppHandle, Runtime, command, Manager};
 
 use crate::manager::{ConnectionManager, KEYRING_KEY_PREFIX, build_imap_session};
 
-/// 测试 IMAP 连接（不保存任何东西，仅验证能登录 + 选 INBOX）。
+/// Test the IMAP connection (saves nothing; only verifies login + INBOX selection).
 ///
-/// 前端「测试并保存」按钮先调本命令，成功后才调 `mail_store_password` + `mail_connect`。
+/// The frontend "test and save" button calls this command first, then `mail_store_password` + `mail_connect` on success.
 #[command]
 pub async fn mail_test_connection(
     imap_host: String,
@@ -18,17 +18,17 @@ pub async fn mail_test_connection(
     password: String,
     proxy: Option<String>,
 ) -> Result<(), String> {
-    // 复用 build_imap_session：TLS 连接 + 登录 + 选 INBOX，成功即登出返回，不持有任何状态
+    // Reuse build_imap_session: TLS connection + login + select INBOX; on success log out and return, holding no state
     let mut session = build_imap_session(&imap_host, imap_port, &username, &password, proxy.as_deref()).await?;
     let _ = session.logout().await;
     Ok(())
 }
 
-/// 启动某账号的 IDLE 监听（从 keyring 取密码，spawn task）。
+/// Start an account's IDLE watch (fetches the password from the keyring, spawns the task).
 ///
-/// `initial_last_seen_uid` 来自前端持久化的 mailAccount.lastSeenUid：
-/// 非 0 时作为离线补发基线（fetch 离线期间到达的新邮件 UID > last_seen_uid）；
-/// 0 时回退到当前 INBOX 最大 UID（T1 行为：跳过已有邮件）。
+/// `initial_last_seen_uid` comes from the frontend-persisted mailAccount.lastSeenUid:
+/// when non-zero it serves as the offline catch-up baseline (fetch new mails that arrived offline with UID > last_seen_uid);
+/// when 0 it falls back to the current max INBOX UID (T1 behavior: skip existing mails).
 #[command]
 pub async fn mail_connect<R: Runtime>(
     app: AppHandle<R>,
@@ -40,15 +40,15 @@ pub async fn mail_connect<R: Runtime>(
     initial_last_seen_uid: u32,
 ) -> Result<(), String> {
     let manager = app.state::<ConnectionManager>();
-    // connect 需要 owned AppHandle（spawn 的 task 持有它），clone 一份传走，
-    // 避免与上面的 `.state()` 借用冲突。
+    // connect needs an owned AppHandle (the spawned task holds it), so clone one to pass along,
+    // avoiding a conflict with the `.state()` borrow above.
     manager
         .inner()
         .connect(app.clone(), account_id, imap_host, imap_port, username, proxy, initial_last_seen_uid)
         .await
 }
 
-/// 断开某账号的 IDLE 监听（取消 task）。
+/// Stop an account's IDLE watch (cancels the task).
 #[command]
 pub async fn mail_disconnect<R: Runtime>(
     app: AppHandle<R>,
@@ -59,7 +59,7 @@ pub async fn mail_disconnect<R: Runtime>(
     Ok(())
 }
 
-/// 存邮箱密码到 keyring（key = `bongocat-todo/mail/<accountId>`）。
+/// Store the mailbox password in the keyring (key = `bongocat-todo/mail/<accountId>`).
 #[command]
 pub async fn mail_store_password(
     account_id: String,
@@ -74,9 +74,9 @@ pub async fn mail_store_password(
         .map_err(|e| format!("keyring 存密码失败: {e}"))
 }
 
-/// 从 keyring 删邮箱密码（删除账号时调用）。
+/// Delete the mailbox password from the keyring (called when deleting an account).
 ///
-/// keyring v4 v1 API 的删除方法名是 `delete_credential`（非 `delete_password`）。
+/// keyring v4's v1 API names the deletion method `delete_credential` (not `delete_password`).
 #[command]
 pub async fn mail_delete_password(
     account_id: String,
@@ -87,7 +87,7 @@ pub async fn mail_delete_password(
         .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
-        // 已不存在视为成功（幂等删除）
+        // Already absent counts as success (idempotent delete)
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(format!("keyring 删密码失败: {e}")),
     }

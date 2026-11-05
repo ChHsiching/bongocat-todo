@@ -11,11 +11,14 @@ import HandClock from '../HandClock/index.vue'
 import InkDot from '../InkDot/index.vue'
 
 /**
- * Todo 项（TodoItem）：组合 HandCheckbox + InkDot + HandClock + 标题/meta。
- * - 优先级墨点：按 todo.priority 渲染红/橙/蓝；T6 起点击墨点循环切换优先级（low→med→high→low）。
- * - 到期文案：T6 起相对表述 + 具体时分并存（如「明天 14:30」「今天 09:00」「已逾期 7/28 14:30」）。
- * - 到期视觉：有 dueDate 且（今天/逾期）时 HandClock urgent 态（红描边）+ 红字。
- * - emit toggle/remove/changePriority 给父组件操作 store。
+ * Todo item (TodoItem): composes HandCheckbox + InkDot + HandClock + title/meta.
+ * - Priority ink dot: renders red/orange/blue per todo.priority; since T6 clicking the dot
+ *   cycles the priority (low→med→high→low).
+ * - Due label: since T6 a relative phrase coexists with the exact time (e.g. "Tomorrow 14:30",
+ *   "Today 09:00", "Overdue 7/28 14:30").
+ * - Due visuals: with a dueDate that is today/overdue, HandClock enters the urgent state
+ *   (red stroke) + red text.
+ * - emit toggle/remove/changePriority for the parent to operate the store.
  */
 const { todo } = defineProps<{
   todo: Todo
@@ -41,23 +44,24 @@ const priorityLabel = computed(() => {
   }
 })
 
-/** 两位补零。 */
+/** Zero-pad to two digits. */
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
 /**
- * 到期文案（T6）：相对表述 + 具体时分并存。
- * - 今天未到期：`今天 14:30`
- * - 今天已逾期：`已逾期 14:30`（时点已过，精确到分钟）
- * - 明天：`明天 14:30`
- * - 往日逾期：`已逾期 7/28 14:30`
- * - 更远：`7/30 14:30`（相对词不够用时回退到月/日 + 时分）
+ * Due label (T6): a relative phrase coexists with the exact time.
+ * - Today, not yet due: `Today 14:30`
+ * - Today, overdue: `Overdue 14:30` (the time has passed, accurate to the minute)
+ * - Tomorrow: `Tomorrow 14:30`
+ * - Overdue on an earlier day: `Overdue 7/28 14:30`
+ * - Further out: `7/30 14:30` (falls back to month/day + HH:mm when relative words run out)
  *
- * 逾期判定精确到分钟（`dueDate < now`），不再按整天比较——避免「今天 10:15 到期、
- * 现在 10:20 仍显示蓝色「今天」」的体感问题。
+ * Overdue detection is accurate to the minute (`dueDate < now`), no longer compared by whole
+ * day — avoiding the perceived issue of "due today 10:15, now 10:20, still showing a blue 'Today'".
  *
- * 所有 dueDate 都带时分（MiniInput 构造的 timestamp 精确到分钟），故一律显示 HH:mm。
+ * Every dueDate carries a time (the timestamp MiniInput builds is accurate to the minute),
+ * so HH:mm is always displayed.
  */
 const dueLabel = computed<null | string>(() => {
   if (!todo.dueDate)
@@ -70,7 +74,7 @@ const dueLabel = computed<null | string>(() => {
   const now = Date.now()
   const overdue = todo.dueDate < now
 
-  // 逾期优先显示「已逾期」：今天过时点也显示「已逾期 HH:mm」（不带月日，今天不需要）
+  // Overdue shows "Overdue" first: today past the time also shows "Overdue HH:mm" (no month/day — unnecessary for today)
   if (overdue) {
     const today = startOfDay(now)
     const dueDay = startOfDay(todo.dueDate)
@@ -90,21 +94,21 @@ const dueLabel = computed<null | string>(() => {
   return `${md} ${hm}`
 })
 
-/** 到期需高亮（今天或逾期）。 */
+/** Due needs highlighting (today or overdue). */
 const isUrgent = computed(() => {
   if (!todo.dueDate)
     return false
   return todo.dueDate <= Date.now()
 })
 
-/** 已逾期（时点已过，精确到分钟），用红色警告；未到时点用蓝色提示。 */
+/** Overdue (the time has passed, accurate to the minute) shows a red warning; before the time, a blue hint. */
 const isOverdue = computed(() => {
   if (!todo.dueDate)
     return false
   return todo.dueDate < Date.now()
 })
 
-/** 点击墨点循环切换优先级。 */
+/** Click the ink dot to cycle the priority. */
 function cyclePriority() {
   emit('changePriority', todo.id, nextPriority(todo.priority))
 }
@@ -157,7 +161,7 @@ function startOfDay(ts: number): number {
       </div>
     </div>
 
-    <!-- 删除：手绘风垃圾桶（与邮件列表删除按钮一致），hover 时显隐 -->
+    <!-- Delete: hand-drawn style trash can (same as the mail list's delete button), shown/hidden on hover -->
     <button
       class="remove-btn"
       :title="t('plugins.todo.labels.deleteButton')"
@@ -174,7 +178,7 @@ function startOfDay(ts: number): number {
         viewBox="0 0 24 24"
         width="16"
       >
-        <!-- 手绘垃圾桶：桶盖横线 + 把手 + 桶身 + 两条竖纹（复刻 MailItem） -->
+        <!-- Hand-drawn trash can: lid line + handle + can body + two vertical grooves (replicated from MailItem) -->
         <path d="M 4 7 Q 8 6.5 12 7 Q 16 7.5 20 7" />
         <path d="M 10 5 Q 12 4 14 5" />
         <path d="M 6 8 Q 5.5 8 5.7 9 L 7 19 Q 7.2 20 8.2 20 L 15.8 20 Q 16.8 20 17 19 L 18.3 9 Q 18.5 8 18 8" />
@@ -201,7 +205,7 @@ function startOfDay(ts: number): number {
   background: color-mix(in srgb, var(--pink) 8%, transparent);
 }
 
-/* 暗色下 hover 用更柔和的粉 */
+/* Use a softer pink for hover in dark mode */
 html.dark .todo-item:hover {
   background: color-mix(in srgb, var(--pink) 14%, transparent);
 }

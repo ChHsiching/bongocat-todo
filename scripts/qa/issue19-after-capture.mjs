@@ -1,8 +1,8 @@
 /**
- * issue19 after 截图：真实拖拽到各目标尺寸后截屏（docs/screenshots/issue19/after/）。
+ * issue19 "after" screenshots: really drag to each target size, then capture (docs/screenshots/issue19/after/).
  *
- * 尺寸集：380×560（默认对比基线）/ 560×640（中档）/ 720×560（maxWidth 拉满宽）/ mini 380×130。
- * 拖拽到位后按实际 rect 截图（±3px 容差，文件名取整）。
+ * Size set: 380×560 (default, vs the baseline) / 560×640 (mid) / 720×560 (maxWidth full width) / mini 380×130.
+ * After dragging into place, capture the actual rect (±3px tolerance, filenames rounded).
  */
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
@@ -32,7 +32,7 @@ async function dragEdge(edge, dx, dy) {
 }
 
 async function sizeTo(width, height) {
-  // 逐边拖到目标（从当前 rect 求差量），多轮收敛消除拖拽丢步/边界效应
+  // Drag edge by edge to the target (delta computed from the current rect); multiple convergence rounds eliminate drag step loss / boundary effects
   for (let i = 0; i < 4; i++) {
     const r = await todoWindowInfo()
     const dw = width - r.width
@@ -55,7 +55,7 @@ async function capture(name) {
   return r
 }
 
-console.log('等待 CDP …')
+console.log('Waiting for CDP ...')
 await waitForCdp()
 
 await emitAppEvent('show-todo-full')
@@ -77,4 +77,4 @@ await emitAppEvent('show-todo-mini')
 await sleep(700)
 await capture('after-mini-380x130.png')
 
-console.log('\n=== after 截图完成 ===')
+console.log('\n=== After screenshots done ===')

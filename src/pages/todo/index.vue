@@ -24,50 +24,52 @@ const appWindow = getCurrentWebviewWindow()
 const visibleTodos = computed(() => todoStore.visibleTodos)
 
 /**
- * 渐隐渐显：根元素 opacity 过渡。
- * - 打开：show 后下一帧置 true，CSS 从 opacity:0 → 1（渐显）。
- * - 关闭：先置 false 跑渐隐，FADE_MS 后再 hideWindow（窗口真正隐藏）。
- * panel / mini 两形态共用同一套。
+ * Fade in/out: opacity transition on the root element.
+ * - Open: set true on the frame after show; CSS goes opacity:0 → 1 (fade in).
+ * - Close: set false first to run the fade-out, then hideWindow after FADE_MS (the window actually hides).
+ * panel / mini modes share the same logic.
  */
 const FADE_MS = 200
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
-/** 主面板默认尺寸（与 tauri.conf.json 的 todo 窗口 width/height 一致）。 */
+/** Default main panel size (matching the todo window's width/height in tauri.conf.json). */
 const FULL_SIZE = new PhysicalSize(380, 560)
 /**
- * 迷你窗物理尺寸（含阴影余量），MiniInput 的 SVG viewBox 380×130 同口径。
- * T6 加优先级 + 日期控件后加宽到与主面板同宽（380），保持 130 高（两行布局）。
+ * Mini window physical size (including shadow allowance); the same 380×130 basis as MiniInput's SVG viewBox.
+ * After T6 added the priority + date controls it was widened to the main panel's width (380), keeping the 130 height (two-row layout).
  */
 const MINI_SIZE = new PhysicalSize(380, 130)
-/** 高度阈值：低于此值判定为 mini 形态（mini 110 << 200 << panel 560）。 */
+/** Height threshold: below it the mode is mini (mini 110 << 200 << panel 560). */
 const MINI_HEIGHT_MAX = 200
 
-// ── issue #19：panel 形态可拖拽调整大小（logical px 约束） ──
-// 勿在 tauri.conf.json 静态配置 minHeight/maxHeight：会钳死 mini 形态的程序化 setSize(380×130)。
-// panel 打开时动态设置、进 mini 前清空（见 applyPanelConstraints / clearPanelConstraints）。
-/** 宽度下限 = 默认宽（MiniInput/PaperPanel 的 viewBox 基准）。 */
+// ── issue #19: the panel mode is drag-resizable (logical px constraints) ──
+// Do not statically configure minHeight/maxHeight in tauri.conf.json: it would clamp the mini mode's programmatic setSize(380×130).
+// Set dynamically when the panel opens, cleared before entering mini (see applyPanelConstraints / clearPanelConstraints).
+/** Width floor = default width (the viewBox basis of MiniInput/PaperPanel). */
 const PANEL_MIN_WIDTH = 380
 /**
- * 高度下限 280：完整显示「标题区 + 分区标签 + 一条待办 + 底部新建」的实测最小值，
- * 且远高于 mini 形态阈值 200，杜绝拖拽中掉进 mini 误判。
+ * Height floor 280: the measured minimum to fully show "header area + section label + one todo
+ * + footer create area", and far above the mini mode threshold of 200, ruling out a false mini
+ * detection mid-drag.
  */
 const PANEL_MIN_HEIGHT = 280
-/** 宽度上限 720：依 W3C《中文排版需求》正文行长 17–40 字，17px 字号下 720 ≈ 40 字取上沿。 */
+/** Width ceiling 720: per the W3C "Requirements for Chinese Text Layout", body line length is 17–40 characters; at 17px font size 720 ≈ 40 chars, taking the upper bound. */
 const PANEL_MAX_WIDTH = 720
-/** 高度不设实质上限（无排版学依据不拍数字），用 8K 高度兜底表达「不限制」。 */
+/** No meaningful height ceiling (no typographic basis to pick a number); 8K height is a fallback meaning "unlimited". */
 const PANEL_MAX_HEIGHT = 8192
 
 /**
- * 当前窗口形态：panel（主面板 380×560）/ mini（迷你输入窗 280×110）。
+ * Current window mode: panel (main panel 380×560) / mini (mini input window 280×110).
  *
- * 同一 WINDOW_LABEL.TODO 窗口在不同尺寸下渲染不同组件（见 D2「快速新建复用同一 label」）。
- * 初值按 mount 时的 outerSize 判定；onResized 重判保证 setSize 后形态即时切换。
+ * The same WINDOW_LABEL.TODO window renders different components at different sizes (see D2 "quick create reuses the same label").
+ * The initial value is classified by outerSize at mount; onResized re-classifies so the mode switches immediately after setSize.
  */
 const mode = ref<'mini' | 'panel'>('panel')
 /**
- * mini 形态每次打开自增的 key，强制 MiniInput 重新挂载以复位三态（saved 后再开要回到输入态）。
- * panel 形态不需要此机制（TodoPanel 无需复位）。
+ * A key incremented on each open of the mini mode, forcing MiniInput to remount to reset its
+ * three states (reopening after saved must return to the input state).
+ * The panel mode needs no such mechanism (TodoPanel needs no reset).
  */
 const miniKey = ref(0)
 
@@ -76,9 +78,10 @@ function classifyByHeight(height: number) {
 }
 
 /**
- * issue #19：程序化 setSize 期间置 true，让 onResized 的持久化跳过这一波事件
- * （程序化尺寸不该写回 store，否则「恢复尺寸」和「记录尺寸」互相打架）。
- * 覆盖时长 > 持久化 debounce（300ms），拖拽中最后一次事件不受影响。
+ * issue #19: set true for the duration of a programmatic setSize so onResized's persistence
+ * skips that wave of events (programmatic sizes must not be written back to the store, otherwise
+ * "restore size" and "record size" fight each other).
+ * The covered duration > the persistence debounce (300ms); the last event during a drag is unaffected.
  */
 let programmaticResize = false
 let programmaticTimer: ReturnType<typeof setTimeout> | undefined
@@ -92,12 +95,12 @@ function markProgrammaticResize() {
   }, 500)
 }
 
-/** 持久化 debounce 定时器：拖拽中每帧 resize 都会重置，最后一次事件后 300ms 才落库。 */
+/** Persistence debounce timer: every per-frame resize during a drag resets it; it commits 300ms after the last event. */
 let persistTimer: ReturnType<typeof setTimeout> | undefined
 
 /**
- * issue #19：用户拖拽结束后把 panel 尺寸存入 store（logical）。
- * 仅 panel 形态、非程序化 resize 时记录；恢复时按当前 scaleFactor 换算 physical。
+ * issue #19: store the panel size (logical) into the store after the user finishes dragging.
+ * Recorded only in panel mode and for non-programmatic resizes; on restore, converted to physical via the current scaleFactor.
  */
 function schedulePersistPanelSize() {
   if (persistTimer)
@@ -110,13 +113,13 @@ function schedulePersistPanelSize() {
     if (mode.value === 'panel') {
       todoStore.setPanelSize({ width: Math.round(logical.width), height: Math.round(logical.height) })
     } else if (mode.value === 'mini') {
-      // 高度恒 130 单轴锁，只记宽度
+      // Height fixed at 130 by the single-axis lock; record width only
       todoStore.setMiniWidth(Math.round(logical.width))
     }
   }, 300)
 }
 
-/** panel 形态打开时套上尺寸约束 + 恢复用户上次的尺寸（无记录则默认 FULL_SIZE）。 */
+/** When the panel mode opens: apply size constraints + restore the user's last size (default FULL_SIZE if none recorded). */
 async function applyPanelConstraints() {
   await appWindow.setResizable(true)
   await appWindow.setMinSize(new LogicalSize(PANEL_MIN_WIDTH, PANEL_MIN_HEIGHT))
@@ -124,7 +127,7 @@ async function applyPanelConstraints() {
 
   const stored = todoStore.panelSize
   const scale = await appWindow.scaleFactor()
-  // 恢复值 clamp 到当前约束内（防换小屏/改约束后旧值越界）
+  // Clamp the restored value within the current constraints (guard against stale values exceeding bounds after switching to a smaller screen or changing constraints)
   const logical = stored
     ? {
         width: Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, stored.width)),
@@ -152,16 +155,18 @@ onMounted(async () => {
 })
 
 /**
- * 主面板形态打开：贴猫正上方（水平居中对齐猫）→ setSize → show → 渐显。
+ * Main panel mode opens: anchor to the cat window directly above (horizontally centered on
+ * the cat) → setSize → show → fade in.
  *
- * 锚点是猫（main 窗口）而非鼠标——和快速新建一致，跟随桌宠更符合直觉。
- * 水平：面板中心对齐猫中心，clamp 到屏内（不溢左右边）。
- * 垂直：在猫正上方留 8px 间距；上方放不下则翻到猫下方；最后 clamp 到屏内。
- * show 走 showWindow（复用 App.vue 的 SHOW_WINDOW handler → Rust show_window 命令，
- * 不直接调 core:window:show，避免新增 capability 权限）。
+ * The anchor is the cat (main window), not the mouse — same as quick create; following the
+ * desktop pet matches intuition better.
+ * Horizontal: panel center aligned with the cat's center, clamped into the screen (no left/right overflow).
+ * Vertical: an 8px gap directly above the cat; if it does not fit above, flip below the cat; finally clamp into the screen.
+ * show goes through showWindow (reusing App.vue's SHOW_WINDOW handler → the Rust show_window
+ * command, not calling core:window:show directly, avoiding a new capability grant).
  */
 useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
-  // issue #19：套约束 + 恢复用户上次尺寸（含程序化标记），贴猫定位按恢复后的实际尺寸计算
+  // issue #19: apply constraints + restore the user's last size (including the programmatic flag); anchor-to-cat positioning is computed from the actual restored size
   const panelTarget = await applyPanelConstraints()
 
   const monitors = await availableMonitors()
@@ -172,21 +177,21 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
   if (catWindow) {
     const catPos = await catWindow.outerPosition()
     const catSize = await catWindow.outerSize()
-    // 猫所在显示器（退化取第一块）
+    // The monitor containing the cat (falls back to the first one)
     const monitor = monitors.find(m =>
       catPos.x >= m.position.x && catPos.x < m.position.x + m.size.width
       && catPos.y >= m.position.y && catPos.y < m.position.y + m.size.height,
     ) ?? monitors[0]
 
     if (monitor) {
-      // 水平：面板中心对齐猫中心
+      // Horizontal: panel center aligned with the cat's center
       x = catPos.x + Math.round(catSize.width / 2 - panelTarget.width / 2)
-      // 垂直：猫正上方留 8px
+      // Vertical: an 8px gap directly above the cat
       y = catPos.y - panelTarget.height - 8
-      // 上方放不下 → 翻到猫下方
+      // Does not fit above → flip below the cat
       if (y < monitor.position.y)
         y = catPos.y + catSize.height + 8
-      // clamp 到屏内
+      // Clamp into the screen
       x = Math.max(monitor.position.x, Math.min(x, monitor.position.x + monitor.size.width - panelTarget.width))
       y = Math.max(monitor.position.y, Math.min(y, monitor.position.y + monitor.size.height - panelTarget.height))
     }
@@ -201,12 +206,14 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
 })
 
 /**
- * 迷你窗形态打开：定位到桌宠（main 窗口）上方偏右 → setSize → show。
- * miniKey 自增强制 MiniInput 重新挂载，复位 idle 态。
+ * Mini window mode opens: position to the upper right of the desktop pet (main window) → setSize → show.
+ * miniKey self-increments to force MiniInput to remount, resetting to the idle state.
  *
- * 定位锚点改为桌宠而非光标——右键菜单弹出时光标位置距实际想要的迷你窗位置远，
- * 跟随桌宠更符合直觉（迷你窗像从猫身上冒出来）。垂直方向在桌宠正上方留 8px 间距，
- * 水平方向右移桌宠宽度的 60%（「上方偏右」）；若超出显示器右边界则翻到左侧偏左。
+ * The positioning anchor is the desktop pet, not the cursor — when the right-click menu pops up
+ * the cursor sits far from where the mini window is actually wanted; following the pet matches
+ * intuition better (the mini window seems to pop out of the cat). Vertically, an 8px gap
+ * directly above the pet; horizontally, shifted right by 60% of the pet's width ("upper
+ * right"); if it exceeds the monitor's right edge, flip to the left side, offset left.
  */
 useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   const monitors = await availableMonitors()
@@ -217,16 +224,16 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   if (catWindow) {
     const catPos = await catWindow.outerPosition()
     const catSize = await catWindow.outerSize()
-    // 上方偏右：水平右移桌宠宽度的 60%，垂直在其上方留 8px。
+    // Upper right: horizontally shifted right by 60% of the pet's width; vertically an 8px gap above it.
     x = catPos.x + Math.round(catSize.width * 0.6)
     y = catPos.y - MINI_SIZE.height - 8
   } else {
-    // 找不到 main 窗口时退化为第一块显示器的可视区左上角，保证不崩。
+    // When the main window cannot be found, fall back to the top-left of the first monitor's visible area; never crash.
     x = monitors[0]?.position.x ?? 0
     y = (monitors[0]?.position.y ?? 0) + 40
   }
 
-  // 边界 clamp：迷你窗不溢出桌宠所在显示器。若上方空间不足则翻到桌宠下方。
+  // Boundary clamp: the mini window must not overflow the monitor containing the pet. If there is not enough room above, flip below the pet.
   const monitor = monitors.find((m) => {
     const { position, size } = m
     return x >= position.x && x < position.x + size.width
@@ -239,7 +246,7 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
     const minY = monitor.position.y
     x = Math.max(monitor.position.x, Math.min(x, maxX))
     if (y < minY) {
-      // 上方放不下 → 翻到桌宠下方
+      // Does not fit above → flip below the pet
       const catWindow2 = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
       const catBottom = catWindow2 ? (await catWindow2.outerPosition()).y + (await catWindow2.outerSize()).height : minY + 100
       y = catBottom + 8
@@ -247,8 +254,9 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
     y = Math.min(y, maxY)
   }
 
-  // issue #19：mini 横向可调（作者方案）——单轴约束：高度 min=max=130 锁死竖直
-  // （低于 panel 的 minHeight 且不碰 200 形态阈值），横向 380-720 与面板同口径
+  // issue #19: mini is horizontally resizable (the author's approach) — single-axis constraint:
+  // height min=max=130 locks the vertical axis (below the panel's minHeight and clear of the
+  // 200 mode threshold); horizontal 380-720 matches the panel
   await appWindow.setResizable(true)
   await appWindow.setMinSize(new LogicalSize(PANEL_MIN_WIDTH, MINI_SIZE.height))
   await appWindow.setMaxSize(new LogicalSize(PANEL_MAX_WIDTH, MINI_SIZE.height))
@@ -286,7 +294,7 @@ function handleRemove(id: string) {
 }
 
 function handleClose() {
-  // 先跑渐隐，动画结束后再真正隐藏窗口
+  // Run the fade-out first, then actually hide the window after the animation ends
   if (hideTimer)
     clearTimeout(hideTimer)
   shown.value = false
@@ -299,11 +307,13 @@ function handleClose() {
     class="todo-handdrawn fade h-screen w-screen overflow-hidden p-3"
     :class="{ 'fade-shown': shown }"
   >
-    <!-- 贴纸片可见边框的 resize 把手：panel 全 8 向；mini 单轴横向仅 E/W，
-         inset 用百分比跟随 monolithic SVG 的等比边框（380 时 ≈7%/8%≈27/30px） -->
+    <!-- Resize handles hugging the paper's visible border: panel uses all 8 directions; mini
+         is single-axis horizontal E/W only, with percentage insets following the monolithic
+         SVG's proportional border (at 380 ≈7%/8%≈27/30px) -->
     <ResizeHandles v-if="mode === 'panel'" />
-    <!-- mini 带状把手：边线到窗口边缘整条透明区可抓（消灭"虚空"死区），
-         内界 = 仿射边框位置 + 2px，不进纸面内容区 -->
+    <!-- Mini band handle: the whole transparent strip from the border line to the window edge
+         is grabbable (eliminating the "void" dead zone); the inner boundary = the affine border
+         position + 2px, never entering the paper's content area -->
     <ResizeHandles
       v-else
       band
@@ -330,7 +340,7 @@ function handleClose() {
 </template>
 
 <style scoped>
-/* 渐隐渐显：opacity 过渡。.fade 初始 opacity:0，加 .fade-shown 后到 1。 */
+/* Fade in/out: opacity transition. .fade starts at opacity:0; adding .fade-shown brings it to 1. */
 .fade {
   opacity: 0;
   transition: opacity 200ms ease;

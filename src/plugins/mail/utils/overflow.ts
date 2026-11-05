@@ -1,28 +1,28 @@
 /**
- * 气泡溢出计算（T2，纯函数）。
+ * Bubble overflow computation (T2, pure functions).
  *
- * 设计稿 bubble.html D7 决策：最多同时显示 3 条未处理气泡，第 4 条起折成一行
- * 「还有 N 条，查看邮件列表」提示。本函数把「未处理总数」拆成「展示数组」+「溢出数」，
- * 由气泡窗口页消费渲染。
+ * Per design bubble.html decision D7: at most 3 pending bubble notifications are shown at once; from the 4th on they
+ * collapse into a one-line "N more, view the mail list" hint. This function splits the "total pending count" into
+ * a "shown count" + an "overflow count", consumed for rendering by the bubble window page.
  *
  * @see docs/designs/phase2-exploration/bubble.html
  * @see ADR 0002 D7
  */
 
-/** 气泡最多同时显示条数（D7 决策）。 */
+/** Max number of bubbles shown at once (decision D7). */
 export const MAX_BUBBLES = 3
 
 export interface BubbleOverflow {
-  /** 实际展示的气泡条数（= min(total, MAX_BUBBLES)）。 */
+  /** Number of bubbles actually shown (= min(total, MAX_BUBBLES)). */
   shown: number
-  /** 溢出数量（total > 3 时为 total - 3，否则 0）。 */
+  /** Overflow count (total - 3 when total > 3, otherwise 0). */
   overflow: number
 }
 
 /**
- * 给定未处理气泡总数，返回展示数 + 溢出数。
+ * Given the total number of pending bubbles, return the shown count + overflow count.
  *
- * 纯函数，无副作用。覆盖 0/1/3/4/10 等边界（见 overflow.test.ts）。
+ * Pure function, no side effects. Covers boundaries like 0/1/3/4/10 (see overflow.test.ts).
  */
 export function computeBubbleOverflow(total: number): BubbleOverflow {
   const safe = Math.max(0, Math.floor(total))

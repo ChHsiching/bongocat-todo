@@ -12,16 +12,19 @@ import TodoItem from '../TodoItem/index.vue'
 import WaveDivider from '../WaveDivider/index.vue'
 
 /**
- * Todo 面板主体（TodoPanel）。
- * - 标题区：PawLogo + 标题 + 手绘关闭 X。
- * - 待办分组：未完成 todo，带 WaveDivider 分隔。
- * - 已完成分组：completed todo。
- * - 「＋ 新建待办」按钮：点击内联展开手绘风输入框（标题 + 优先级选择 + 日期输入），回车保存。
- * - 空状态提示。
+ * Todo panel body (TodoPanel).
+ * - Header area: PawLogo + title + hand-drawn close X.
+ * - Pending section: uncompleted todos, separated by a WaveDivider.
+ * - Completed section: completed todos.
+ * - "＋ New todo" button: clicking expands an inline hand-drawn style form (title + priority
+ *   picker + date input); Enter saves.
+ * - Empty-state hint.
  *
- * T6 输入控件完整化：新建区加 PriorityPicker（三档默认 medium）+ HandDateInput（复用 T5 手写数字框）。
+ * T6 input-control completion: the create area adds PriorityPicker (three levels, default
+ * medium) + HandDateInput (reusing T5's handwritten digit boxes).
  *
- * 数据操作通过 props（todos）/emits（toggle/remove/create/changePriority）与父解耦，父负责接 store。
+ * Data operations are decoupled from the parent via props (todos)/emits
+ * (toggle/remove/create/changePriority); the parent wires the store.
  */
 const { todos } = defineProps<{
   todos: Todo[]
@@ -37,10 +40,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-/** 优先级权重：high > medium > low。 */
+/** Priority weights: high > medium > low. */
 const priorityWeight: Record<TodoPriority, number> = { high: 0, medium: 1, low: 2 }
 
-/** 排序：优先级升序 → dueDate（无则排末尾）→ createdAt（先创建在上）。 */
+/** Sort: priority ascending → dueDate (missing goes last) → createdAt (earlier created first). */
 function sortTodos(a: Todo, b: Todo): number {
   const pDiff = priorityWeight[a.priority] - priorityWeight[b.priority]
   if (pDiff !== 0)
@@ -59,9 +62,9 @@ const completedTodos = computed(() => todos.filter(todo => todo.completed).sort(
 
 const showAddInput = ref(false)
 const newTitle = ref('')
-/** 新建 todo 的优先级（默认 medium）。 */
+/** Priority of the new todo (default medium). */
 const newPriority = ref<TodoPriority>('medium')
-/** 新建 todo 的截止日期 timestamp（未填日期时 undefined）。 */
+/** Due-date timestamp of the new todo (undefined when no date is filled). */
 const newDueDate = ref<number | undefined>(undefined)
 const addInputEl = ref<HTMLInputElement | null>(null)
 const dateInputEl = ref<InstanceType<typeof HandDateInput> | null>(null)
@@ -83,7 +86,7 @@ function handleCancelAdd() {
   resetAddForm()
 }
 
-/** 日期框回车：标题有内容则提交，无内容则聚焦标题框。 */
+/** Enter in the date boxes: submit if the title has content, otherwise focus the title box. */
 function handleDateEnter() {
   if (newTitle.value.trim()) {
     handleAdd()
@@ -103,7 +106,7 @@ function resetAddForm() {
 
 <template>
   <PaperPanel>
-    <!-- 标题区（可拖拽移动窗口；子元素 pointer-events:none 让拖拽穿透，按钮单独恢复） -->
+    <!-- Header area (draggable to move the window; child elements use pointer-events:none to let drags pass through, the button alone restores them) -->
     <div
       class="panel-header"
       data-tauri-drag-region
@@ -118,7 +121,7 @@ function resetAddForm() {
         type="button"
         @click="emit('close')"
       >
-        <!-- 手绘 ×：两段顺滑弧线交叉，像钢笔一笔画下来带自然弧度 -->
+        <!-- Hand-drawn ×: two smooth crossing arcs, like one natural pen stroke -->
         <svg
           fill="none"
           height="22"
@@ -128,17 +131,17 @@ function resetAddForm() {
           viewBox="0 0 24 24"
           width="22"
         >
-          <!-- 左上→右下：顺滑大弧，控制点偏离直线向左下 -->
+          <!-- Top-left→bottom-right: a smooth wide arc, control point offset from the line toward bottom-left -->
           <path d="M 6 6 Q 9.5 13 19 19" />
-          <!-- 右上→左下：顺滑大弧，控制点偏离直线向左上 -->
+          <!-- Top-right→bottom-left: a smooth wide arc, control point offset from the line toward top-left -->
           <path d="M 18 6 Q 8.5 10 5 18" />
         </svg>
       </button>
     </div>
 
-    <!-- 中间可滚动区：列表内容超出时在此滚动，不撑破黑框 -->
+    <!-- Middle scrollable area: list content scrolls here when it overflows, without breaking the ink frame -->
     <div class="panel-scroll">
-      <!-- 待办分组 -->
+      <!-- Pending section -->
       <div
         v-if="pendingTodos.length"
         class="section-label"
@@ -158,7 +161,7 @@ function resetAddForm() {
         />
       </div>
 
-      <!-- 已完成分组 -->
+      <!-- Completed section -->
       <div
         v-if="completedTodos.length"
         class="section-label"
@@ -178,7 +181,7 @@ function resetAddForm() {
         />
       </div>
 
-      <!-- 空状态 -->
+      <!-- Empty state -->
       <div
         v-if="!todos.length"
         class="empty-hint"
@@ -187,12 +190,12 @@ function resetAddForm() {
       </div>
     </div>
 
-    <!-- 底部新建区（固定，不随列表滚动；空白区可拖拽移动窗口） -->
+    <!-- Footer create area (fixed, does not scroll with the list; blank areas drag to move the window) -->
     <div
       class="panel-footer"
       data-tauri-drag-region
     >
-      <!-- 内联展开输入：标题 + 优先级 + 日期 -->
+      <!-- Inline expanded input: title + priority + date -->
       <div
         v-if="showAddInput"
         class="add-form"
@@ -231,7 +234,7 @@ function resetAddForm() {
           </button>
         </div>
       </div>
-      <!-- 「＋ 新建待办」按钮 -->
+      <!-- "＋ New todo" button -->
       <button
         v-else
         class="add-btn"
@@ -253,7 +256,7 @@ function resetAddForm() {
   margin-bottom: 22px;
 }
 
-/* 标题行也参与拖拽：子内容不拦截鼠标，让 drag-region 生效 */
+/* The title row also participates in dragging: child content does not intercept the mouse, letting the drag-region work */
 .panel-title-row {
   display: flex;
   align-items: center;
@@ -306,12 +309,12 @@ function resetAddForm() {
   flex-direction: column;
 }
 
-/* 中间滚动区：超出黑框在此滚动，隐藏滚动条 */
+/* Middle scroll area: overflow scrolls here inside the ink frame; scrollbar hidden */
 .panel-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* 隐藏滚动条（webkit + firefox）*/
+  /* Hide the scrollbar (webkit + firefox) */
   scrollbar-width: none;
 }
 
@@ -349,7 +352,7 @@ function resetAddForm() {
   color: var(--pink-deep);
 }
 
-/* 新建表单：标题输入 + 优先级/日期控件 + 确认/取消按钮。 */
+/* Create form: title input + priority/date controls + confirm/cancel buttons. */
 .add-form {
   width: 100%;
   display: flex;
@@ -379,7 +382,7 @@ function resetAddForm() {
   background: color-mix(in srgb, var(--pink) 14%, var(--paper));
 }
 
-/* 优先级选择 + 日期输入横排。 */
+/* Priority picker + date input in a row. */
 .add-controls {
   display: flex;
   align-items: center;

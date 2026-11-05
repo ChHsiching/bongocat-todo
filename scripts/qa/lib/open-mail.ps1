@@ -1,4 +1,4 @@
-# 无 CDP 打开邮件列表窗口：右键猫 → DOWN×7 + ENTER（第 8 项「邮件列表」）
+# Open the mail list window without CDP: right-click the cat → DOWN×7 + ENTER (the 8th item, '邮件列表')
 $ErrorActionPreference = 'Stop'
 
 Add-Type -TypeDefinition @'
@@ -42,7 +42,7 @@ public class OpenM {
 $proc = Get-Process bongo-cat -ErrorAction Stop
 [OpenM]::Find([uint32]$proc.Id, 'BongoCat Todo')
 $cat = [OpenM]::found
-if ($cat -eq [IntPtr]::Zero) { throw '主窗口未找到' }
+if ($cat -eq [IntPtr]::Zero) { throw 'main window not found' }
 $r = New-Object OpenM+RECT
 [OpenM]::GetWindowRect($cat, [ref]$r) | Out-Null
 $cx = [int](($r.L + $r.R) / 2)
@@ -68,7 +68,7 @@ Start-Sleep -Milliseconds 1000
 
 [OpenM]::found = [IntPtr]::Zero
 [OpenM]::Find([uint32]$proc.Id, '邮件列表')
-if ([OpenM]::found -eq [IntPtr]::Zero) { throw '邮件列表窗口未打开（菜单项序号可能不对）' }
+if ([OpenM]::found -eq [IntPtr]::Zero) { throw 'mail list window did not open (menu item index may be wrong)' }
 $mr = New-Object OpenM+RECT
 [OpenM]::GetWindowRect([OpenM]::found, [ref]$mr) | Out-Null
-Write-Output ("邮件列表: " + $mr.L + "," + $mr.T + " " + ($mr.R - $mr.L) + "x" + ($mr.B - $mr.T))
+Write-Output ("mail list: " + $mr.L + "," + $mr.T + " " + ($mr.R - $mr.L) + "x" + ($mr.B - $mr.T))

@@ -1,27 +1,27 @@
 <script setup lang="ts">
 /**
- * 邮件面板容器（MailPanel）：手绘纸张 + 极淡灰颗粒纹理 + 手绘阴影。
+ * Mail panel container (MailPanel): hand-drawn paper + very faint gray grain texture + hand-drawn shadow.
  *
- * 视觉同源 todo PaperPanel（同款 SVG 形状 + token），是邮件列表/归档窗口的主容器。
- * 设计稿 docs/designs/phase2-exploration/mail-list.html 的面板 SVG，400×560。
+ * Visually shares its origin with the todo PaperPanel (same SVG shape + tokens); it is the main container of the mail list/archive windows.
+ * Panel SVG from the design docs/designs/phase2-exploration/mail-list.html, 400×560.
  *
- * issue #19 后续：窗口可拖拽调整大小，边框改 **9-slice 分片**（与 todo PaperPanel
- * 同方案，几何按 mail 的 400×560 path 重切）：
- * - 四角固定 30×30（Q 弧线不变形）；四边直线单向拉伸 + vector-effect 恒定描边；
- * - 纸影/柔影 = .mail-frame 双层 drop-shadow（跟随合成轮廓，任意尺寸贴合）；
- * - 纹理 = CSS radial-gradient 点阵（原 pattern 3 圆点/40px tile 的 CSS 化）；
- * - 波浪装饰 = 固定尺寸 overlay 锚定左上。
- * - 分片偏移按基线实测校准（边框线目标 L20/R378/T17.5/B539 @400×560）。
+ * Follow-up to issue #19: the window is drag-resizable, so the border switched to **9-slice segments**
+ * (same approach as the todo PaperPanel, geometry re-cut from the mail 400×560 path):
+ * - Four corners fixed at 30×30 (Q arcs stay undeformed); the four straight edges stretch one way + vector-effect keeps the stroke constant;
+ * - paper shadow / soft shadow = .mail-frame double drop-shadow (follows the composited outline, fits any size);
+ * - texture = CSS radial-gradient dot matrix (a CSS port of the original pattern 3-dot/40px tile);
+ * - wave decoration = fixed-size overlay anchored top-left.
+ * - Segment offsets calibrated against the baseline by measurement (border line targets L20/R378/T17.5/B539 @400×560).
  *
- * 踩坑实录见 docs/research/2026-11-03-issue19-todo-window-resize.md 与
- * todo PaperPanel 注释（SVG 固有尺寸回退 / filter 空格分隔 / 分片重叠联动）。
+ * Pitfall log in docs/research/2026-11-03-issue19-todo-window-resize.md and
+ * the todo PaperPanel comments (SVG intrinsic-size fallback / filter space separation / segment overlap coupling).
  */
 </script>
 
 <template>
   <div class="mail-panel">
     <div class="mail-frame">
-      <!-- 四角：固定 30×30 -->
+      <!-- Four corners: fixed 30×30 -->
       <svg
         class="corner corner-tl"
         viewBox="8 3 30 30"
@@ -75,7 +75,7 @@
         />
       </svg>
 
-      <!-- 四边：直线单向拉伸 -->
+      <!-- Four edges: straight lines stretching one way -->
       <div class="edge edge-top">
         <svg
           preserveAspectRatio="none"
@@ -137,11 +137,11 @@
         </svg>
       </div>
 
-      <!-- 纸心：白底 + CSS 颗粒点阵（原 pattern 3 圆点 CSS 化） -->
+      <!-- Paper core: white fill + CSS grain dot matrix (CSS port of the original pattern 3-dot) -->
       <div class="mail-center" />
     </div>
 
-    <!-- 波浪装饰：固定尺寸 overlay 锚定左上 -->
+    <!-- Wave decoration: fixed-size overlay anchored top-left -->
     <svg
       class="deco deco-wave"
       viewBox="38 24 46 12"
@@ -171,7 +171,7 @@
   height: 100%;
 }
 
-/* 分片层：纸影 + 柔影走双层 drop-shadow（空格分隔！逗号会整条无效） */
+/* Segment layer: paper shadow + soft shadow via double drop-shadow (space-separated! a comma invalidates the whole declaration) */
 .mail-frame {
   position: absolute;
   inset: 0;
@@ -203,7 +203,7 @@
   height: 30px;
 }
 
-/* 基线校准偏移（实测收敛：L20/R378/T17.5/B539） */
+/* Baseline-calibrated offsets (converged by measurement: L20/R378/T17.5/B539) */
 .corner-tl {
   left: 8px;
   top: 4px;
@@ -231,7 +231,7 @@
   height: 100%;
 }
 
-/* 与角片 2px 重叠（含校准偏移） */
+/* 2px overlap with the corner segments (including calibration offsets) */
 .edge-top {
   top: 4px;
   left: 36px;
@@ -260,7 +260,7 @@
   width: 30px;
 }
 
-/* 纸心：与边片填充重叠，不越过边框线（原 pattern 3 圆点：r0.4@0.18 ×2 + r0.3@0.14） */
+/* Paper core: overlaps the edge segment fills without crossing the border line (original pattern 3 dots: r0.4@0.18 ×2 + r0.3@0.14) */
 .mail-center {
   position: absolute;
   top: 24px;

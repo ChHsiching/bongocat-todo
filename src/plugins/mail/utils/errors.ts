@@ -1,19 +1,19 @@
 /**
- * 连接错误分类 + 友好提示生成。
+ * Connection error classification + friendly message generation.
  *
- * Rust 后端返回的错误是技术性字符串（如 `TLS 握手失败: tls handshake eof`），
- * 直接展示给用户不可读。本模块把错误按模式分类，映射成简短的友好提示。
+ * Errors returned by the Rust backend are technical strings (e.g. `TLS 握手失败: tls handshake eof`),
+ * unreadable if shown to users directly. This module classifies errors by pattern and maps them to short friendly messages.
  *
- * ⚠️ 报错框只做错误分类翻译，不写长篇建议。输入时的引导由设置页表单的
- * providerHint（授权码指引区域）在 blur 时实时展示。
+ * ⚠️ The error box only translates the error classification, no lengthy advice. Input-time guidance is shown live on blur
+ * by providerHint (the authorization-code guidance area) in the settings page form.
  */
 
 /**
- * 生成连接失败的友好提示。
+ * Generate a friendly message for a connection failure.
  *
- * @param rawErr Rust 后端返回的原始错误字符串
- * @param t i18n 翻译函数（取 `plugins.mail.labels.errXxx` 文案）
- * @returns 友好提示字符串（已翻译）
+ * @param rawErr The raw error string returned by the Rust backend
+ * @param t i18n translation function (fetches `plugins.mail.labels.errXxx` copy)
+ * @returns The friendly message string (translated)
  */
 export function formatConnectionError(
   rawErr: string,
@@ -21,37 +21,37 @@ export function formatConnectionError(
 ): string {
   const lower = rawErr.toLowerCase()
 
-  // TLS 握手失败（含 eof / handshake）
+  // TLS handshake failure (includes eof / handshake)
   if (lower.includes('tls') || lower.includes('handshake') || lower.includes('eof')) {
     return t('plugins.mail.labels.errTlsBlocked')
   }
 
-  // domain not local（用错 IMAP 服务器）
-  // ⚠️ 必须在"登录失败"之前判断——domain not local 错误串也含"登录失败"前缀
+  // domain not local (wrong IMAP server)
+  // ⚠️ Must be checked before "login failed" — the domain not local error string also carries the "登录失败" prefix
   if (lower.includes('domain not local')) {
     return t('plugins.mail.labels.errDomainNotLocal')
   }
 
-  // 登录失败（授权码错误 / 认证失败）
+  // Login failed (wrong authorization code / authentication failure)
   if (lower.includes('登录失败') || lower.includes('auth') || lower.includes('login failed') || lower.includes('authenticate')) {
     return t('plugins.mail.labels.errAuthFailed')
   }
 
-  // Unsafe Login（网易系邮箱新开 IMAP 的临时拦截）
+  // Unsafe Login (temporary block on newly enabled IMAP for NetEase-family mailboxes)
   if (lower.includes('unsafe login') || lower.includes('command not support')) {
     return t('plugins.mail.labels.errUnsafeLogin')
   }
 
-  // 超时
+  // Timeout
   if (lower.includes('超时') || lower.includes('timeout')) {
     return t('plugins.mail.labels.errTimeout')
   }
 
-  // TCP / 网络（含"不知道这样的主机"等 DNS 错误）
+  // TCP / network (includes DNS errors like "no such host")
   if (lower.includes('tcp') || lower.includes('网络') || lower.includes('主机') || lower.includes('host')) {
     return t('plugins.mail.labels.errNetwork')
   }
 
-  // 兜底：无法分类的错误，原样展示（方便排查）
+  // Fallback: unclassifiable errors are shown as-is (easier to troubleshoot)
   return rawErr
 }

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
- * 邮件列表窗口（T5，D9）。
+ * Mail list window (T5, D9).
  *
- * 独立伴随窗口（WINDOW_LABEL.MAIL_LIST），手绘风纸张容器（复用 MailPanel），
- * 展示未读 + 已读邮件。点击邮件 → 标本地已读 + 跳 webmail（5 分钟后归档由 store tick 处理）。
+ * An independent companion window (WINDOW_LABEL.MAIL_LIST) with a hand-drawn paper container (reusing MailPanel),
+ * showing unread + read mails. Clicking a mail → mark read locally + jump to webmail (archiving after 5 minutes is handled by the store tick).
  *
- * 独立 webview，store 不继承 main 窗口——必须 onMounted 调 `$tauri.start()` 加载持久化数据。
- * 定位逻辑复用 todo 面板的 clamp + 翻边（锚点 main 窗口，贴猫正上方居中）。
+ * Independent webview; stores are not inherited from the main window — onMounted must call `$tauri.start()` to load persisted data.
+ * Positioning reuses the todo panel's clamp + edge flip (anchored to the main window, centered right above the cat).
  *
- * 已读/归档全是本地状态，**绝不向邮箱服务端发 IMAP STORE**（D5-actual 零写约束）。
+ * Read/archived are purely local states; **never send IMAP STORE to the mail server** (D5-actual zero-write constraint).
  *
  * @see docs/designs/phase2-exploration/mail-list.html
  * @see ADR 0002 D9
@@ -40,7 +40,7 @@ const appWindow = getCurrentWebviewWindow()
 const FADE_MS = 200
 const PANEL_SIZE = new PhysicalSize(400, 560)
 
-// issue #19 后续：可调尺寸（约束 + 恢复 + 持久化），min 高度按「标题区+一封邮件+底栏」估
+// Follow-up to issue #19: resizable (constraints + restore + persistence); min height estimated from "header area + one mail + footer"
 const { applyConstraints } = useResizablePanel({
   min: { width: 400, height: 320 },
   max: { width: 720, height: 8192 },
@@ -57,23 +57,23 @@ const { t } = useI18n()
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
-/** now tick：每分钟刷新相对时间文案（让「2 分钟前」滚动更新）。 */
+/** now tick: refresh the relative time copy every minute (keeps "2 minutes ago" rolling). */
 const now = ref(Date.now())
 let nowTimer: ReturnType<typeof setInterval> | undefined
 
 onMounted(async () => {
-  // 独立 webview，必须各自加载持久化 store（见 CONTEXT.md T2 踩坑清单）
+  // Independent webview; each must load its own persisted stores (see the CONTEXT.md T2 pitfalls list)
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
-  // issue #19：面板尺寸持久化依赖本窗口 start mailSettings（此前漏 start，
-  // persist 写进未启动 store，saveOnChange 静默跳过、文件从未落盘）
+  // issue #19: panel size persistence depends on this window starting mailSettings (previously it missed the start,
+  // so persist wrote into an unstarted store, saveOnChange silently skipped it, and the file never reached disk)
   await mailSettingsStore.$tauri.start()
   appWindow.setTitle(t('plugins.mail.labels.mailListTitle'))
 
-  // 每分钟刷新相对时间文案 + 跑留存规则（本窗口点了 markRead 的邮件 5 分钟后归档）。
-  // 跨窗口同步说明：mailNotification store 持久化到 JSON，但各窗口内存 store 不实时同步。
-  // main 窗口的 tickRetention 跑在它自己的内存副本上，看不到本窗口的 markRead；
-  // 因此本窗口也需自己跑 tickRetention，确保已读邮件在 5 分钟后被归档（幂等，多窗口同时跑不冲突）。
+  // Refresh the relative time copy every minute + run the retention rules (mails markRead'd in this window get archived after 5 minutes).
+  // Cross-window sync note: the mailNotification store persists to JSON, but each window's in-memory store does not sync in realtime.
+  // The main window's tickRetention runs on its own in-memory copy and cannot see this window's markRead;
+  // therefore this window must also run its own tickRetention so read mails are archived after 5 minutes (idempotent, no conflict across windows running simultaneously).
   nowTimer = setInterval(() => {
     now.value = Date.now()
     mailNotificationStore.tickRetention(now.value)
@@ -86,35 +86,35 @@ onBeforeUnmount(() => {
   }
 })
 
-/** 未读分组（status=unread）。 */
+/** Unread group (status=unread). */
 const unreadMails = computed(() =>
   mailNotificationStore.activeMails.filter(m => m.status === 'unread'),
 )
 
-/** 已读分组（status=read，5 分钟内会自动归档）。 */
+/** Read group (status=read, auto-archived within 5 minutes). */
 const readMails = computed(() =>
   mailNotificationStore.activeMails.filter(m => m.status === 'read'),
 )
 
-/** 按 accountId 解析 provider 展示名（meta 区「Gmail」/「QQ 邮箱」用）。 */
+/** Resolve the provider display name by accountId (for the meta area's "Gmail" / "QQ Mail"). */
 function providerName(accountId: string): string | null {
   const account = mailAccountStore.getAccount(accountId)
   return account ? (matchProvider(account.address)?.displayName ?? null) : null
 }
 
-/** 相对时间（到达时间）。 */
+/** Relative time (arrival time). */
 function timeLabel(mail: { arrivedAt: number }): string {
   return relativeTime(mail.arrivedAt, now.value)
 }
 
-/** 绝对日期（年.月.日），meta 区与相对时间并列显示。 */
+/** Absolute date (year.month.day), shown in the meta area alongside the relative time. */
 function dateLabel(mail: { arrivedAt: number }): string {
   return absoluteDate(mail.arrivedAt)
 }
 
 /**
- * 打开窗口：贴猫正上方居中 + clamp + 翻边，setSize → show → 渐显。
- * 复用 todo 面板 / bubble 的定位范式。
+ * Open the window: centered right above the cat + clamp + edge flip, setSize → show → fade in.
+ * Reuses the positioning pattern of the todo panel / bubble.
  */
 useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
   const panelTarget = await applyConstraints()
@@ -161,35 +161,35 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
 })
 
 /**
- * 点击邮件 → 标本地已读 + 跳 webmail。
+ * Click a mail → mark read locally + jump to webmail.
  *
- * 已读是纯本地状态（不向邮箱发 STORE，D5-actual）。5 分钟后归档由 main 窗口的
- * tickRetention 定时器扫描处理，本窗口无需单独起 timer。
+ * Read is a purely local state (no STORE sent to the mailbox, D5-actual). Archiving after 5 minutes is handled
+ * by the main window's tickRetention timer scan; this window needs no separate timer.
  */
 function handleAction(id: string) {
   const mail = mailNotificationStore.notifications.find(n => n.id === id)
   if (!mail) {
     return
   }
-  // 标本地已读（幂等：已读再点无副作用）
+  // Mark read locally (idempotent: clicking an already-read mail has no side effect)
   mailNotificationStore.markRead(id)
 
-  // 跳 webmail（按账号 address 匹配 provider，未命中回退 imapHost）
+  // Jump to webmail (match the provider by the account address, fall back to imapHost on a miss)
   const account = mailAccountStore.getAccount(mail.accountId)
   const url = account ? resolveWebmailUrl(account.address, account.imapHost) : null
   if (url) {
     openUrl(url).catch(() => {
-      // 打开失败不阻塞
+      // Open failure does not block
     })
   }
 }
 
-/** 归档按钮：直接归档（不点开跳浏览器）。幂等：已归档再调无副作用。 */
+/** Archive button: archive directly (without opening the browser). Idempotent: calling again on archived mails has no side effect. */
 function handleArchive(id: string) {
   mailNotificationStore.archive(id)
 }
 
-/** 删除按钮（二次确认后）：从 store 彻底移除。 */
+/** Delete button (after double-confirm): remove entirely from the store. */
 function handleDelete(id: string) {
   mailNotificationStore.purge(id)
 }
@@ -208,7 +208,7 @@ function handleClose() {
     class="bubble-handdrawn mail-list-page fade h-screen w-screen overflow-hidden"
     :class="{ 'fade-shown': shown }"
   >
-    <!-- 贴纸片可见边框的 resize 把手（inset 按 MailPanel 基线校准 L20/R22/T18/B19） -->
+    <!-- Resize handles hugging the sticker's visible border (insets calibrated against the MailPanel baseline L20/R22/T18/B19) -->
     <ResizeHandles
       :inset-bottom="19"
       :inset-left="20"
@@ -216,7 +216,7 @@ function handleClose() {
       :inset-top="18"
     />
     <MailPanel>
-      <!-- 标题区（可拖拽移动窗口；子元素 pointer-events:none 让拖拽穿透） -->
+      <!-- Header area (draggable to move the window; child elements use pointer-events:none so dragging passes through) -->
       <div
         class="panel-header"
         data-tauri-drag-region
@@ -266,16 +266,16 @@ function handleClose() {
             viewBox="0 0 24 24"
             width="20"
           >
-            <!-- 手绘 ×：两段顺滑大弧交叉，与 todo 面板一致 -->
+            <!-- Hand-drawn ×: two smooth large crossing arcs, consistent with the todo panel -->
             <path d="M 6 6 Q 9.5 13 19 19" />
             <path d="M 18 6 Q 8.5 10 5 18" />
           </svg>
         </button>
       </div>
 
-      <!-- 可滚动列表区 -->
+      <!-- Scrollable list area -->
       <div class="panel-scroll">
-        <!-- 未读分组 -->
+        <!-- Unread group -->
         <div
           v-if="unreadMails.length"
           class="section-label"
@@ -296,7 +296,7 @@ function handleClose() {
           @delete="handleDelete"
         />
 
-        <!-- 已读分组 -->
+        <!-- Read group -->
         <div
           v-if="readMails.length"
           class="section-label"
@@ -317,7 +317,7 @@ function handleClose() {
           @delete="handleDelete"
         />
 
-        <!-- 空状态 -->
+        <!-- Empty state -->
         <div
           v-if="!unreadMails.length && !readMails.length"
           class="empty-state"

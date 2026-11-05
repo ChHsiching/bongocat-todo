@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-/** Rust `mail_*` 命令的统一前缀（见 build.rs 的 COMMANDS）。 */
+/** Unified prefix for the Rust `mail_*` commands (see COMMANDS in build.rs). */
 const COMMAND = {
   TEST_CONNECTION: 'plugin:mail|mail_test_connection',
   CONNECT: 'plugin:mail|mail_connect',
@@ -10,10 +10,10 @@ const COMMAND = {
 }
 
 /**
- * 测试 IMAP 连接（不保存任何东西，仅验证能登录 + 选 INBOX）。
+ * Test the IMAP connection (saves nothing; only verifies login + INBOX selection).
  *
- * 前端「测试并保存」按钮先调本命令，成功后才调 `mailStorePassword` + `mailConnect`。
- * 失败时 Rust 返回的 Err(String) 会作为 reject 抛出。
+ * The frontend "test and save" button calls this command first, then `mailStorePassword` + `mailConnect` on success.
+ * On failure the Rust Err(String) is thrown as a rejection.
  */
 export function mailTestConnection(
   imapHost: string,
@@ -26,10 +26,10 @@ export function mailTestConnection(
 }
 
 /**
- * 启动某账号的 IDLE 监听（Rust 从 keyring 取密码，spawn task）。
+ * Start an account's IDLE watch (Rust fetches the password from the keyring and spawns the task).
  *
- * `initialLastSeenUid` 来自 mailAccount.lastSeenUid（持久化）：非 0 时作为离线补发基线，
- * Rust fetch 离线期间到达的新邮件（UID > lastSeenUid）补推；0 时跳过已有邮件（T1 行为）。
+ * `initialLastSeenUid` comes from mailAccount.lastSeenUid (persisted): when non-zero it serves as the offline catch-up baseline
+ * and Rust fetches and re-pushes mails that arrived while offline (UID > lastSeenUid); when 0 it skips existing mails (T1 behavior).
  */
 export function mailConnect(
   accountId: string,
@@ -42,12 +42,12 @@ export function mailConnect(
   return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username, proxy, initialLastSeenUid })
 }
 
-/** 断开某账号的 IDLE 监听（取消 task）。 */
+/** Stop an account's IDLE watch (cancels the task). */
 export function mailDisconnect(accountId: string): Promise<void> {
   return invoke(COMMAND.DISCONNECT, { accountId })
 }
 
-/** 存邮箱密码到 keyring（key = `bongocat-todo/mail/<accountId>`，Rust 端拼接）。 */
+/** Store the mailbox password in the keyring (key = `bongocat-todo/mail/<accountId>`, assembled on the Rust side). */
 export function mailStorePassword(
   accountId: string,
   username: string,
@@ -56,7 +56,7 @@ export function mailStorePassword(
   return invoke(COMMAND.STORE_PASSWORD, { accountId, username, password })
 }
 
-/** 从 keyring 删邮箱密码（删除账号时调用，幂等）。 */
+/** Delete the mailbox password from the keyring (called on account deletion, idempotent). */
 export function mailDeletePassword(accountId: string, username: string): Promise<void> {
   return invoke(COMMAND.DELETE_PASSWORD, { accountId, username })
 }

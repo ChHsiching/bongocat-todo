@@ -1,16 +1,16 @@
 /**
- * issue19 mail e2e：邮件两窗口（mail-list / mail-archive）拖拽调整大小断言。
+ * issue19 mail e2e: drag-resize assertions for the two mail windows (mail-list / mail-archive).
  *
- * 编排走 CDP（打开窗口/读尺寸），被测行为全部真鼠标（SendInput）。
- * 断言组（每窗口）：
- *   M1 打开默认/恢复尺寸（400 宽档或持久值，高 560 或持久值）
- *   M2 贴边把手拖 +100 精确生效
- *   M3 原生边缘拖 +2000 → max 720 钳制
- *   M4 压宽 -5000 → min 400 钳制
- *   M5 关/重开 → 尺寸恢复（会话内持久化；跨重启持久化人工抽查或读盘文件）
+ * Orchestration goes through CDP (open windows / read sizes); the behavior under test is entirely real mouse (SendInput).
+ * Assertion groups (per window):
+ *   M1 opens at the default/restored size (400-wide tier or persisted value, height 560 or persisted value)
+ *   M2 edge-hugging handle drag +100 takes effect exactly
+ *   M3 native edge drag +2000 → clamped to max 720
+ *   M4 squeeze width -5000 → clamped to min 400
+ *   M5 close/reopen → size restored (in-session persistence; cross-restart persistence by manual spot-check or reading the disk file)
  *
- * 用法：node scripts/qa/issue19-mail-e2e.mjs
- * 前置：应用带 CDP 端口启动（见 lib/cdp.mjs 头注释）。
+ * Usage: node scripts/qa/issue19-mail-e2e.mjs
+ * Prerequisites: the app started with a CDP port (see the header comment in lib/cdp.mjs).
  */
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
@@ -59,15 +59,15 @@ async function suite(urlSub, eventKey, label) {
   await sleep(900)
 
   const m1 = await rectOf(urlSub)
-  assert(`${label} M1 打开（${m1.width}×${m1.height}）`, m1.width >= 400 - TOL && m1.width <= 720 + TOL, JSON.stringify(m1))
+  assert(`${label} M1 opens (${m1.width}×${m1.height})`, m1.width >= 400 - TOL && m1.width <= 720 + TOL, JSON.stringify(m1))
 
-  // M2 贴边把手（边内 24px）拖 +100
+  // M2 edge-hugging handle (24px inside the edge) drag +100
   const grabX = m1.x + m1.width - 24
   const grabY = m1.y + Math.round(m1.height / 2)
   ps(['-Action', 'drag', '-FromX', String(grabX), '-FromY', String(grabY), '-ToX', String(grabX + 100), '-ToY', String(grabY), '-Steps', '20'])
   await sleep(500)
   const m2 = await rectOf(urlSub)
-  assert(`${label} M2 把手拖 +100`, Math.abs(m2.width - m1.width - 100) <= TOL, `before=${m1.width} after=${m2.width}`)
+  assert(`${label} M2 handle drag +100`, Math.abs(m2.width - m1.width - 100) <= TOL, `before=${m1.width} after=${m2.width}`)
 
   const m3 = await dragEdge(urlSub, 2000)
   assert(`${label} M3 max ≤720`, m3.width <= 720 + TOL, `w=${m3.width}`)
@@ -75,17 +75,17 @@ async function suite(urlSub, eventKey, label) {
   const m4 = await dragEdge(urlSub, -5000)
   assert(`${label} M4 min ≥400`, m4.width >= 400 - TOL, `w=${m4.width}`)
 
-  // M5 关/重开恢复
+  // M5 close/reopen restore
   await emitAppEvent('hide-window', urlSub.includes('archive') ? 'mail-archive' : 'mail-list')
   await sleep(400)
   await emitAppEvent(eventKey)
   await sleep(900)
   const m5 = await rectOf(urlSub)
-  assert(`${label} M5 重开恢复`, Math.abs(m5.width - m4.width) <= TOL, `target=${m4.width} got=${m5.width}`)
+  assert(`${label} M5 restored after reopen`, Math.abs(m5.width - m4.width) <= TOL, `target=${m4.width} got=${m5.width}`)
 }
 
-console.log('等待 CDP …')
+console.log('Waiting for CDP ...')
 await waitForCdp()
 await suite('#/mail-list', 'show-mail-list', 'mail-list')
 await suite('#/mail-archive', 'show-mail-archive', 'mail-archive')
-console.log('\n=== mail e2e 全部通过 ===')
+console.log('\n=== All mail e2e assertions passed ===')

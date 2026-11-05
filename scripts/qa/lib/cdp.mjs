@@ -1,15 +1,15 @@
 /**
- * issue19 QA：最小 CDP 客户端（仅 dev 调试用，零依赖，Node>=22 内置 WebSocket/fetch）。
+ * issue19 QA: minimal CDP client (dev debugging only, zero dependencies, Node>=22 built-in WebSocket/fetch).
  *
- * 用法：tauri dev 需带环境变量启动：
+ * Usage: tauri dev must be started with the env var:
  *   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222" pnpm tauri dev
  *
- * 能力：
- * - targets()：列出所有 webview page
- * - evalIn(urlSubstr, expr)：在匹配 url 的 webview 里执行 JS（awaitPromise），返回 JSON 值
+ * Capabilities:
+ * - targets(): list all webview pages
+ * - evalIn(urlSubstr, expr): run JS in the webview whose url matches (awaitPromise), returning the JSON value
  *
- * 注意：__TAURI_INTERNALS__.invoke 是 Tauri v2 webview 内部 IPC 桥（非公开 API），
- * QA 脚本仅用于 dev 环境编排（打开面板、读窗口尺寸/存储），不进生产代码。
+ * Note: __TAURI_INTERNALS__.invoke is the Tauri v2 webview's internal IPC bridge (not a public API);
+ * QA scripts are for dev-environment orchestration only (opening panels, reading window sizes/storage), never production code.
  */
 
 import process from 'node:process'
@@ -36,7 +36,7 @@ export async function waitForCdp({ timeoutMs = 30000, intervalMs = 500 } = {}) {
   throw new Error(`CDP not available at ${CDP_HOST} within ${timeoutMs}ms`)
 }
 
-/** 在 url 含 substr 的 page target 上执行表达式，返回 JSON 化的结果值 */
+/** Evaluate an expression on the page target whose url contains substr, returning the JSON-ified result value */
 export async function evalIn(urlSubstr, expression, { timeoutMs = 10000 } = {}) {
   const list = await targets()
   const page = list.find(t => t.type === 'page' && t.url.includes(urlSubstr))
@@ -95,7 +95,7 @@ export async function evalIn(urlSubstr, expression, { timeoutMs = 10000 } = {}) 
   }
 }
 
-/** 读取 todo 窗口物理位置/尺寸（在 todo 页面上下文里执行） */
+/** Read the todo window's physical position/size (executed in the todo page context) */
 export async function todoWindowInfo() {
   return evalIn('#/todo', `
     (async () => {
@@ -108,7 +108,7 @@ export async function todoWindowInfo() {
   `)
 }
 
-/** 发出 app 级事件（如 show-todo-full / show-todo-mini / hide-window+payload） */
+/** Emit an app-level event (e.g. show-todo-full / show-todo-mini / hide-window+payload) */
 export async function emitAppEvent(event, payload) {
   const payloadJson = payload === undefined ? 'null' : JSON.stringify(payload)
   return evalIn('#/todo', `

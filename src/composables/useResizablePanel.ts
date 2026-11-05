@@ -3,30 +3,30 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { onMounted } from 'vue'
 
 /**
- * useResizablePanel：单形态手绘面板窗口的「可调尺寸」公共逻辑（issue #19 后续）。
+ * useResizablePanel: shared "resizable" logic for single-mode hand-drawn panel windows (issue #19 follow-up).
  *
- * 与 todo 窗口的差异：todo 双形态复用同一 label（约束要动态套/清），
- * mail-list / mail-archive 各自独立窗口、单一形态，逻辑更简单：
- * 打开时套约束 + 恢复尺寸；onResized 防抖持久化（logical）。
+ * Difference from the todo window: todo's dual-mode reuses the same label (constraints must be applied/cleared dynamically),
+ * while mail-list / mail-archive are each independent single-mode windows with simpler logic:
+ * apply constraints + restore the size on open; debounced persistence on onResized (logical).
  *
- * 用法（页面 setup 内）：
+ * Usage (inside a page's setup):
  *   const { applyConstraints } = useResizablePanel({
  *     min: { width: 400, height: 320 },
  *     max: { width: 720, height: 8192 },
  *     restore: () => store.panelSize,
  *     persist: size => store.setPanelSize(size),
  *   })
- *   // SHOW 事件 handler 里：const target = await applyConstraints()
+ *   // In the SHOW event handler: const target = await applyConstraints()
  */
 export interface ResizablePanelOptions {
-  /** 尺寸约束（logical px） */
+  /** Size constraints (logical px) */
   min: { width: number, height: number }
   max: { width: number, height: number }
-  /** 默认尺寸（logical；恢复值为 null 时用它） */
+  /** Default size (logical; used when the restored value is null) */
   fallback: { width: number, height: number }
-  /** 读持久化尺寸（返回 null 表示从未调整） */
+  /** Read the persisted size (null means never resized) */
   restore: () => { width: number, height: number } | null
-  /** 写持久化尺寸 */
+  /** Write the persisted size */
   persist: (size: { width: number, height: number }) => void
 }
 
@@ -38,9 +38,9 @@ export function useResizablePanel(options: ResizablePanelOptions) {
   let persistTimer: ReturnType<typeof setTimeout> | undefined
 
   /**
-   * 打开窗口时调用：套约束 + 恢复用户尺寸（clamp 到约束内），返回物理目标尺寸
-   * （供贴猫定位计算用）。程序化 setSize 期间置 programmaticResize，
-   * 让 onResized 的持久化跳过（恢复值不该写回 store）。
+   * Called when opening the window: apply constraints + restore the user's size (clamped into the constraints),
+   * returning the physical target size (for the anchor-to-the-cat positioning math). Sets programmaticResize
+   * during the programmatic setSize so onResized's persistence is skipped (the restored value must not be written back to the store).
    */
   async function applyConstraints(): Promise<PhysicalSize> {
     await appWindow.setResizable(true)

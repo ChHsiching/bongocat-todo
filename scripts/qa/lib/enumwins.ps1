@@ -1,5 +1,5 @@
-# issue19 QA：枚举指定进程的顶层窗口（标题/可见性/rect，物理像素）
-# 用法：powershell -NoProfile -File enumwins.ps1 [-ProcessName bongo-cat] [-Json]
+# issue19 QA: enumerate a process's top-level windows (title/visibility/rect, physical pixels)
+# Usage: powershell -NoProfile -File enumwins.ps1 [-ProcessName bongo-cat] [-Json]
 param(
   [string]$ProcessName = 'bongo-cat',
   [switch]$Json

@@ -1,17 +1,17 @@
 /**
- * 桌宠气泡窗口手绘视觉样式（T2）。
+ * Hand-drawn visual styles for the desktop-pet bubble window (T2).
  *
- * 与 todo 面板的 handdrawn.css 同源（同一份设计 token + 851 字体 + 窗口透明），
- * 但气泡是独立伴随窗口（WINDOW_LABEL.BUBBLE），不继承 todo 页面样式，故独立一份。
- * 粉墨水系色板 + Handwriting851 字体 + font-weight 600 基线（设计稿 bubble.html）。
+ * Shares its origin with the todo panel's handdrawn.css (same design tokens + 851 font + transparent window),
+ * but the bubble is an independent companion window (WINDOW_LABEL.BUBBLE) that does not inherit todo page styles, hence its own copy.
+ * Pink-ink palette + Handwriting851 font + font-weight 600 baseline (design bubble.html).
  *
- * 无暗色模式（设计稿只有亮色态，见 CONTEXT.md 已踩坑清单）。
+ * No dark mode (the design only has a light state, see the pitfalls list in CONTEXT.md).
  *
- * @see docs/designs/phase2-exploration/bubble.html 视觉事实来源
- * @see src/plugins/todo/styles/handdrawn.css 同源 token 定义
+ * @see docs/designs/phase2-exploration/bubble.html the source of visual truth
+ * @see src/plugins/todo/styles/handdrawn.css the shared token definitions
  */
 
-/* 气泡窗口透明（transparent:true）：纸张外直接透出桌面。!important 覆盖 uno preflight。 */
+/* Bubble window transparency (transparent:true): the desktop shows through outside the paper. !important overrides the uno preflight. */
 html,
 body,
 #app {
@@ -20,14 +20,14 @@ body,
 
 @font-face {
   font-family: 'Handwriting851';
-  /* vite public 资源：与 todo 面板共用同一份字体文件 */
+  /* vite public asset: shares the same font file with the todo panel */
   src: url('/fonts/jingnan-pop-black.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
-/* ── 粉墨水系色板（与 todo 面板 token 完全一致）── */
+/* ── Pink-ink palette (identical to the todo panel tokens) ── */
 .bubble-handdrawn {
   --paper: #ffffff;
   --paper-shadow: #f0e8de;
@@ -40,7 +40,7 @@ body,
   --blue: #9bc4e0;
   --red-ink: #d4654a;
 
-  /* 851 字体默认 normal 太细，基线提到 600；主次用颜色弱化而非字重 */
+  /* The 851 font's default normal is too thin, so the baseline is bumped to 600; hierarchy uses muted colors rather than weight */
   background: transparent;
   color: var(--ink);
   font-family:

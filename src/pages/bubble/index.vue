@@ -23,27 +23,27 @@ import '@/plugins/mail/styles/bubble.css'
 const appWindow = getCurrentWebviewWindow()
 
 /**
- * 渐隐渐显：根元素 opacity 过渡（与 todo 面板同构）。
- * 打开：show 后下一帧置 true；关闭：先置 false 跑渐隐，再 hideWindow。
+ * Fade in/out: root element opacity transition (same pattern as the todo panel).
+ * Open: set true on the next frame after show; close: set false first to run the fade-out, then hideWindow.
  */
 const FADE_MS = 200
 
-/** 气泡窗口最小宽（360px，对齐 todo 面板）；长内容时按子组件报的自然宽度取 max 变宽。 */
+/** Minimum bubble window width (360px, aligned with the todo panel); widens per the max natural width reported by child components for long content. */
 const MIN_BUBBLE_WIDTH = 360
 
-/** 堆叠间距。 */
+/** Stacking gap. */
 const STACK_GAP = 10
-/** 窗口上下安全留白（避免气泡顶/底边贴窗口边）。 */
+/** Safe top/bottom window padding (keeps bubble top/bottom edges off the window edges). */
 const PADDING_Y = 8
-/** 窗口无内容时的初始高度（showWindow 前的占位，实际高度由 measureHeight 校正）。 */
+/** Initial window height when empty (a placeholder before showWindow; the real height is corrected by measureHeight). */
 const FALLBACK_HEIGHT = 80
 
 /**
- * 队列：所有未处理的新邮件（按到达顺序）。展示前 3 条 + 折入提示行。
- * 用 Map 而非数组，方便按 id 关闭单条；顺序按到达顺序（push 末尾 = 最新）。
+ * Queue: all pending new mails (in arrival order). Shows the first 3 + the fold-in hint line.
+ * Uses a Map rather than an array, making it easy to close a single item by id; ordered by arrival (push at the end = newest).
  */
 interface BubbleItem {
-  /** 到达时间戳 + 自增 seq 组合的唯一 key（同秒到达多条时不撞）。 */
+  /** Unique key combining the arrival timestamp + an incrementing seq (no collision when several arrive in the same second). */
   key: string
   payload: BubblePayload
 }
@@ -55,13 +55,13 @@ const overflow = computed(() => computeBubbleOverflow(queue.value.length))
 const shownItems = computed(() => queue.value.slice(0, overflow.value.shown))
 
 /**
- * 各气泡子组件上报的内容自然宽度（key → scrollWidth）。
- * 子组件 resize 事件上报，父级取 max + MIN_BUBBLE_WIDTH 作为窗口宽度。
- * 长链接/长主题不被挤压换行，而是撑宽气泡。
+ * Natural content widths reported by each bubble child component (key → scrollWidth).
+ * Reported via the child resize event; the parent takes the max + MIN_BUBBLE_WIDTH as the window width.
+ * Long links/long subjects widen the bubble instead of being squeezed into wrapping.
  */
 const naturalWidths = ref<Record<string, number>>({})
 
-/** 窗口宽度：max(MIN_BUBBLE_WIDTH, 所有可见气泡的自然宽度)。 */
+/** Window width: max(MIN_BUBBLE_WIDTH, the natural width of all visible bubbles). */
 const bubbleWidth = computed(() => {
   let w = MIN_BUBBLE_WIDTH
   for (const item of shownItems.value) {
@@ -73,22 +73,22 @@ const bubbleWidth = computed(() => {
   return w
 })
 
-/** store 必须在 setup 顶层实例化（跨 async 边界 inject 失效，见 CONTEXT.md 踩坑清单）。 */
+/** Stores must be instantiated at the top of setup (inject fails across async boundaries, see the pitfalls list in CONTEXT.md). */
 const mailAccountStore = useMailAccountStore()
 const mailNotificationStore = useMailNotificationStore()
 const { t } = useI18n()
 
-// bubble 是独立 webview，store 实例与 main 窗口各自独立。必须在此窗口也调
-// $tauri.start() 加载持久化的账号数据，否则 accounts 为空 → provider 识别失败（sourceLabel
-// 拿不到 address）。加载后 accounts 变化触发响应式重渲染。
-// mailNotification store 也在此加载：点击邮件时按 <accountId>:<uid> 匹配本地通知历史，
-// 调 markRead 标本地已读（5 分钟后归档由 main 窗口的 tickRetention 处理）。
+// bubble is an independent webview; its store instances are separate from the main window's. This window must also call
+// $tauri.start() to load the persisted account data, otherwise accounts is empty → provider detection fails (sourceLabel
+// cannot get the address). After loading, account changes trigger reactive re-renders.
+// The mailNotification store is loaded here too: on mail click, the local notification history is matched by <accountId>:<uid>
+// and markRead marks it read locally (archiving after 5 minutes is handled by the main window's tickRetention).
 onMounted(async () => {
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
 })
 
-/** 气泡来源标签：邮件按账号邮箱识别 provider 名（如「新邮件 · Gmail」），todo 用「待办到期」。 */
+/** Bubble source label: for mail, detects the provider name from the account address (e.g. "New mail · Gmail"); for todo, uses "Todo due". */
 function sourceLabel(payload: BubblePayload): string {
   if (payload.type === 'todo') {
     return t('plugins.todo.labels.bubbleSource')
@@ -104,14 +104,14 @@ function sourceLabel(payload: BubblePayload): string {
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
-/** wrapper 元素 ref，用于测量真实渲染高度（驱动窗口尺寸，不再用估值常量）。 */
+/** Wrapper element ref, used to measure the real rendered height (drives the window size, no more estimate constants). */
 const wrapperEl = ref<HTMLElement | null>(null)
 
 /**
- * 测量 wrapper 真实内容高度（含所有气泡 + fold-hint + padding + gap）。
+ * Measure the wrapper's real content height (all bubbles + fold-hint + padding + gap included).
  *
- * 关键：气泡内容（文字换行）高度不确定，必须从 DOM 读 scrollHeight，不能用估值常量。
- * 否则窗口设矮了 → 内容溢出 + 出滚动条（用户报告的 bug）。
+ * Key point: bubble content height (text wrapping) is indeterminate, so scrollHeight must be read from the DOM instead of using an estimate constant.
+ * Otherwise a too-short window → content overflows + a scrollbar appears (the user-reported bug).
  */
 async function measureHeight(): Promise<number> {
   await nextTick()
@@ -124,13 +124,13 @@ async function measureHeight(): Promise<number> {
 }
 
 /**
- * 弹气泡：收到 SHOW_BUBBLE → 追加到队列 → 按真实内容高度重设窗口尺寸 → 定位到桌宠正上方
- * （clamp + 翻边复用 todo 面板逻辑）→ show → 渐显。
+ * Pop a bubble: on SHOW_BUBBLE → append to the queue → reset the window size from the real content height
+ * → position it right above the desktop pet (clamping + edge flipping reuse the todo panel logic) → show → fade in.
  *
- * 单条/多条复用同一路径：第一条到达 show 窗口，后续只追加 + 重排尺寸/定位。
+ * Single and multiple bubbles share the same path: the first one shows the window; later ones just append + re-layout size/position.
  */
 useTauriListen<BubblePayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
-  // 到达时间戳：邮件用 arrivedAt，todo 用 dueDate；+ 自增 seq 保证同秒多条不撞 key
+  // Arrival timestamp: arrivedAt for mail, dueDate for todo; + incrementing seq guarantees no key collision for several in the same second
   const arriveTs = payload.type === 'mail' ? payload.arrivedAt : payload.dueDate
   queue.value.push({ key: `${arriveTs}-${seq++}`, payload })
   shown.value = true
@@ -139,8 +139,8 @@ useTauriListen<BubblePayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
 })
 
 /**
- * 子组件（Bubble）内容尺寸变化（文字换行 / 长链接）→ 记录自然宽度 + 重排窗口尺寸。
- * FoldHint 无宽度上报（固定宽度），传 undefined 只触发重排。
+ * Child component (Bubble) content size changed (text wrapped / long link) → record the natural width + re-layout the window size.
+ * FoldHint reports no width (fixed width); passing undefined only triggers re-layout.
  */
 function onChildResize(key: string, naturalWidth?: number) {
   if (naturalWidth && naturalWidth > 0) {
@@ -149,7 +149,7 @@ function onChildResize(key: string, naturalWidth?: number) {
   layoutAndShow()
 }
 
-/** 按真实内容高度 + 宽度重设窗口尺寸 + 定位（clamp + 翻边），然后确保窗口可见。 */
+/** Reset the window size + position (clamp + edge flip) from the real content height + width, then make sure the window is visible. */
 async function layoutAndShow() {
   const height = await measureHeight()
   const width = bubbleWidth.value
@@ -173,13 +173,13 @@ async function layoutAndShow() {
     ) ?? monitors[0]
 
     if (monitor) {
-      // 水平：气泡中心对齐猫中心
+      // Horizontal: the bubble's center aligns with the cat's center
       x = catPos.x + Math.round(catSize.width / 2 - width / 2)
-      // 垂直：气泡底部锚定在猫正上方 8px，整体向上扩展（新气泡把旧的往上推）。
-      // 不翻到猫下方——多气泡/多行内容向下展开必然跨过猫区域，向上扩展更符合「贴桌宠上方」语义。
-      // 极端情况（总高 > 猫上方可用空间）顶部被 clamp 到屏幕顶，底部仍 < catY，不侵入猫。
+      // Vertical: the bubble's bottom is anchored 8px above the cat, expanding upward as a whole (new bubbles push older ones up).
+      // Never flips below the cat — multiple bubbles / multi-line content expanding downward would inevitably cross the cat area; expanding upward better matches the "hugging above the pet" semantics.
+      // Extreme case (total height > the space above the cat): the top is clamped to the screen top, the bottom stays < catY, never intruding on the cat.
       y = catPos.y - height - 8
-      // clamp 到屏内（y 最小贴屏幕顶；x 不溢左右）
+      // Clamp into the screen (y at minimum hugs the screen top; x does not overflow left/right)
       x = Math.max(
         monitor.position.x,
         Math.min(x, monitor.position.x + monitor.size.width - width),
@@ -195,15 +195,15 @@ async function layoutAndShow() {
 }
 
 /**
- * 点击气泡 → 按 type 分发：邮件标本地已读 + 打开 webmail；todo 打开 todo 面板。都随后关闭。
+ * Bubble click → dispatch by type: mail marks read locally + opens webmail; todo opens the todo panel. Both then close.
  *
- * 邮件：按 <accountId>:<uid> 匹配 mailNotification store 中的通知历史，调 markRead
- * （纯本地状态，**不向邮箱发 STORE**，D5-actual 零写约束）。5 分钟后归档由 tickRetention
- * 扫描处理——@tauri-store/pinia 默认开启跨窗口 state-change 同步（DEFAULT_SYNC=true），
- * 本窗口的 markRead 会 patchSelf 到 main 窗口的内存副本，main 的 tickRetention 能读到 readAt。
- * mail-list 窗口也各自跑 tickRetention 作为兜底（幂等，多窗口同时跑不冲突）。
+ * Mail: matches the notification history in the mailNotification store by <accountId>:<uid> and calls markRead
+ * (purely local state, **never sends STORE to the mailbox**, the D5-actual zero-write constraint). Archiving after 5 minutes is handled
+ * by the tickRetention scan — @tauri-store/pinia enables cross-window state-change sync by default (DEFAULT_SYNC=true), so this window's
+ * markRead patchSelves into the main window's in-memory copy and the main's tickRetention can read readAt.
+ * The mail-list window also runs its own tickRetention as a fallback (idempotent, no conflict across windows running simultaneously).
  *
- * todo：emit SHOW_TODO_FULL 打开 todo 面板（与「待办」右键菜单同入口）。
+ * todo: emits SHOW_TODO_FULL to open the todo panel (same entry as the "todo" context menu).
  */
 async function handleAction(item: BubbleItem) {
   if (item.payload.type === 'todo') {
@@ -218,10 +218,10 @@ async function handleAction(item: BubbleItem) {
     : null
   if (url) {
     openUrl(url).catch(() => {
-      // 打开失败不阻塞关闭流程
+      // Open failure does not block the close flow
     })
   }
-  // 标本地已读：按 accountId+uid 匹配 mailNotification 项
+  // Mark read locally: match the mailNotification item by accountId+uid
   const match = mailNotificationStore.notifications.find(
     n => n.accountId === mail.accountId && n.uid === mail.uid,
   )
@@ -231,25 +231,25 @@ async function handleAction(item: BubbleItem) {
   closeItem(item.key)
 }
 
-/** 点 × 关闭单条（只消失，不跳转）。 */
+/** Click × to close a single item (dismiss only, no jump). */
 function closeItem(key: string) {
   queue.value = queue.value.filter(i => i.key !== key)
   delete naturalWidths.value[key]
   if (queue.value.length === 0) {
     scheduleHide()
   } else {
-    // 还有气泡，重排尺寸/定位
+    // Bubbles remain, re-layout size/position
     layoutAndShow()
   }
 }
 
-/** 点折入提示「还有 N 条，查看邮件列表」→ 打开邮件列表窗口 + 关闭气泡。 */
+/** Click the fold-in hint "N more, view the mail list" → open the mail list window + close the bubbles. */
 function openMailList() {
   emit(LISTEN_KEY.SHOW_MAIL_LIST)
   scheduleHide()
 }
 
-/** 队列空时：先渐隐再 hideWindow。 */
+/** When the queue empties: fade out first, then hideWindow. */
 function scheduleHide() {
   if (hideTimer) {
     clearTimeout(hideTimer)

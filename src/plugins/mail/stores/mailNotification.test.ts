@@ -266,7 +266,7 @@ describe('useMailNotificationStore — removeByAccount', () => {
     store.markRead(read.id)
     const archived = store.upsertMail(makeMail({ accountId: 'acc1' }), 3)
     store.archive(archived.id)
-    // 另一账号的邮件不应被清
+    // Mails of another account must not be cleared
     store.upsertMail(makeMail({ accountId: 'acc2' }), 1)
 
     store.removeByAccount('acc1')

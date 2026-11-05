@@ -2,40 +2,40 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 /**
- * 邮件全局设置 store（非敏感，持久化）。
+ * Mail global settings store (non-sensitive, persisted).
  *
- * - 持代理配置（让 IMAP 连接走 HTTP CONNECT 代理，绕开 TUN system stack
- *   对非标端口转发不稳定的问题）。
- * - 持通知设置三开关（T3）：气泡总开关 / 气泡自动消失 / 仅未读邮件提醒。
+ * - Holds the proxy config (routes IMAP connections through an HTTP CONNECT proxy to bypass
+ *   the TUN system stack's unstable forwarding of non-standard ports).
+ * - Holds the three notification setting toggles (T3): bubble master switch / bubble auto-dismiss / unread-only notifications.
  *
- * 复用 `@tauri-store/pinia` 持久化。新增字段需注意旧数据迁移（见踩坑清单）。
+ * Reuses `@tauri-store/pinia` persistence. New fields must take legacy data migration into account (see the pitfalls list).
  */
 export const useMailSettingsStore = defineStore('mailSettings', () => {
   /**
-   * HTTP CONNECT 代理地址（如 `127.0.0.1:7890`）。
-   * 空串 = 不用代理，直连。
+   * HTTP CONNECT proxy address (e.g. `127.0.0.1:7890`).
+   * Empty string = no proxy, direct connection.
    */
   const proxy = ref('')
 
   /**
-   * 新邮件气泡提醒总开关。
-   * - true（默认）：新邮件到达时弹桌宠气泡。
-   * - false：完全静默，新邮件只进本地通知历史（邮件列表可见），不弹气泡。
+   * Master switch for new-mail bubble notifications.
+   * - true (default): pop a desktop-pet bubble when a new mail arrives.
+   * - false: fully silent; new mails only enter the local notification history (visible in the mail list), no bubble.
    */
   const bubbleEnabled = ref(true)
 
   /**
-   * 气泡是否自动消失。
-   * - false（默认）：常驻直到用户手动关闭/点击（设计稿定稿行为）。
-   * - true：自动消失（未来 T7 接自动消失计时，当前仅作开关状态）。
+   * Whether the bubble auto-dismisses.
+   * - false (default): stays until the user manually closes/clicks it (finalized design behavior).
+   * - true: auto-dismisses (future T7 will wire the auto-dismiss timer; currently just the switch state).
    */
   const bubbleAutoDismiss = ref(false)
 
   /**
-   * 仅未读邮件提醒。
-   * - true：只对「本地状态=unread」的邮件弹气泡；已读邮件不弹（避免重复打扰）。
-   * - false（默认）：所有新邮件都弹（按当前实现，upsertMail 新建的都是 unread，
-   *   此开关实际影响未来「已读邮件被补推」等边缘场景）。
+   * Notify only unread mails.
+   * - true: only pop bubbles for mails with "local status=unread"; no bubble for already-read mails (avoids repeated disturbance).
+   * - false (default): pop for all new mails (under the current implementation everything upsertMail creates is unread,
+   *   so this switch effectively only affects future edge cases like "an already-read mail being re-pushed").
    */
   const unreadOnly = ref(false)
 
@@ -56,8 +56,9 @@ export const useMailSettingsStore = defineStore('mailSettings', () => {
   }
 
   /**
-   * issue #19 后续：邮件两窗口（mail-list / mail-archive）用户调整后的面板尺寸
-   * （logical px，null = 未调整用默认 400×560）。存 logical 换屏/改缩放不漂移。
+   * Follow-up to issue #19: user-resized panel sizes for the two mail windows
+   * (mail-list / mail-archive) (logical px, null = untouched, use the default 400×560).
+   * Stored in logical px so they don't drift across monitor changes / scale changes.
    */
   const listPanelSize = ref<{ width: number, height: number } | null>(null)
   const archivePanelSize = ref<{ width: number, height: number } | null>(null)

@@ -24,10 +24,10 @@ export { useMailNotificationStore } from './stores/mailNotification'
 export type { MailNotification, MailNotificationStatus } from './stores/mailNotification'
 export { useMailSettingsStore } from './stores/mailSettings'
 
-/** Rust 推给前端的「新邮件」事件 payload（`mail://new-mail`）。 */
+/** Payload of the "new mail" event Rust pushes to the frontend (`mail://new-mail`). */
 export interface NewMailPayload {
   accountId: string
-  /** 邮箱 UID（离线补发去重用，`<accountId>:<uid>` 唯一）。 */
+  /** Mail UID (used for offline catch-up dedup, unique per `<accountId>:<uid>`). */
   uid: number
   from: string
   subject: string
@@ -35,61 +35,62 @@ export interface NewMailPayload {
 }
 
 /**
- * 桌宠气泡 payload（`show-bubble` event）。判别联合：邮件气泡复用 NewMailPayload 字段，
- * todo 气泡（T6）只带标题 + 到期时间戳。bubble 窗口按 `type` 字面量分支渲染。
+ * Desktop-pet bubble payload (`show-bubble` event). Discriminated union: mail bubbles reuse the NewMailPayload fields,
+ * while todo bubbles (T6) carry only a title + due timestamp. The bubble window branches rendering on the `type` literal.
  *
- * 邮件 emit 时把 NewMailPayload 与 `{ type: 'mail' }` 交叉，得到带 type 字面量的变体；
- * todo emit 直接构造 `{ type: 'todo', ... }`。
+ * Mail emits intersect NewMailPayload with `{ type: 'mail' }` to get the variant carrying the type literal;
+ * todo emits construct `{ type: 'todo', ... }` directly.
  */
 export type BubblePayload = (NewMailPayload & { type: 'mail' }) | { type: 'todo', id: string, title: string, dueDate: number }
 
-/** Rust 推给前端的「连接状态」事件 payload（`mail://connection-status`）。 */
+/** Payload of the "connection status" event Rust pushes to the frontend (`mail://connection-status`). */
 export interface ConnectionStatusPayload {
   accountId: string
   status: 'connected' | 'connecting' | 'error'
   message?: string
 }
 
-/** Rust 推给前端的「最新已见 UID」事件 payload（`mail://last-seen-uid`）。 */
+/** Payload of the "latest seen UID" event Rust pushes to the frontend (`mail://last-seen-uid`). */
 export interface LastSeenUidPayload {
   accountId: string
   lastSeenUid: number
 }
 
-/** Tauri event 名（Rust 端 emit 用的字符串，两端必须一致）。 */
+/** Tauri event names (strings the Rust side emits; both ends must stay in sync). */
 export const MAIL_EVENT = {
   NEW_MAIL: 'mail://new-mail',
   CONNECTION_STATUS: 'mail://connection-status',
   LAST_SEEN_UID: 'mail://last-seen-uid',
 } as const
 
-/** setupMailPlugin 的入参：调用方在 setup 顶层实例化好的 store + i18n t 函数。 */
+/** setupMailPlugin args: stores + the i18n t function instantiated by the caller at the top of setup. */
 interface SetupMailPluginArgs {
   mailAccountStore: ReturnType<typeof useMailAccountStore>
   mailNotificationStore: ReturnType<typeof useMailNotificationStore>
   mailSettingsStore: ReturnType<typeof useMailSettingsStore>
   menuBus: ReturnType<typeof useMenuBusStore>
   t: ReturnType<typeof useI18n>['t']
-  /** 当前窗口 label（用于把全局副作用限定到 main 窗口，避免多窗口重复监听）。 */
+  /** Current window label (used to scope global side effects to the main window, avoiding duplicate listeners across windows). */
   windowLabel: string
 }
 
-/** 留存规则 tick 间隔（1 分钟扫描一次 24h/5min 超时归档 + 30 天清理）。 */
+/** Retention rule tick interval (scan once per minute for 24h/5min timeout archiving + 30-day purge). */
 const RETENTION_TICK_MS = 60 * 1000
 
 /**
- * 安装邮件插件：注册 Tauri event 监听（新邮件 → 入历史 + 弹气泡；连接状态 → 更新 store；
- * last-seen-uid → 持久化补发基线）+ 启动留存规则 tick。
+ * Install the mail plugin: register Tauri event listeners (new mail → add to history + pop a bubble; connection status → update store;
+ * last-seen-uid → persist the catch-up baseline) + start the retention rule tick.
  *
- * 必须在 App.vue 的 onMounted 里、stores `$tauri.start()` 之后调用（store 才加载已落盘数据）。
- * 监听只在 **main 窗口** 启动（App.vue 在 main/preference/todo/bubble 多窗口都挂载，
- * 否则多窗口重复监听会触发多次弹气泡 + 多份留存 timer）。main 是 app 生命周期所有者。
+ * Must be called in App.vue's onMounted, after stores' `$tauri.start()` (so stores have loaded persisted data).
+ * Listeners start only in the **main window** (App.vue mounts in all of main/preference/todo/bubble windows;
+ * otherwise duplicate listeners across windows would pop bubbles multiple times + run multiple retention timers).
+ * The main window owns the app lifecycle.
  *
- * 新邮件到达时同时：①upsert 到 mailNotification store（进历史列表）；②emit SHOW_BUBBLE
- * 给 bubble 窗口弹气泡。两步独立（bubble 窗口是独立 webview，读不到 main 的 store 变更）。
+ * On new mail arrival, do both: ① upsert into the mailNotification store (enter the history list); ② emit SHOW_BUBBLE
+ * to the bubble window to pop a bubble. The two steps are independent (the bubble window is a separate webview and cannot read the main store's changes).
  *
- * ⚠️ store 实例化必须由调用方在 setup 顶层完成（跨 async 边界 Pinia inject 会失效，
- * 报 "Must be called at the top of a setup function" code:26），本函数只接收已实例化的 store。
+ * ⚠️ Store instantiation must be done by the caller at the top of setup (Pinia inject fails across async boundaries,
+ * throwing "Must be called at the top of a setup function" code:26); this function only receives already-instantiated stores.
  */
 export async function setupMailPlugin({ mailAccountStore, mailNotificationStore, mailSettingsStore, menuBus, t, windowLabel }: SetupMailPluginArgs) {
   if (windowLabel !== WINDOW_LABEL.MAIN) {
@@ -98,14 +99,14 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
 
   const { listen } = await import('@tauri-apps/api/event')
 
-  // ⚠️ 必须先 await 所有 listen 注册完成，再发起 mailConnect。
-  // 原因：离线补发的 fetch 在 Rust 连接建立后立即执行并 emit mail://new-mail，
-  // 如果前端 listen 还没注册（listen 返回 Promise 但没 await），补发的邮件会被丢弃。
-  // 新邮件 → ①upsert 到 mailNotification store（本地历史）②emit SHOW_BUBBLE（弹气泡，受设置开关控制）
+  // ⚠️ All listen registrations must be awaited before issuing mailConnect.
+  // Reason: the offline catch-up fetch runs immediately after the Rust connection is established and emits mail://new-mail;
+  // if the frontend listen is not yet registered (listen returns a Promise that wasn't awaited), the caught-up mails get dropped.
+  // New mail → ① upsert into the mailNotification store (local history) ② emit SHOW_BUBBLE (pop a bubble, controlled by the settings toggles)
   await listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
     const inserted = mailNotificationStore.upsertMail(payload, payload.uid)
-    // 气泡总开关关闭 → 不弹气泡（邮件仍进本地历史，邮件列表可见）
-    // unreadOnly 开启 + 该邮件已非 unread（补推时已存在的旧项）→ 不弹
+    // Bubble master switch off → no bubble (the mail still enters local history, visible in the mail list)
+    // unreadOnly on + the mail is no longer unread (an existing stale item being re-pushed) → no bubble
     if (!mailSettingsStore.bubbleEnabled) {
       return
     }
@@ -115,23 +116,23 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
     emit(LISTEN_KEY.SHOW_BUBBLE, { ...payload, type: 'mail' })
   })
 
-  // 连接状态 → 更新 store（驱动账号列表 UI 的状态展示）
+  // Connection status → update the store (drives the status display in the account list UI)
   await listen<ConnectionStatusPayload>(MAIL_EVENT.CONNECTION_STATUS, ({ payload }) => {
     mailAccountStore.setStatus(payload.accountId, payload.status)
   })
 
-  // last-seen-uid → 持久化到 mailAccount.lastSeenUid（离线补发基线，下次启动用）
+  // last-seen-uid → persist into mailAccount.lastSeenUid (the offline catch-up baseline, used on next startup)
   await listen<LastSeenUidPayload>(MAIL_EVENT.LAST_SEEN_UID, ({ payload }) => {
     mailAccountStore.setLastSeenUid(payload.accountId, payload.lastSeenUid)
   })
 
-  // 留存规则 tick：每分钟扫描，迁移超时的未读/已读到归档 + 清理 30 天归档项
+  // Retention rule tick: scan every minute, transition timed-out unread/read mails to archived + purge 30-day-old archived items
   setInterval(() => {
     mailNotificationStore.tickRetention()
   }, RETENTION_TICK_MS)
 
-  // 向 menuBus 登记「邮件列表」+「归档邮件」两个右键菜单项（D9）。
-  // action emit 专用事件，让 mail-list / mail-archive 页面在 show 前先定位 + setSize。
+  // Register the two context-menu items "mail list" + "archived mail" with menuBus (D9).
+  // The actions emit dedicated events so the mail-list / mail-archive pages can position + setSize before show.
   const mailMenuItems: MenuItemDescriptor[] = [
     {
       id: 'mail-list',
@@ -148,31 +149,31 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   ]
   menuBus.registerItems(mailMenuItems)
 
-  // app 启动后，对已持久化的账号自动重连（store 在 $tauri.start() 后已加载）。
-  // 先迁移旧账号数据（补 lastSeenUid 默认值），再传入持久化的 lastSeenUid 作为离线补发基线。
+  // After app startup, auto-reconnect persisted accounts (the store is loaded after $tauri.start()).
+  // First migrate legacy account data (backfill the lastSeenUid default), then pass the persisted lastSeenUid as the offline catch-up baseline.
   mailAccountStore.migrateLastSeenUid()
   const proxy = mailSettingsStore.proxy || null
   for (const account of mailAccountStore.accounts) {
     if (account.enabled) {
       mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy, account.lastSeenUid ?? 0).catch(
         () => {
-          // 连接失败已由 connection-status event 更新 status='error'，这里不重复处理
+          // Connection failure already set status='error' via the connection-status event; not handled again here
         },
       )
     }
   }
 }
 
-/** 「测试并保存」流程：先验证连通 → 存 keyring → 加 store → 启动监听。任一步失败抛错。 */
+/** "Test and save" flow: verify connectivity first → store to keyring → add to store → start watching. Throws on any failure. */
 export async function testAndSaveAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
   input: { address: string, imapHost: string, imapPort: number, username: string, password: string },
   proxy: string | null,
 ): Promise<void> {
-  // 1. 测试连通（不保存任何东西）
+  // 1. Test connectivity (nothing is saved)
   await mailTestConnection(input.imapHost, input.imapPort, input.username, input.password, proxy)
 
-  // 2. 加到 store（生成 id；单账号阶段限制长度 1，超限抛错）
+  // 2. Add to the store (generates the id; during the single-account phase the length was capped at 1, over the cap it threw)
   const account = mailAccountStore.addAccount({
     address: input.address,
     imapHost: input.imapHost,
@@ -180,31 +181,31 @@ export async function testAndSaveAccount(
     username: input.username,
   })
 
-  // 3. 存密码到 keyring（密码不进 store）
+  // 3. Store the password in the keyring (passwords never enter the store)
   try {
     await mailStorePassword(account.id, account.username, input.password)
   } catch (err) {
-    // 密码存储失败，回滚刚加的 store 项
+    // Password storage failed, roll back the store item just added
     mailAccountStore.removeAccount(account.id)
     throw err
   }
 
-  // 4. 启动 IDLE 监听（新账号 lastSeenUid=0，Rust 用当前 INBOX 最大 UID 初始化基线）
+  // 4. Start the IDLE watch (a new account's lastSeenUid=0; Rust seeds the baseline with the current max INBOX UID)
   mailAccountStore.setStatus(account.id, 'connecting')
   try {
     await mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy, 0)
   } catch (err) {
-    // 连接失败：密码已存 keyring，保留账号（用户可在列表里看到 error 状态重试）
+    // Connection failed: the password is already in the keyring, keep the account (the user can see the error state in the list and retry)
     mailAccountStore.setStatus(account.id, 'error')
     throw err
   }
 }
 
 /**
- * 删除账号：断开监听 → 删 keyring 密码 → 清通知历史 → 移出 store。任一步失败抛错。
+ * Delete an account: stop watching → delete keyring password → clear notification history → remove from store. Throws on any failure.
  *
- * 级联清理：① keyring 密码（`mail_delete_password`）；② mailNotification 该账号的
- * 所有通知历史（未读/已读/归档），避免账号删除后邮件列表里挂孤儿项。
+ * Cascade cleanup: ① keyring password (`mail_delete_password`); ② all of that account's
+ * notification history in mailNotification (unread/read/archived), avoiding orphan items hanging in the mail list after account deletion.
  */
 export async function removeAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
@@ -216,9 +217,9 @@ export async function removeAccount(
     return
   }
 
-  // 顺序：先断开（停止 task）→ 删密码（keyring）→ 清通知历史 → 移出 store
+  // Order: disconnect first (stop the task) → delete the password (keyring) → clear notification history → remove from store
   await mailDisconnect(accountId).catch(() => {
-    // 断开失败不阻塞删除流程（task 可能已自行退出）
+    // Disconnect failure does not block the deletion flow (the task may have already exited on its own)
   })
   await mailDeletePassword(accountId, account.username)
   mailNotificationStore.removeByAccount(accountId)
@@ -226,12 +227,12 @@ export async function removeAccount(
 }
 
 /**
- * 切换账号启用状态并建/断连接（设置页账号列表的开关）。
+ * Toggle an account's enabled state and open/close the connection (the switch in the settings page account list).
  *
- * - 开 → 连：从 keyring 取密码由 Rust 端处理，前端只传连接参数 + lastSeenUid 补发基线。
- * - 关 → 断：停 IDLE task。账号配置 + keyring 密码都保留（再开即恢复）。
+ * - On → connect: fetching the password from the keyring is handled on the Rust side; the frontend only passes connection params + the lastSeenUid catch-up baseline.
+ * - Off → disconnect: stop the IDLE task. Account config + keyring password are both kept (turning it back on resumes).
  *
- * store 的 enabled 字段由本函数同步更新，调用方无需另 setEnabled。
+ * The store's enabled field is updated by this function; the caller does not need a separate setEnabled.
  */
 export async function toggleAccountEnabled(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
@@ -254,7 +255,7 @@ export async function toggleAccountEnabled(
     }
   } else {
     await mailDisconnect(accountId).catch(() => {
-      // 断开失败不阻塞（task 可能已自行退出）
+      // Disconnect failure does not block (the task may have already exited on its own)
     })
     mailAccountStore.setStatus(accountId, 'idle')
   }

@@ -60,9 +60,9 @@ describe('absoluteDate — 绝对日期（年.月.日）', () => {
   })
 
   it('格式为 年.月.日（无补零）', () => {
-    // 固定时区为 UTC，避免 CI/本地时区差异
+    // Pin the timezone to UTC to avoid CI/local timezone differences
     vi.stubEnv('TZ', 'UTC')
-    // 2026-08-02T13:14:15.000Z → UTC 年.月.日
+    // 2026-08-02T13:14:15.000Z → UTC year.month.day
     const ts = Date.UTC(2026, 7, 2, 13, 14, 15)
     expect(absoluteDate(ts)).toBe('2026.8.2')
     vi.unstubAllEnvs()

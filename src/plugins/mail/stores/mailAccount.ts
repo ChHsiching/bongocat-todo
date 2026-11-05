@@ -2,73 +2,74 @@ import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-/** 账号连接状态（纯本地，由 Rust 通过 `mail://connection-status` event 驱动更新）。 */
+/** Account connection status (frontend-only, driven by the Rust `mail://connection-status` event). */
 export type MailAccountStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 /**
- * 邮箱账号配置（**非敏感**，可明文持久化）。
+ * Mail account configuration (**non-sensitive**, safe to persist in plaintext).
  *
- * ⚠️ 密码绝不在此结构里——走 OS keyring（Rust `mail_store_password` / `mail_get_password`）。
+ * ⚠️ Never put passwords in this struct — they go to the OS keyring (Rust `mail_store_password` / `mail_get_password`).
  */
 export interface MailAccount {
-  /** 唯一 id（nanoid） */
+  /** Unique id (nanoid) */
   id: string
-  /** 邮箱地址（用户输入，如 alice@gmail.com） */
+  /** Mail address (user input, e.g. alice@gmail.com) */
   address: string
-  /** IMAP 服务器地址（如 imap.gmail.com） */
+  /** IMAP server host (e.g. imap.gmail.com) */
   imapHost: string
-  /** IMAP 端口（通常 993 for IMAPS） */
+  /** IMAP port (usually 993 for IMAPS) */
   imapPort: number
-  /** IMAP 登录用户名（通常 = 邮箱地址） */
+  /** IMAP login username (usually = mail address) */
   username: string
-  /** 服务商域名（从邮箱地址 `@` 后段提取，T3 起 provider 自动识别用） */
+  /** Provider domain (extracted from the part after `@` in the mail address, used for provider auto-detection since T3) */
   providerDomain: string
-  /** 是否启用监听（不删除账号，只暂停） */
+  /** Whether listening is enabled (pauses the account without deleting it) */
   enabled: boolean
-  /** 连接状态（纯本地，由 Rust event 驱动） */
+  /** Connection status (frontend-only, driven by Rust events) */
   status: MailAccountStatus
   /**
-   * 已推送过的最大 IMAP UID（持久化，用于离线补发）。
+   * The largest IMAP UID already pushed (persisted, used for offline catch-up).
    *
-   * - 0 表示尚未初始化（首次连接时 Rust 用当前 INBOX 最大 UID 初始化，跳过已有邮件）。
-   * - 非 0 时重连作为补发基线：Rust `fetch_new_envelopes(lastSeenUid)` 把离线期间
-   *   到达的新邮件（UID > lastSeenUid）补推给前端。app 关闭再打开也不漏邮件。
-   * - 由 Rust `mail://last-seen-uid` event 持续更新（每推送一批新邮件后 emit）。
+   * - 0 means not initialized yet (on first connect Rust seeds it with the current max INBOX UID, skipping existing mails).
+   * - When non-zero, it becomes the catch-up baseline on reconnect: Rust `fetch_new_envelopes(lastSeenUid)`
+   *   re-pushes mails that arrived while offline (UID > lastSeenUid) to the frontend. No mails are missed across app restarts.
+   * - Continuously updated by the Rust `mail://last-seen-uid` event (emitted after each batch of new mails is pushed).
    *
-   * @see docs/adr/0002-phase2-mail-and-bubble.md D5-actual（离线补发，#15 comment）
+   * @see docs/adr/0002-phase2-mail-and-bubble.md D5-actual (offline catch-up, #15 comment)
    */
   lastSeenUid: number
 }
 
 /**
- * 邮件账号配置 store（数组结构，支持多账号）。
+ * Mail account configuration store (array structure, multi-account).
  *
- * - 持久化：复用 `@tauri-store/pinia` 的 `saveOnChange`，与 todo store 同构。
- *   组件挂载时调 `$tauri.start()` 加载后即可用。
- * - **不存密码**：密码走 keyring（Rust 命令），pinia 只持非敏感的 IMAP 配置。
- * - T4（ticket #14）放开单账号限制，支持 N 个账号同时 IDLE 监听；Rust `ConnectionManager`
- *   按 accountId 独立管理每条连接（断开一个不影响其他）。
+ * - Persistence: reuses `@tauri-store/pinia` `saveOnChange`, same pattern as the todo store.
+ *   Call `$tauri.start()` on component mount, then it is ready to use after loading.
+ * - **No passwords stored here**: passwords go to the keyring (Rust commands); pinia only holds non-sensitive IMAP config.
+ * - T4 (ticket #14) lifted the single-account limit and supports N accounts on simultaneous IDLE watch; the Rust `ConnectionManager`
+ *   manages each connection independently by accountId (disconnecting one does not affect the others).
  *
  * @see docs/adr/0002-phase2-mail-and-bubble.md D2 / D4
  */
 export const useMailAccountStore = defineStore('mailAccount', () => {
-  /** 已绑定的账号列表。 */
+  /** The list of bound accounts. */
   const accounts = ref<MailAccount[]>([])
 
-  /** 从邮箱地址提取服务商域名（`@` 后段）。无 `@` 时返回空串。 */
+  /** Extract the provider domain from a mail address (the part after `@`). Returns an empty string when there is no `@`. */
   function extractDomain(address: string): string {
     const at = address.lastIndexOf('@')
     return at >= 0 ? address.slice(at + 1).toLowerCase() : ''
   }
 
   /**
-   * 新增账号到数组。
+   * Append a new account to the array.
    *
-   * 只负责数据层：构造 MailAccount 并 push。密码存储 + 建立连接由调用方在 push 成功后
-   * 串行调 `mailStorePassword` + `mailConnect`（见 mail/index.ts 的 setupMailPlugin 流程）。
-   * 多账号：不做数量限制，每个账号在 Rust 端有独立的 IDLE task（互不影响）。
+   * Data layer only: builds the MailAccount and pushes it. Password storage + connection setup are done
+   * by the caller after a successful push, via serial calls to `mailStorePassword` + `mailConnect`
+   * (see the setupMailPlugin flow in mail/index.ts).
+   * Multi-account: no count limit; each account has its own independent IDLE task on the Rust side (they do not affect each other).
    *
-   * @returns 新建的 MailAccount。
+   * @returns The newly created MailAccount.
    */
   function addAccount(input: {
     address: string
@@ -92,12 +93,12 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     return account
   }
 
-  /** 按 id 查账号。 */
+  /** Find an account by id. */
   function getAccount(id: string): MailAccount | undefined {
     return accounts.value.find(a => a.id === id)
   }
 
-  /** 更新某账号的连接状态（由 Rust `mail://connection-status` event 驱动调用）。 */
+  /** Update an account's connection status (called when driven by the Rust `mail://connection-status` event). */
   function setStatus(id: string, status: MailAccountStatus) {
     const account = getAccount(id)
     if (account) {
@@ -106,10 +107,11 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
   }
 
   /**
-   * 切换某账号的启用状态（设置页账号列表的开关）。
+   * Toggle an account's enabled state (the switch in the settings page account list).
    *
-   * 只改本字段，不直接建/断连接——调用方（设置页）按返回的新状态决定 mailConnect/mailDisconnect。
-   * 关闭后再开相当于「暂停监听」：账号配置 + keyring 密码都保留，仅停止 IDLE task。
+   * Only changes this field; it does not directly open/close connections — the caller (settings page)
+   * decides between mailConnect/mailDisconnect based on the returned new state.
+   * Turning off then on again is effectively "pause listening": account config + keyring password are both kept, only the IDLE task is stopped.
    */
   function setEnabled(id: string, enabled: boolean) {
     const account = getAccount(id)
@@ -119,10 +121,10 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
   }
 
   /**
-   * 更新某账号的 lastSeenUid（由 Rust `mail://last-seen-uid` event 驱动调用）。
+   * Update an account's lastSeenUid (called when driven by the Rust `mail://last-seen-uid` event).
    *
-   * 只单调递增（新 uid 比已存的小说明是旧数据/乱序，不回退）。持久化由 saveOnChange 落盘。
-   * 兼容旧数据：lastSeenUid 可能是 undefined（T5 前创建的账号），当 undefined 时直接写入。
+   * Monotonically increasing only (a new uid smaller than the stored one means stale/out-of-order data, do not regress). Persisted to disk by saveOnChange.
+   * Legacy data compatibility: lastSeenUid may be undefined (accounts created before T5); write directly when it is undefined.
    */
   function setLastSeenUid(id: string, uid: number) {
     const account = getAccount(id)
@@ -136,13 +138,13 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
   }
 
   /**
-   * 数据迁移：给 T5 前创建的旧账号补 lastSeenUid 默认值（0）。
+   * Data migration: backfill the lastSeenUid default value (0) for legacy accounts created before T5.
    *
-   * 旧持久化 JSON 没有 lastSeenUid 字段，`$tauri.start()` 加载后该属性是 undefined，
-   * 导致 `account.lastSeenUid ?? 0` 传给 Rust 的是 0（走 T1 旧行为跳过已有邮件）。
-   * 本方法把 undefined 补成 0，让 saveOnChange 把字段写入 JSON，后续 setLastSeenUid 能正常递增。
+   * Old persisted JSON lacks the lastSeenUid field, so after `$tauri.start()` loads it the property is undefined,
+   * which means `account.lastSeenUid ?? 0` passes 0 to Rust (falling back to the old T1 behavior of skipping existing mails).
+   * This method fills undefined with 0 so saveOnChange writes the field into JSON and later setLastSeenUid calls can increment normally.
    *
-   * 必须在 `$tauri.start()` 之后、`setupMailPlugin` 调用 `mailConnect` 之前调一次。幂等。
+   * Must be called once after `$tauri.start()` and before `setupMailPlugin` calls `mailConnect`. Idempotent.
    */
   function migrateLastSeenUid() {
     for (const account of accounts.value) {
@@ -152,7 +154,7 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     }
   }
 
-  /** 从数组移除账号（密码清理 + 断开连接由调用方在移除前调 Rust 命令完成）。 */
+  /** Remove an account from the array (password cleanup + disconnect are done by the caller via Rust commands before removal). */
   function removeAccount(id: string) {
     accounts.value = accounts.value.filter(a => a.id !== id)
   }

@@ -1,7 +1,7 @@
-//! Tauri plugin: 邮件通知中心后端（IMAP IDLE + keyring）。
+//! Tauri plugin: mail notification center backend (IMAP IDLE + keyring).
 //!
-//! 注册 `mail_*` 命令（见 [`commands`]）+ 托管 [`ConnectionManager`]（app state）。
-//! app 启动时 `init()` 的 setup 注册 ConnectionManager，前端调 `mail_connect` 时 spawn IDLE task。
+//! Registers the `mail_*` commands (see [`commands`]) + hosts the [`ConnectionManager`] (app state).
+//! On app startup, `init()`'s setup registers the ConnectionManager; the frontend spawns the IDLE task by calling `mail_connect`.
 
 use tauri::{
     Manager, Runtime,
@@ -14,10 +14,10 @@ mod manager;
 
 pub use manager::{ConnectionManager, ConnectionStatus, LastSeenUidPayload, NewMailPayload};
 
-/// 初始化邮件插件：注册命令 + 把 [`ConnectionManager`] 注入 app state。
+/// Initialize the mail plugin: register the commands + inject [`ConnectionManager`] into app state.
 ///
-/// 不在 setup 里自动重连已持久化账号——T1 tracer bullet 由前端 `$tauri.start()` 加载
-/// store 后主动调 `mail_connect` 触发重连（保持 setup 轻量 + 错误可由前端感知）。
+/// Persisted accounts are not auto-reconnected in setup — the T1 tracer bullet has the frontend load
+/// the store via `$tauri.start()` and then call `mail_connect` to trigger reconnection (keeping setup lightweight + errors visible to the frontend).
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("mail")
         .invoke_handler(tauri::generate_handler![
@@ -28,10 +28,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::mail_delete_password,
         ])
         .setup(|app, _api| {
-            // rustls 0.23 需要进程级显式安装 crypto provider，否则首次
-            // ClientConfig::builder() 会卡住（不报错、不超时、永久挂起）。
-            // 用 ring provider（Cargo.toml 已启用 ring feature）。
-            // 已安装时 install_default 返回 Err，忽略即可（幂等）。
+            // rustls 0.23 requires an explicit process-wide crypto provider install; otherwise the first
+            // ClientConfig::builder() hangs (no error, no timeout, stuck forever).
+            // Use the ring provider (the ring feature is already enabled in Cargo.toml).
+            // If one is already installed, install_default returns Err; just ignore it (idempotent).
             let _ = rustls::crypto::ring::default_provider().install_default();
             app.manage(ConnectionManager::new());
             Ok(())

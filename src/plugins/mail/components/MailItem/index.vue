@@ -1,17 +1,18 @@
 <script setup lang="ts">
 /**
- * 邮件列表项（MailItem）：手绘风，视觉对照 mail-list.html。
+ * Mail list item (MailItem): hand-drawn style, visuals follow mail-list.html.
  *
- * 三种状态（由父传入的 status + meta 决定样式）：
- * - unread：左侧红墨点标记（复用 todo ink-dot 风格的 SVG path）。
- * - read：左侧信封图标 + 弱化色 + meta 显示「已读，N 分钟后归档」。
- * - archived：左侧信封图标（更淡）+ opacity 0.7 + 「已归档」标签 + 绝对日期。
+ * Three states (styling decided by the status + meta passed by the parent):
+ * - unread: a red-ink dot marker on the left (reusing the todo ink-dot style SVG path).
+ * - read: an envelope icon on the left + muted colors + meta showing "Read, archived in N minutes".
+ * - archived: an envelope icon on the left (even fainter) + opacity 0.7 + an "Archived" tag + the absolute date.
  *
- * 点击触发 action（邮件列表=标已读+跳 webmail；归档=跳 webmail）。
- * 右侧操作按钮（T5a）：归档（仅邮件列表，showArchive 控制）+ 删除（两列表都有）。
- * 删除二次确认 inline 变体：点一次变「确认删除?」红色高亮，700ms 强制反应死区
- * （死区内点击忽略，避免误双击直接删），死区后 3.3s 内再点才删，超时自动恢复。
- * 所有线条走 SVG，严禁 CSS border。
+ * Clicking triggers action (mail list=mark read + jump to webmail; archive=jump to webmail).
+ * Right-side action buttons (T5a): archive (mail list only, controlled by showArchive) + delete (both lists).
+ * Delete double-confirm, inline variant: one click turns it into a red-highlighted "Confirm delete?" plus a 700ms forced reaction dead zone
+ * (clicks inside the dead zone are ignored, preventing an accidental double-click from deleting outright); clicking again within 3.3s after
+ * the dead zone deletes, otherwise it auto-reverts.
+ * All linework is SVG; never use CSS borders.
  *
  * @see docs/designs/phase2-exploration/mail-list.html
  */
@@ -23,60 +24,60 @@ import type { MailNotification } from '../../stores/mailNotification'
 import { minutesUntilArchive } from '../../utils/retention'
 
 const props = defineProps<{
-  /** 邮件数据。 */
+  /** Mail data. */
   mail: MailNotification
-  /** 状态覆盖（默认取 mail.status；父可传入 read/archived 强制样式）。 */
+  /** Status override (defaults to mail.status; the parent may pass read/archived to force the style). */
   status?: 'unread' | 'read' | 'archived'
-  /** meta 区显示的 provider 名（如「Gmail」/「QQ 邮箱」），由父解析。 */
+  /** Provider name shown in the meta area (e.g. "Gmail" / "QQ Mail"), resolved by the parent. */
   providerName?: string | null
-  /** meta 区显示的相对时间（如「2 分钟前」/「昨天」），由父格式化。 */
+  /** Relative time shown in the meta area (e.g. "2 minutes ago" / "yesterday"), formatted by the parent. */
   timeLabel?: string
-  /** meta 区显示的绝对日期（如「2026.8.3」），两列表都传，与相对时间并列。 */
+  /** Absolute date shown in the meta area (e.g. "2026.8.3"), passed by both lists, displayed alongside the relative time. */
   dateLabel?: string
-  /** 是否显示归档按钮（邮件列表传 true；归档列表不传/传 false）。 */
+  /** Whether to show the archive button (the mail list passes true; the archive list omits it / passes false). */
   showArchive?: boolean
 }>()
 
 const emit = defineEmits<{
-  /** 点击邮件项（父决定标已读 + 跳 webmail）。 */
+  /** Click the mail item (the parent decides mark read + jump to webmail). */
   action: [id: string]
-  /** 点击归档按钮（父调 mailNotificationStore.archive(id)）。 */
+  /** Click the archive button (the parent calls mailNotificationStore.archive(id)). */
   archive: [id: string]
-  /** 点击删除按钮（二次确认后；父调 mailNotificationStore.purge(id)）。 */
+  /** Click the delete button (after double-confirm; the parent calls mailNotificationStore.purge(id)). */
   delete: [id: string]
 }>()
 
 const { t } = useI18n()
 
-/** 实际展示状态：props.status 优先，否则取 mail.status。 */
+/** The status actually displayed: props.status takes priority, otherwise mail.status. */
 const effectiveStatus = computed(() => props.status ?? props.mail.status)
 
-/** 已读邮件剩余归档分钟（基于 readAt + 当前时间）。 */
+/** Remaining minutes until an already-read mail is archived (based on readAt + current time). */
 const minutesLeft = computed(() =>
   props.mail.readAt ? minutesUntilArchive(props.mail.readAt, Date.now()) : 0,
 )
 
-// ── 删除二次确认（inline 变体 + 强制反应死区）──
-// 死区 700ms：确认态出现后的反应死区，死区内点击忽略（防误双击直删）。
-// 之后 3.3s 可确认窗口，超时（共 4s）自动恢复普通态。
+// ── Delete double-confirm (inline variant + forced reaction dead zone) ──
+// Dead zone 700ms: a reaction dead zone right after the confirm state appears; clicks inside it are ignored (prevents an accidental double-click delete).
+// After that a 3.3s confirm window; on timeout (4s total) it auto-reverts to the normal state.
 const DEADZONE_MS = 700
 const CONFIRM_WINDOW_MS = 3300
 const confirmingDelete = ref(false)
-/** 是否处于反应死区（死区内点击忽略，视觉变灰提示用户「请等一下」）。 */
+/** Whether currently in the reaction dead zone (clicks are ignored inside it; visually grayed out to hint "please wait a moment"). */
 const inDeadzone = ref(false)
 let confirmTimer: ReturnType<typeof setTimeout> | undefined
 
-/** 第一次点删除：进入确认态 + 启动死区，死区结束后进入可确认窗口。 */
+/** First delete click: enter the confirm state + start the dead zone; after the dead zone ends, enter the confirmable window. */
 function armConfirm(): void {
   confirmingDelete.value = true
   inDeadzone.value = true
   if (confirmTimer) {
     clearTimeout(confirmTimer)
   }
-  // 死区结束：可点击确认
+  // Dead zone over: clickable to confirm
   confirmTimer = setTimeout(() => {
     inDeadzone.value = false
-    // 再启动可确认窗口计时
+    // Then start the confirmable window timer
     confirmTimer = setTimeout(() => {
       confirmingDelete.value = false
       inDeadzone.value = false
@@ -85,11 +86,11 @@ function armConfirm(): void {
   }, DEADZONE_MS)
 }
 
-/** 删除按钮点击：死区内忽略；未确认→进入确认；已确认→真删。 */
+/** Delete button click: ignored inside the dead zone; unconfirmed → enter confirm; confirmed → really delete. */
 function onClickDelete(): void {
   if (confirmingDelete.value) {
     if (inDeadzone.value) {
-      // 反应死区：忽略点击，防止用户双击直接删除
+      // Reaction dead zone: ignore the click, preventing the user from deleting outright via double-click
       return
     }
     if (confirmTimer) {
@@ -117,7 +118,7 @@ onBeforeUnmount(() => {
     :class="effectiveStatus"
     @click="emit('action', mail.id)"
   >
-    <!-- 未读：红墨点（复用 todo ink-dot 的三层 path） -->
+    <!-- Unread: red-ink dot (reusing the todo ink-dot three-layer path) -->
     <svg
       v-if="effectiveStatus === 'unread'"
       class="unread-dot"
@@ -133,7 +134,7 @@ onBeforeUnmount(() => {
         fill="#d4654a"
       />
     </svg>
-    <!-- 已读/归档：信封图标 -->
+    <!-- Read/archived: envelope icon -->
     <div
       v-else
       class="mail-icon"
@@ -159,7 +160,7 @@ onBeforeUnmount(() => {
       <div class="mail-subject">
         {{ mail.subject || '—' }}
       </div>
-      <!-- meta 两列网格：左=provider/已读提示/已归档标签，右=相对+绝对日期 -->
+      <!-- Meta two-column grid: left=provider/read hint/archived tag, right=relative + absolute date -->
       <div class="mail-meta">
         <div class="meta-left">
           <span v-if="providerName">{{ providerName }}</span>
@@ -180,12 +181,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 右侧操作按钮（hover 显现；确认删除态/死区强制可见） -->
+    <!-- Right-side action buttons (appear on hover; forced visible in confirm-delete/dead-zone states) -->
     <div
       class="mail-actions"
       :class="{ 'is-confirming': confirmingDelete }"
     >
-      <!-- 归档按钮：手绘带盖箱子（仅邮件列表，确认删除态隐藏聚焦删除） -->
+      <!-- Archive button: hand-drawn lidded box (mail list only; hidden in the confirm-delete state to focus on deleting) -->
       <button
         v-if="showArchive && !confirmingDelete"
         class="action-btn"
@@ -193,7 +194,7 @@ onBeforeUnmount(() => {
         type="button"
         @click.stop="emit('archive', mail.id)"
       >
-        <!-- 手绘归档箱：盖子波浪线 + 箱体 + 把手槽 -->
+        <!-- Hand-drawn archive box: wavy lid line + box body + handle slot -->
         <svg
           fill="none"
           height="20"
@@ -204,15 +205,15 @@ onBeforeUnmount(() => {
           viewBox="0 0 24 24"
           width="20"
         >
-          <!-- 盖子：手绘波浪横线 -->
+          <!-- Lid: hand-drawn wavy horizontal line -->
           <path d="M 4 7 Q 8 6 12 7 Q 16 8 20 7" />
-          <!-- 箱体：手绘不规则矩形（Q 曲线，非直线） -->
+          <!-- Box body: hand-drawn irregular rectangle (Q curves, not straight lines) -->
           <path d="M 5 8 Q 4 8 4.5 9.5 L 6 19 Q 6 20.5 7.5 20.5 L 16.5 20.5 Q 18 20.5 18 19 L 19.5 9.5 Q 20 8 19 8" />
-          <!-- 把手槽：盖子上的小弧 -->
+          <!-- Handle slot: small arc on the lid -->
           <path d="M 10 6 Q 12 4.5 14 6" />
         </svg>
       </button>
-      <!-- 删除按钮：普通态=手绘垃圾桶，确认态=「确认删除?」红色文字，死区态=灰色禁用感 -->
+      <!-- Delete button: normal state=hand-drawn trash bin, confirm state="Confirm delete?" red text, dead-zone state=grayed-out disabled look -->
       <button
         class="action-btn"
         :class="{ confirming: confirmingDelete && !inDeadzone, deadzone: confirmingDelete && inDeadzone }"
@@ -236,7 +237,7 @@ onBeforeUnmount(() => {
           viewBox="0 0 24 24"
           width="20"
         >
-          <!-- 手绘垃圾桶：桶盖横线 + 把手 + 桶身 + 两条竖纹 -->
+          <!-- Hand-drawn trash bin: lid horizontal line + handle + bin body + two vertical grooves -->
           <path d="M 4 7 Q 8 6.5 12 7 Q 16 7.5 20 7" />
           <path d="M 10 5 Q 12 4 14 5" />
           <path d="M 6 8 Q 5.5 8 5.7 9 L 7 19 Q 7.2 20 8.2 20 L 15.8 20 Q 16.8 20 17 19 L 18.3 9 Q 18.5 8 18 8" />
@@ -310,7 +311,7 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
-/* meta 两列网格：解决归档列表 provider·已归档·相对·绝对 挤换行 */
+/* Meta two-column grid: keeps the archive list's provider · archived · relative · absolute from wrapping when squeezed */
 .mail-meta {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -356,7 +357,7 @@ onBeforeUnmount(() => {
   background: rgb(196 181 160 / 20%);
 }
 
-/* ── 右侧操作按钮区 ── */
+/* ── Right-side action button area ── */
 .mail-actions {
   display: flex;
   flex-shrink: 0;
@@ -371,7 +372,7 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-/* 确认删除态/死区强制可见（即使鼠标移开） */
+/* Confirm-delete/dead-zone states are forced visible (even when the mouse moves away) */
 .mail-actions.is-confirming {
   opacity: 1;
 }
@@ -409,7 +410,7 @@ onBeforeUnmount(() => {
   background: rgb(212 101 74 / 20%);
 }
 
-/* 死区态：灰色禁用感，提示用户「请稍等」 */
+/* Dead-zone state: grayed-out disabled look, hinting the user to "please wait" */
 .action-btn.deadzone {
   padding: 4px 10px;
   color: var(--ink-faint);

@@ -1,6 +1,6 @@
-# issue19 QA 原生输入/截图层（仅本机 dev 用，不进 CI）
-# 用法：powershell -NoProfile -File native.ps1 -Action <drag|move|click|capture> [参数]
-#   drag    -FromX -FromY -ToX -ToY [-Steps N]   真实 SendInput 按住拖动
+# issue19 QA native input/screenshot layer (local dev only, not for CI)
+# Usage: powershell -NoProfile -File native.ps1 -Action <drag|move|click|capture> [params]
+#   drag    -FromX -FromY -ToX -ToY [-Steps N]   real SendInput press-and-drag
 #   move    -ToX -ToY
 #   capture -X -Y -W -H -Out <png path>
 param(
@@ -26,7 +26,7 @@ public static class NativeQa {
 
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 
-# 虚拟桌面边界（Screen.AllScreens 聚合；DPI aware 后为物理像素）
+# Virtual desktop bounds (aggregated from Screen.AllScreens; physical pixels once DPI aware)
 $vxs = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.X }
 $vys = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.Y }
 $vw = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.Right } | Measure-Object -Maximum | Select-Object -ExpandProperty Maximum
@@ -36,7 +36,7 @@ $vy = ($vys | Measure-Object -Minimum).Minimum
 $vw = $vw - $vx; $vh = $vh - $vy
 
 function Move-Abs([int]$px, [int]$py) {
-  # MOUSEEVENTF_ABSOLUTE|MOVE 映射到虚拟桌面
+  # MOUSEEVENTF_ABSOLUTE|MOVE maps to the virtual desktop
   $nx = [int](($px - $vx) * 65535 / [Math]::Max(1, $vw - 1))
   $ny = [int](($py - $vy) * 65535 / [Math]::Max(1, $vh - 1))
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($px, $py)
@@ -58,7 +58,7 @@ function Drag-Input([int]$fx, [int]$fy, [int]$tx, [int]$ty, [int]$steps) {
 }
 
 function Click-Input([int]$x, [int]$y, [uint32]$flags) {
-  # flags: 0x0002 LEFTDOWN / 0x0008 RIGHTDOWN（UP = flags*2）
+  # flags: 0x0002 LEFTDOWN / 0x0008 RIGHTDOWN (UP = flags*2)
   Move-Abs $x $y
   Start-Sleep -Milliseconds 60
   [NativeQa]::mouse_event($flags, 0, 0, 0, [UIntPtr]::Zero)
@@ -79,7 +79,7 @@ function Capture-Region([int]$cx, [int]$cy, [int]$cw, [int]$ch, [string]$path) {
 }
 
 function Key-Press([byte]$vk) {
-  # vk: 0x1B ESC, 0x0D Enter, 0x28 DOWN …
+  # vk: 0x1B ESC, 0x0D Enter, 0x28 DOWN ...
   [NativeQa]::keybd_event($vk, 0, 0, [UIntPtr]::Zero)
   Start-Sleep -Milliseconds 40
   [NativeQa]::keybd_event($vk, 0, 2, [UIntPtr]::Zero) # KEYEVENTF_KEYUP

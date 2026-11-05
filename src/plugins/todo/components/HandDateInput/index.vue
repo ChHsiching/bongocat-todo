@@ -5,22 +5,25 @@ import { useI18n } from 'vue-i18n'
 import HandClock from '../HandClock/index.vue'
 
 /**
- * 手写日期时间输入（HandDateInput / T6）。
+ * Handwritten date-time input (HandDateInput / T6).
  *
- * 抽自 T5 迷你输入窗的「5 个手写数字框」模式（年/月/日 + 时:分），供主面板新建复用。
- * 不用 native `<input type="date">`（WebView2 占位符乱码）也不用 antd DatePicker（弹层溢出 +
- * 企业蓝皮肤），皮肤完全手绘可控（见 CONTEXT.md「已踩坑清单 · native date input 在 WebView2 不可用」）。
+ * Extracted from the T5 mini input window's "5 handwritten digit boxes" pattern (year/month/day + hour:minute)
+ * for reuse in the main panel's create form. Avoids native `<input type="date">` (WebView2 garbles the
+ * placeholder) and antd DatePicker (popup overflow + corporate blue skin); the skin is fully hand-drawn and
+ * controllable (see CONTEXT.md "pitfalls list · native date input unusable in WebView2").
  *
- * emit `change`：每次输入变化时把计算出的 timestamp（未填完整日期时为 undefined）上报父组件。
- * 父组件拿这个值作为 createTodo 的 dueDate 入参。
+ * emit `change`: reports the computed timestamp (undefined when the date is not fully filled) to the
+ * parent on every input change. The parent uses this value as the dueDate argument of createTodo.
  *
- * 「focus 自动填充当前时间」：任一框获得焦点且全部为空时，自动填入当前系统时间的
- * 年/月/日/时/分，并全选当前框文字——用户点一下就有完整时间，只需微调个别数字，
- * 不用从零敲一长串。已有值时不覆盖（不破坏用户已填的内容）。
+ * "Focus auto-fills the current time": when any box gains focus and all are empty, the current system
+ * time's year/month/day/hour/minute is filled in automatically and the focused box's text is selected —
+ * one click gives the user a complete time that only needs a few digits tweaked, instead of typing a
+ * long string from scratch. Existing values are not overwritten (user-entered content is preserved).
  *
- * 拖动：行挂 data-tauri-drag-region，图标/分隔符 pointer-events:none 透传，input 天然豁免。
+ * Dragging: the row carries data-tauri-drag-region; icon/separators pass clicks through via
+ * pointer-events:none; inputs are naturally exempt.
  *
- * @see src/plugins/todo/components/MiniInput/index.vue T5 原始模式来源
+ * @see src/plugins/todo/components/MiniInput/index.vue origin of the T5 pattern
  */
 const emit = defineEmits<{
   change: [dueDate: number | undefined]
@@ -29,22 +32,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// ── 日期时间输入（纯数字字符串，空串=未填）──
+// ── Date-time inputs (digit-only strings, empty string = not filled) ──
 const year = ref('')
 const month = ref('')
 const day = ref('')
 const hour = ref('')
 const minute = ref('')
 
-/** 日期部分（年月日）是否完整填写。 */
+/** Whether the date part (year/month/day) is fully filled. */
 const hasDate = computed(() => year.value !== '' && month.value !== '' && day.value !== '')
-/** 时间部分（时分）是否完整填写；未填则默认 09:00。 */
+/** Whether the time part (hour/minute) is fully filled; defaults to 09:00 when empty. */
 const hasTime = computed(() => hour.value !== '' && minute.value !== '')
 
 /**
- * 提交用 timestamp：日期必填（年月日都填），时间可选（未填默认 09:00）。
- * 日期/时间都未填 → undefined（无到期日的普通 todo）。
- * 用 new Date(y, m-1, d, h, m) 构造本地时间，避开 UTC 偏移。
+ * Timestamp for submission: the date is required (year/month/day all filled), the time is optional (defaults to 09:00 when empty).
+ * Neither date nor time filled → undefined (a plain todo without a due date).
+ * Builds local time via new Date(y, m-1, d, h, m), avoiding UTC offsets.
  */
 const dueTimestamp = computed<number | undefined>(() => {
   if (!hasDate.value)
@@ -52,7 +55,7 @@ const dueTimestamp = computed<number | undefined>(() => {
   const y = Number(year.value)
   const m = Number(month.value)
   const d = Number(day.value)
-  // 合法性校验：用 Date 构造后回读对比，非法日期（如 2/30）Date 会溢出到下月。
+  // Validity check: construct a Date and read it back to compare; invalid dates (e.g. 2/30) overflow into the next month.
   const probe = new Date(y, m - 1, d)
   if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d)
     return undefined
@@ -61,16 +64,17 @@ const dueTimestamp = computed<number | undefined>(() => {
   return new Date(y, m - 1, d, h, min, 0, 0).getTime()
 })
 
-/** emit 变化（input 事件每次触发后调）。 */
+/** Emit the change (called after every input event fires). */
 function emitChange() {
   emit('change', dueTimestamp.value)
 }
 
 /**
- * 任一框 focus 时：若全部为空，自动填入当前系统时间（年/月/日/时/分），
- * 然后全选当前框文字（方便整体覆盖或微调）。已有值时不覆盖。
+ * When any box gains focus: if all are empty, fill in the current system time (year/month/day/hour/minute),
+ * then select the focused box's text (easy to overwrite wholesale or tweak). Existing values are not overwritten.
  *
- * 这样用户点一下任意框即得完整时间，只改需要变的那几位即可，免去敲一长串数字。
+ * This way one click on any box gives the user a complete time; only the digits that need changing
+ * are edited, sparing a long string of typing.
  */
 function onFocusFillNow(e: FocusEvent) {
   const allEmpty = !year.value && !month.value && !day.value && !hour.value && !minute.value
@@ -83,12 +87,12 @@ function onFocusFillNow(e: FocusEvent) {
     minute.value = String(now.getMinutes())
     emitChange()
   }
-  // 全选当前框文字（无论是否刚填充，都方便整体覆盖或定位编辑）。
+  // Select the focused box's text (whether just auto-filled or not, it eases wholesale overwrite or targeted editing).
   const el = e.target as HTMLInputElement
   el.select()
 }
 
-/** 数字输入框：限制只能输数字，并 clamp 到合法范围。 */
+/** Numeric input handling: restrict to digits only and clamp to the valid range. */
 function clampInt(value: string, min: number, max: number): string {
   if (value === '')
     return ''
@@ -209,7 +213,7 @@ defineExpose({ reset: () => {
   gap: 5px;
 }
 
-/* 时钟图标：装饰，pointer-events:none 透传给行 drag-region。 */
+/* Clock icon: decorative; pointer-events:none passes clicks through to the row's drag-region. */
 .icon-deco {
   display: flex;
   align-items: center;
@@ -217,7 +221,7 @@ defineExpose({ reset: () => {
   pointer-events: none;
 }
 
-/* 手写数字输入框：年/月/日/时/分统一皮肤（851 字体/加粗/粉墨色/透明无边框）。 */
+/* Handwritten digit input boxes: uniform skin for year/month/day/hour/minute (851 font/bold/pink-ink color/transparent borderless). */
 .num-input {
   padding: 0;
   background: transparent;
@@ -239,7 +243,7 @@ defineExpose({ reset: () => {
   color: var(--ink);
 }
 
-/* 年 4 位宽，月/日/时/分 2 位宽。 */
+/* Year is 4 digits wide; month/day/hour/minute are 2 digits wide. */
 .num-year {
   width: 38px;
 }
@@ -248,7 +252,7 @@ defineExpose({ reset: () => {
   width: 22px;
 }
 
-/* 分隔符 - / :（装饰，透传 drag-region） */
+/* Separators - / : (decorative, pass through to the drag-region) */
 .num-sep {
   flex-shrink: 0;
   font-family: inherit;
@@ -258,7 +262,7 @@ defineExpose({ reset: () => {
   pointer-events: none;
 }
 
-/* 中间留白：撑开日期组与时间组的间距，行本身是 drag-region 所以这里空白也能拖。 */
+/* Middle gap: stretches the spacing between the date group and the time group; the row itself is a drag-region, so this blank space is draggable too. */
 .date-gap {
   flex: 1 1 auto;
   min-width: 12px;

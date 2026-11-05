@@ -27,7 +27,7 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
   })
 
   it('放开限制后可添加多个不同 provider 的账号（T4）', () => {
-    // ticket #14：放开单账号限制，支持 N 个账号同时 IDLE 监听
+    // ticket #14: lift the single-account limit, support N accounts on simultaneous IDLE watch
     const store = useMailAccountStore()
     store.addAccount({
       address: 'alice@gmail.com',
@@ -36,7 +36,7 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
       username: 'alice@gmail.com',
     })
 
-    // 第二个账号不再抛错（原 MAX_ACCOUNTS=1 限制已移除）
+    // A second account no longer throws (the old MAX_ACCOUNTS=1 limit was removed)
     const bob = store.addAccount({
       address: 'bob@qq.com',
       imapHost: 'imap.qq.com',
@@ -47,7 +47,7 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
     expect(store.accounts).toHaveLength(2)
     expect(store.accounts[1]?.address).toBe('bob@qq.com')
 
-    // 第三个也行（N 个账号，无上限）
+    // A third works too (N accounts, no cap)
     store.addAccount({
       address: 'carol@163.com',
       imapHost: 'imap.163.com',
@@ -210,7 +210,7 @@ describe('useMailAccountStore — setLastSeenUid（离线补发持久化）', ()
 
     store.setLastSeenUid(acc.id, 500)
     store.setLastSeenUid(acc.id, 800)
-    store.setLastSeenUid(acc.id, 600) // 乱序/旧数据，不回退
+    store.setLastSeenUid(acc.id, 600) // out-of-order/stale data, no regression
 
     expect(acc.lastSeenUid).toBe(800)
   })
@@ -243,7 +243,7 @@ describe('useMailAccountStore — setLastSeenUid（离线补发持久化）', ()
       imapPort: 993,
       username: 'a@b.com',
     })
-    // 模拟旧持久化数据：强制删除 lastSeenUid
+    // Simulate legacy persisted data: forcibly delete lastSeenUid
     ;(acc as { lastSeenUid?: number }).lastSeenUid = undefined as unknown as number
 
     store.setLastSeenUid(acc.id, 500)
@@ -261,7 +261,7 @@ describe('useMailAccountStore — migrateLastSeenUid（旧数据迁移）', () =
       imapPort: 993,
       username: 'a@b.com',
     })
-    // 模拟旧持久化数据：强制删除 lastSeenUid
+    // Simulate legacy persisted data: forcibly delete lastSeenUid
     ;(acc as { lastSeenUid?: number }).lastSeenUid = undefined as unknown as number
 
     store.migrateLastSeenUid()

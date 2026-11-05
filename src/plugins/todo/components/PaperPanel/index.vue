@@ -1,33 +1,39 @@
 <script setup lang="ts">
 /**
- * 纸张容器（PaperPanel）：手绘不规则边框 + 纯白底 + 极淡灰颗粒纹理 + 手绘阴影。
+ * Paper container (PaperPanel): hand-drawn irregular border + pure white fill + a very faint
+ * gray grain texture + a hand-drawn shadow.
  *
- * issue #19 起窗口可拖拽调整大小，边框改为 **9-slice 分片**（角固定 + 边拉伸），
- * 图案（波浪/圆点）固定大小不缩放：
- * - 四角（含手绘 Q 弧线）：固定 30×30 的独立 SVG，任何窗口尺寸下不变形；
- * - 四边：纯直线段（原 path 即 L 段），preserveAspectRatio="none" 单向拉伸，
- *   描边加 vector-effect="non-scaling-stroke" 保持 2.5px 恒定粗细；
- * - 错位米色纸影（原 shadow path）：整体非均匀拉伸——模糊观感掩盖形变（Round 1 既定取舍）；
- * - 柔化阴影：原 feGaussianBlur filter 改容器 CSS drop-shadow（与边框几何解耦、
- *   拉伸无方向性畸变），参数照搬（dx2 dy4 blur3 α0.12，α 源自 SourceAlpha 即黑）；
- * - 纸面颗粒纹理：从 SVG pattern 挪到 CSS radial-gradient 点阵（固定 background-size，
- *   任何长宽比下圆点不变形）；
- * - 波浪/圆点装饰：固定尺寸 overlay，锚定纸片左上/右上角，随窗口移动但不缩放。
+ * Since issue #19 the window is drag-resizable, so the border switched to **9-slice slicing**
+ * (fixed corners + stretched edges), with the decorations (wave/dots) fixed in size and unscaled:
+ * - Four corners (with hand-drawn Q arcs): standalone fixed 30×30 SVGs that keep their shape at any window size;
+ * - Four edges: plain line segments (the original path is L segments), stretched one-way with
+ *   preserveAspectRatio="none"; strokes add vector-effect="non-scaling-stroke" to keep a constant 2.5px width;
+ * - Offset beige paper shadow (the original shadow path): stretched non-uniformly as a whole — the
+ *   blurred look masks the distortion (the settled Round 1 tradeoff);
+ * - Soft shadow: the original feGaussianBlur filter became a CSS drop-shadow on the container
+ *   (decoupled from the border geometry, no directional distortion when stretched), with the
+ *   parameters carried over (dx2 dy4 blur3 α0.12, α from SourceAlpha i.e. black);
+ * - Paper grain texture: moved from an SVG pattern to a CSS radial-gradient dot matrix (fixed
+ *   background-size; dots never distort at any aspect ratio);
+ * - Wave/dot decorations: fixed-size overlays anchored to the paper's top-left/top-right corners;
+ *   they move with the window but never scale.
  *
- * 切片几何抠自 docs/designs/todo-panel-exploration/panel.html 的原始 path 坐标，
- * 分片按 2px 重叠对接（不透明同色叠印不可见，规避抗锯齿接缝）。
- * 方案依据：docs/research/2026-11-03-issue19-todo-window-resize.md §5、
- * docs/research/2026-11-04-issue19-round1-verification.md（C1/C2/C3/C5）。
+ * Slice geometry is lifted from the original path coordinates in
+ * docs/designs/todo-panel-exploration/panel.html; slices butt together with a 2px overlap
+ * (invisible for opaque same-color overprint, avoiding anti-aliasing seams).
+ * Design basis: docs/research/2026-11-03-issue19-todo-window-resize.md §5 and
+ * docs/research/2026-11-04-issue19-round1-verification.md (C1/C2/C3/C5).
  */
 </script>
 
 <template>
   <div class="paper-panel">
-    <!-- 边框分片层：纸影与柔化阴影都以 drop-shadow 作用于本层合成轮廓
-         （跟随 9-slice 几何，任何窗口尺寸都严丝合缝，替代旧的独立拉伸 SVG 纸影——
-         那个在拖拽时非均匀拉伸，角部与纸片分家、观感诡异） -->
+    <!-- Border slice layer: both the paper shadow and the soft shadow are applied as drop-shadows
+         on this layer's composite outline (follows the 9-slice geometry, fits perfectly at any window
+         size — replaces the old independently stretched SVG paper shadow, which stretched
+         non-uniformly while dragging, detaching the corners from the paper with an eerie look) -->
     <div class="paper-frame">
-      <!-- 四角：固定尺寸，viewBox 取原 path 对应角区（含描边余量） -->
+      <!-- Four corners: fixed size; the viewBox takes the corresponding corner region of the original path (with stroke allowance) -->
       <svg
         class="corner corner-tl"
         viewBox="8 3 30 30"
@@ -81,9 +87,10 @@
         />
       </svg>
 
-      <!-- 四边：直线段单向拉伸（vector-effect 保描边粗细）。
-           注意：定位交给 div，svg 在 div 内 100% 填充——直接给 <svg> 设 left/right
-           绝对定位会回退到 SVG 固有尺寸（300×150），导致边线画不满、角落露透明洞。 -->
+      <!-- Four edges: line segments stretched one-way (vector-effect keeps the stroke width).
+           Note: positioning belongs to the div; the svg fills it at 100% — absolutely positioning
+           the <svg> itself with left/right would fall back to the SVG intrinsic size (300×150),
+           leaving the line under-drawn and transparent holes at the corners. -->
       <div class="edge edge-top">
         <svg
           preserveAspectRatio="none"
@@ -145,11 +152,11 @@
         </svg>
       </div>
 
-      <!-- 纸心：白底 + CSS 颗粒点阵（固定 40px tile，圆点不随窗口形变） -->
+      <!-- Paper core: white fill + CSS grain dot matrix (fixed 40px tile; dots never distort with the window) -->
       <div class="paper-center" />
     </div>
 
-    <!-- 图案 overlay：固定尺寸，锚定角点，不参与缩放 -->
+    <!-- Decoration overlays: fixed size, anchored to corner points, not part of scaling -->
     <svg
       class="deco deco-wave"
       viewBox="38 24 64 12"
@@ -200,19 +207,19 @@
   height: 100%;
 }
 
-/* 分片层：只含纸片几何；纸影与柔化阴影都随本层合成轮廓走（任何尺寸贴合） */
+/* Slice layer: contains only the paper geometry; the paper shadow and soft shadow both follow this layer's composite outline (fits at any size) */
 .paper-frame {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* 双层投影 = 原视觉的 CSS 化：
-     1) 错位米色纸影：原独立 SVG path（#f0e8de@0.6，偏移 2/4 无模糊）→ 0 blur drop-shadow；
-     2) 柔化阴影：原 feGaussianBlur（dx2/dy4/blur3/α0.12）→ 3px blur drop-shadow */
+  /* Double drop-shadow = the original visuals ported to CSS:
+     1) offset beige paper shadow: the original standalone SVG path (#f0e8de@0.6, offset 2/4 no blur) → 0 blur drop-shadow;
+     2) soft shadow: the original feGaussianBlur (dx2/dy4/blur3/α0.12) → 3px blur drop-shadow */
   filter: drop-shadow(2px 4px 0 rgba(240, 232, 222, 0.6)) drop-shadow(2px 4px 3px rgba(0, 0, 0, 0.12));
 }
 
-/* 分片公共：填充与描边 */
+/* Slice common styles: fill and stroke */
 .paper-frame .fill {
   fill: var(--paper);
   stroke: none;
@@ -226,7 +233,7 @@
   stroke-width: 2.5;
 }
 
-/* 单向拉伸的边线：描边宽度恒定（SVG2 vector-effect，inline 场景三引擎 WPT 全绿） */
+/* One-way stretched edge lines: constant stroke width (SVG2 vector-effect; WPT all green across three engines for the inline case) */
 .paper-frame .ink.stretch {
   vector-effect: non-scaling-stroke;
 }
@@ -237,10 +244,12 @@
   height: 30px;
 }
 
-/* 归位偏移：原设计纸片在 360×540 viewBox 里自带内建边距（左边框在 x≈13.5、
-   顶在 y≈9.5、右 ≈346、底 ≈528），9-slice 切片若贴容器 0 位放置会把纸
-   撑大 ~6px（默认尺寸与基线漂移）。以下偏移把边框线归位回原始几何：
-   左片 +8px、右片 -2px、顶片 +3px（左右均按实测像素校准）、底片 0（实测对齐基线 x=24/353）。 */
+/* Calibrated positioning offsets: in the original design the paper carries a built-in margin inside
+   the 360×540 viewBox (left border at x≈13.5, top at y≈9.5, right ≈346, bottom ≈528). Placing the
+   9-slice pieces flush at container 0 would inflate the paper by ~6px (default size and baseline
+   drift). The offsets below calibrate the border lines back to the original geometry:
+   left piece +8px, right piece -2px, top piece +3px (both sides calibrated by measured pixels),
+   bottom piece 0 (measured aligned to the baseline x=24/353). */
 .corner-tl {
   left: 8px;
   top: 3px;
@@ -262,14 +271,14 @@
   position: absolute;
 }
 
-/* svg 撑满定位 div（div 负责拉伸几何，svg 负责绘制） */
+/* svg fills the positioning div (the div handles the stretch geometry, the svg handles the drawing) */
 .edge svg {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-/* 与角片重叠 2px 对接（同色不透明叠印不可见），left/right 含归位偏移 */
+/* Butts with a 2px overlap onto the corner pieces (invisible for same-color opaque overprint); left/right include the calibrated positioning offsets */
 .edge-top {
   top: 3px;
   left: 36px;
@@ -298,15 +307,16 @@
   width: 30px;
 }
 
-/* 纸心：与边片填充重叠 2px；颗粒点阵 = 原 SVG pattern 的 CSS 化
-   （4 圆点/40px tile：r0.4@0.18 ×2 + r0.3@0.14 ×2；色值 = --ink-faint #c4b5a0，
-   本面板固定亮色板无暗色模式，硬编码可接受） */
+/* Paper core: overlaps the edge fills by 2px; the grain dot matrix = the original SVG pattern
+   ported to CSS (4 dots per 40px tile: r0.4@0.18 ×2 + r0.3@0.14 ×2; color = --ink-faint #c4b5a0;
+   this panel is fixed to the light palette with no dark mode, so hardcoding is acceptable) */
 .paper-center {
   position: absolute;
   inset: 28px;
   background-color: var(--paper);
-  /* 半径取整像素保证栅格化存活：亚像素半径（0.4px 档）+ 低透明度会被 AA 稀释后
-     量化成纯白（颗粒完全消失），故用 1px 半径 + 减半透明度近似原 r0.4@0.18 的视觉重量 */
+  /* Round radii to whole pixels so the dots survive rasterization: sub-pixel radii (the 0.4px tier)
+     + low alpha get diluted by AA and quantized to pure white (the grain vanishes entirely), so a
+     1px radius + halved alpha approximates the original r0.4@0.18 visual weight */
   background-image:
     radial-gradient(circle 1px at 8px 12px, rgba(196, 181, 160, 0.1) 99%, transparent),
     radial-gradient(circle 0.8px at 28px 6px, rgba(196, 181, 160, 0.08) 99%, transparent),
@@ -316,7 +326,7 @@
   background-repeat: repeat;
 }
 
-/* 图案 overlay：固定尺寸、固定角点偏移（偏移取原设计坐标），不随窗口缩放 */
+/* Decoration overlays: fixed size, fixed corner offsets (offsets from the original design coordinates), never scale with the window */
 .deco {
   position: absolute;
   z-index: 0;

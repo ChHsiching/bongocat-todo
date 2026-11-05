@@ -1,16 +1,16 @@
 <script setup lang="ts">
 /**
- * 归档邮件窗口（T5，D9）。
+ * Archived mail window (T5, D9).
  *
- * 独立伴随窗口（WINDOW_LABEL.MAIL_ARCHIVE），手绘风纸张容器，展示已归档邮件
- * （样式更淡 opacity 0.7 + 「已归档」标签）。点击 → 跳 webmail（归档项不标已读，幂等）。
+ * An independent companion window (WINDOW_LABEL.MAIL_ARCHIVE) with a hand-drawn paper container, showing archived mails
+ * (fainter styling with opacity 0.7 + an "Archived" tag). Click → jump to webmail (archived items are not marked read, idempotent).
  *
- * 独立 webview，store 不继承 main 窗口——必须 onMounted 调 `$tauri.start()` 加载持久化数据。
- * 定位逻辑复用 todo 面板的 clamp + 翻边。
+ * Independent webview; stores are not inherited from the main window — onMounted must call `$tauri.start()` to load persisted data.
+ * Positioning reuses the todo panel's clamp + edge flip.
  *
- * 归档全是本地状态，**绝不向邮箱服务端发 IMAP MOVE**（D5-actual 零写约束）。
+ * Archiving is purely local state; **never send IMAP MOVE to the mail server** (D5-actual zero-write constraint).
  *
- * @see docs/designs/phase2-exploration/mail-list.html ② 归档邮件
+ * @see docs/designs/phase2-exploration/mail-list.html ② Archived mail
  * @see ADR 0002 D9
  */
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
@@ -40,7 +40,7 @@ const appWindow = getCurrentWebviewWindow()
 const FADE_MS = 200
 const PANEL_SIZE = new PhysicalSize(400, 560)
 
-// issue #19 后续：可调尺寸（约束 + 恢复 + 持久化），min 高度按「标题区+一封邮件+底栏」估
+// Follow-up to issue #19: resizable (constraints + restore + persistence); min height estimated from "header area + one mail + footer"
 const { applyConstraints } = useResizablePanel({
   min: { width: 400, height: 320 },
   max: { width: 720, height: 8192 },
@@ -63,8 +63,8 @@ let nowTimer: ReturnType<typeof setInterval> | undefined
 onMounted(async () => {
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
-  // issue #19：面板尺寸持久化依赖本窗口 start mailSettings（此前漏 start，
-  // persist 写进未启动 store，saveOnChange 静默跳过、文件从未落盘）
+  // issue #19: panel size persistence depends on this window starting mailSettings (previously it missed the start,
+  // so persist wrote into an unstarted store, saveOnChange silently skipped it, and the file never reached disk)
   await mailSettingsStore.$tauri.start()
   appWindow.setTitle(t('plugins.mail.labels.mailArchiveTitle'))
 
@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
   }
 })
 
-/** 已归档邮件（按归档时间倒序）。 */
+/** Archived mails (newest archived first). */
 const archivedMails = computed(() => mailNotificationStore.archivedMails)
 
 function providerName(accountId: string): string | null {
@@ -91,7 +91,7 @@ function timeLabel(mail: { archivedAt?: number }): string {
   return mail.archivedAt ? relativeTime(mail.archivedAt, now.value) : ''
 }
 
-/** 绝对日期（年.月.日），归档列表 meta 区与相对时间并列显示。取接收时间。 */
+/** Absolute date (year.month.day), shown alongside the relative time in the archive list meta. Uses the arrival time. */
 function dateLabel(mail: { arrivedAt: number }): string {
   return absoluteDate(mail.arrivedAt)
 }
@@ -140,7 +140,7 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_ARCHIVE, async () => {
   now.value = Date.now()
 })
 
-/** 点击归档邮件 → 跳 webmail（归档项不标已读，幂等）。 */
+/** Click an archived mail → jump to webmail (archived items are not marked read, idempotent). */
 function handleAction(id: string) {
   const mail = mailNotificationStore.notifications.find(n => n.id === id)
   if (!mail) {
@@ -150,12 +150,12 @@ function handleAction(id: string) {
   const url = account ? resolveWebmailUrl(account.address, account.imapHost) : null
   if (url) {
     openUrl(url).catch(() => {
-      // 打开失败不阻塞
+      // Open failure does not block
     })
   }
 }
 
-/** 删除按钮（二次确认后）：从 store 彻底移除。 */
+/** Delete button (after double-confirm): remove entirely from the store. */
 function handleDelete(id: string) {
   mailNotificationStore.purge(id)
 }
@@ -174,7 +174,7 @@ function handleClose() {
     class="bubble-handdrawn mail-archive-page fade h-screen w-screen overflow-hidden"
     :class="{ 'fade-shown': shown }"
   >
-    <!-- 贴纸片可见边框的 resize 把手（inset 按 MailPanel 基线校准 L20/R22/T18/B19） -->
+    <!-- Resize handles hugging the sticker's visible border (insets calibrated against the MailPanel baseline L20/R22/T18/B19) -->
     <ResizeHandles
       :inset-bottom="19"
       :inset-left="20"
@@ -188,7 +188,7 @@ function handleClose() {
       >
         <div class="panel-title-row">
           <div class="panel-paw">
-            <!-- 归档图标：盒子 + 顶盖横线（对照设计稿） -->
+            <!-- Archive icon: box + top lid line (per the design) -->
             <svg
               fill="none"
               height="30"
@@ -226,7 +226,7 @@ function handleClose() {
             viewBox="0 0 24 24"
             width="20"
           >
-            <!-- 手绘 ×：两段顺滑大弧交叉，与 todo 面板一致 -->
+            <!-- Hand-drawn ×: two smooth large crossing arcs, consistent with the todo panel -->
             <path d="M 6 6 Q 9.5 13 19 19" />
             <path d="M 18 6 Q 8.5 10 5 18" />
           </svg>

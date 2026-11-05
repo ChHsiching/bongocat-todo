@@ -1,5 +1,5 @@
-# issue19 诊断：找覆盖指定屏幕矩形的所有可见顶层窗口（跨进程）
-# 用法：overlap.ps1 -X -Y -W -H
+# issue19 diagnostics: find all visible top-level windows (across processes) covering the given screen rectangle
+# Usage: overlap.ps1 -X -Y -W -H
 param(
   [Parameter(Mandatory)][int]$X,
   [Parameter(Mandatory)][int]$Y,
@@ -46,12 +46,12 @@ public class OverlapQa {
       if (!IsWindowVisible(wnd)) return true;
       var r = new RECT();
       GetWindowRect(wnd, out r);
-      // 相交测试
+      // intersection test
       if (r.L < x + w && r.R > x && r.T < y + h && r.B > y) {
         var t = new StringBuilder(256); GetWindowTextW(wnd, t, 256);
         var c = new StringBuilder(256); GetClassNameW(wnd, c, 256);
         uint pid; GetWindowThreadProcessId(wnd, out pid);
-        if (r.R - r.L < 4 || r.B - r.T < 4) return true; // 忽略微型辅助窗口
+        if (r.R - r.L < 4 || r.B - r.T < 4) return true; // skip tiny helper windows
         hits.Add(String.Format("pid={0} class={1} title={2} rect={3},{4} {5}x{6}",
           pid, c, t, r.L, r.T, r.R - r.L, r.B - r.T));
       }

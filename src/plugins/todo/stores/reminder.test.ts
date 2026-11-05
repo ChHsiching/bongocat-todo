@@ -4,7 +4,7 @@ import type { Todo } from './todo'
 
 import { findDueTodos } from './reminder'
 
-/** 构造最小可用 Todo，方便单测；字段缺省值不影响 findDueTodos 判定。 */
+/** Build a minimal usable Todo for unit tests; default field values do not affect findDueTodos's decision. */
 function makeTodo(patch: Partial<Todo> & Pick<Todo, 'id'>): Todo {
   return {
     title: patch.title ?? 'x',
@@ -32,7 +32,7 @@ describe('findDueTodos', () => {
     const due = makeTodo({ id: '1', dueDate: 1_000 })
 
     expect(findDueTodos([due], 1_000).map(t => t.id)).toEqual(['1'])
-    // now 略晚于 dueDate 也命中
+    // Also matches when now is slightly later than dueDate
     expect(findDueTodos([due], 2_000).map(t => t.id)).toEqual(['1'])
   })
 
@@ -50,11 +50,11 @@ describe('findDueTodos', () => {
 
   it('混合场景：只挑出到期未完成的', () => {
     const todos = [
-      makeTodo({ id: 'due-undone', dueDate: 500 }), // ✅ 命中
-      makeTodo({ id: 'due-done', completed: true, dueDate: 500 }), // ❌ 已完成
-      makeTodo({ id: 'future', dueDate: 5_000 }), // ❌ 未到期
-      makeTodo({ id: 'no-date' }), // ❌ 无 dueDate
-      makeTodo({ id: 'due-now', dueDate: 1_000 }), // ✅ 命中（恰等于 now）
+      makeTodo({ id: 'due-undone', dueDate: 500 }), // ✅ matches
+      makeTodo({ id: 'due-done', completed: true, dueDate: 500 }), // ❌ completed
+      makeTodo({ id: 'future', dueDate: 5_000 }), // ❌ not due yet
+      makeTodo({ id: 'no-date' }), // ❌ no dueDate
+      makeTodo({ id: 'due-now', dueDate: 1_000 }), // ✅ matches (exactly equals now)
     ]
 
     expect(findDueTodos(todos, 1_000).map(t => t.id)).toEqual(['due-undone', 'due-now'])
@@ -68,6 +68,6 @@ describe('findDueTodos', () => {
     findDueTodos(input, 1_000)
 
     expect(input).toEqual(inputSnapshot)
-    expect(input[0]).toBe(todo) // 引用未变
+    expect(input[0]).toBe(todo) // reference unchanged
   })
 })

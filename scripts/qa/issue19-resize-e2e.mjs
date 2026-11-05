@@ -1,18 +1,18 @@
 /**
- * issue19 e2e：真实 OS 鼠标（SendInput）拖边 resize 断言。
+ * issue19 e2e: real OS mouse (SendInput) edge-drag resize assertions.
  *
- * 编排走 CDP（打开面板/读窗口 rect），被测行为（拖边缘调整窗口大小）全部是
- * 真实系统鼠标事件——由 scripts/qa/lib/native.ps1 的 mouse_event 注入。
+ * Orchestration goes through CDP (open the panel / read the window rect); the behavior under test (dragging edges to
+ * resize the window) is entirely real system mouse events — injected via mouse_event in scripts/qa/lib/native.ps1.
  *
- * 断言组：
- *   T1 拖右边缘 +120px → 宽度增加 ≈120（resize 可用）
- *   T2 拖右边缘 +2000px → 宽度被钳制 ≤720（maxWidth）
- *   T3 拖右/下边缘向内 -5000px → 宽 ≥380 且高 ≥280（minWidth/minHeight）
- *   T4 拖到 550×640 → 关面板重开 → 尺寸恢复（pinia 持久化）
- *   T5 mini 形态 → 精确 380×130（约束已清空，不被 minHeight 钳死）
+ * Assertion groups:
+ *   T1 drag the right edge +120px → width grows by ≈120 (resize works)
+ *   T2 drag the right edge +2000px → width clamped ≤720 (maxWidth)
+ *   T3 drag the right/bottom edges inward -5000px → width ≥380 and height ≥280 (minWidth/minHeight)
+ *   T4 drag to 550×640 → close and reopen the panel → size restored (pinia persistence)
+ *   T5 mini mode → exactly 380×130 (constraints cleared, not clamped to death by minHeight)
  *
- * 用法：node scripts/qa/issue19-resize-e2e.mjs
- * 前置：应用以 CDP 端口启动（见 lib/cdp.mjs 头注释），猫窗口在屏。
+ * Usage: node scripts/qa/issue19-resize-e2e.mjs
+ * Prerequisites: the app started with a CDP port (see the header comment in lib/cdp.mjs), cat window on screen.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -24,7 +24,7 @@ import { emitAppEvent, todoWindowInfo, waitForCdp } from './lib/cdp.mjs'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const PS = resolve(ROOT, 'scripts/qa/lib/native.ps1')
 
-const TOL = 3 // 像素容差（命中偏移/取整）
+const TOL = 3 // pixel tolerance (hit offset / rounding)
 
 function ps(args) {
   execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS, ...args], { stdio: 'pipe' })
@@ -49,85 +49,85 @@ function assert(name, cond, detail) {
   console.log(`✓ ${name}`)
 }
 
-console.log('等待 CDP …')
+console.log('Waiting for CDP ...')
 await waitForCdp()
 
-// 打开 panel
+// Open the panel
 await emitAppEvent('show-todo-full')
 await sleep(700)
 
-// T0 归位：压到 min（380×280）建立已知起点（上次运行可能停在 720×560 等持久化尺寸，
-// 直接开测会让 T1 的 +120 被 max 钳制 → 假失败）
+// T0 reset: squeeze to min (380×280) to establish a known starting point (a previous run may have left a persisted
+// size like 720×560; testing directly would clamp T1's +120 against max → a false failure)
 {
   await dragEdge('right', -5000, 0)
   await dragEdge('bottom', 0, -5000)
   const r = await todoWindowInfo()
-  assert('T0 归位到 min 380×280', Math.abs(r.width - 380) <= TOL && Math.abs(r.height - 280) <= TOL, `got=${r.width}x${r.height}`)
+  assert('T0 reset to min 380×280', Math.abs(r.width - 380) <= TOL && Math.abs(r.height - 280) <= TOL, `got=${r.width}x${r.height}`)
 }
 
-// T1 拖右边缘 +120
+// T1 drag the right edge +120
 {
   const before = await todoWindowInfo()
   const after = await dragEdge('right', 120, 0)
   const grew = after.width - before.width
-  assert('T1 拖右边缘 +120 → 宽度增加', Math.abs(grew - 120) <= TOL, `before=${before.width} after=${after.width} grew=${grew}`)
+  assert('T1 drag right edge +120 → width grows', Math.abs(grew - 120) <= TOL, `before=${before.width} after=${after.width} grew=${grew}`)
 }
 
-// T2 拖右边缘 +2000 → max 720
+// T2 drag the right edge +2000 → max 720
 {
   const after = await dragEdge('right', 2000, 0)
-  assert('T2 拖右边缘 +2000 → 宽 ≤ 720', after.width <= 720 + TOL, `width=${after.width}`)
+  assert('T2 drag right edge +2000 → width ≤ 720', after.width <= 720 + TOL, `width=${after.width}`)
 }
 
-// T3 向内压缩 → min 380×280
+// T3 squeeze inward → min 380×280
 {
   const after = await dragEdge('right', -5000, 0)
-  assert('T3a 压宽 → 宽 ≥ 380', after.width >= 380 - TOL, `width=${after.width}`)
+  assert('T3a squeeze width → width ≥ 380', after.width >= 380 - TOL, `width=${after.width}`)
   const after2 = await dragEdge('bottom', 0, -5000)
-  assert('T3b 压高 → 高 ≥ 280', after2.height >= 280 - TOL, `height=${after2.height}`)
+  assert('T3b squeeze height → height ≥ 280', after2.height >= 280 - TOL, `height=${after2.height}`)
 }
 
-// T4 拖到 ~550×640 → 持久化恢复
+// T4 drag to ~550×640 → persistence restore
 {
   await dragEdge('right', 170, 0) // 380 → ~550
-  const sized = await dragEdge('bottom', 0, 120) // 280 → ~400? T3 后高度在 min；先拉高
-  // 以实测为准：拉到目标附近即可，记录当前值
+  const sized = await dragEdge('bottom', 0, 120) // 280 → ~400? After T3 the height is at min; raise it first
+  // Trust the measurement: just get near the target and record the current values
   const target = { width: sized.width, height: sized.height }
-  await sleep(600) // 等 debounce(300ms) 落库
-  // 关闭再重开（hide → show 走完整打开流程）
+  await sleep(600) // wait for the debounce(300ms) to persist
+  // Close then reopen (hide → show runs the full open flow)
   await emitAppEvent('hide-window', 'todo')
-  // hide-window 的 payload 是 label 字符串；App.vue 按 label 匹配——todo 窗口自己的 handler 关掉自己
+  // hide-window's payload is the label string; App.vue matches by label — the todo window's own handler closes itself
   await sleep(400)
   await emitAppEvent('show-todo-full')
   await sleep(700)
   const restored = await todoWindowInfo()
-  assert('T4 重开后恢复用户尺寸', Math.abs(restored.width - target.width) <= TOL && Math.abs(restored.height - target.height) <= TOL, `target=${target.width}x${target.height} restored=${restored.width}x${restored.height}`)
+  assert('T4 user size restored after reopen', Math.abs(restored.width - target.width) <= TOL && Math.abs(restored.height - target.height) <= TOL, `target=${target.width}x${target.height} restored=${restored.width}x${restored.height}`)
 }
 
-// T5 mini 形态：恢复 miniWidth（宽度在 380-720 内、高度恒 130 单轴锁）
+// T5 mini mode: restore miniWidth (width within 380-720, height locked at 130 on a single axis)
 {
   await emitAppEvent('show-todo-mini')
   await sleep(900)
   const mini = await todoWindowInfo()
-  assert('T5a mini 高度恒 130（单轴锁）', Math.abs(mini.height - 130) <= TOL, `h=${mini.height}`)
-  assert('T5b mini 宽度在持久区间 [380,720]', mini.width >= 380 - TOL && mini.width <= 720 + TOL, `w=${mini.width}`)
-  // T5c 横向拖宽 +50（抓带状把手虚空位置：边内 12px）
+  assert('T5a mini height locked at 130 (single-axis lock)', Math.abs(mini.height - 130) <= TOL, `h=${mini.height}`)
+  assert('T5b mini width within the persisted range [380,720]', mini.width >= 380 - TOL && mini.width <= 720 + TOL, `w=${mini.width}`)
+  // T5c drag wider by +50 (grabbing the band handle's void position: 12px inside the edge)
   const grabX = mini.x + mini.width - 12
   const grabY = mini.y + Math.round(mini.height / 2)
   ps(['-Action', 'drag', '-FromX', String(grabX), '-FromY', String(grabY), '-ToX', String(grabX + 50), '-ToY', String(grabY), '-Steps', '20'])
   await sleep(500)
   const widened = await todoWindowInfo()
-  assert('T5c mini 带状把手拖宽 +50', Math.abs(widened.width - mini.width - 50) <= TOL, `before=${mini.width} after=${widened.width}`)
-  // T5d 竖直拖锁死（原生底边缘 +80）
+  assert('T5c mini band handle widens +50', Math.abs(widened.width - mini.width - 50) <= TOL, `before=${mini.width} after=${widened.width}`)
+  // T5d vertical drag stays locked (native bottom edge +80)
   const bx = widened.x + Math.round(widened.width / 2)
   const by = widened.y + widened.height - 3
   ps(['-Action', 'drag', '-FromX', String(bx), '-FromY', String(by), '-ToX', String(bx), '-ToY', String(by + 80), '-Steps', '20'])
   await sleep(500)
   const locked = await todoWindowInfo()
-  assert('T5d mini 竖直锁死', Math.abs(locked.height - 130) <= TOL, `h=${locked.height}`)
-  // 收尾：回到 panel 形态方便人工查看
+  assert('T5d mini vertical lock', Math.abs(locked.height - 130) <= TOL, `h=${locked.height}`)
+  // Wrap up: return to the panel mode for manual inspection
   await emitAppEvent('show-todo-full')
   await sleep(500)
 }
 
-console.log('\n=== e2e 全部通过 ===')
+console.log('\n=== All e2e assertions passed ===')

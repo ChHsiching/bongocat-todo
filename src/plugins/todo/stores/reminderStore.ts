@@ -2,27 +2,29 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 /**
- * Todo 提醒去重状态 store（T4 增强）。
+ * Todo reminder dedup state store (T4 enhancement).
  *
- * 持久化「该 todo 以哪个 dueDate 值通知过」的映射（`Record<todoId, dueDate>`），
- * 让去重状态跨 app 重启保留——避免同一条过期 todo 每次启动都重复通知。
+ * Persists a map of "which dueDate value each todo was last notified at"
+ * (`Record<todoId, dueDate>`), keeping dedup state across app restarts — so the same
+ * overdue todo does not re-notify on every startup.
  *
- * 持久化复用 `@tauri-store/pinia` 的 `saveOnChange`（与 device/todo store 同构），
- * 由调用方在挂载时调 `$tauri.start()` 加载已落盘的值。
+ * Persistence reuses `@tauri-store/pinia`'s `saveOnChange` (isomorphic with the device/todo stores);
+ * the caller calls `$tauri.start()` on mount to load persisted values.
  *
- * 语义：当 todo 的 dueDate 与记录值相等 → 已通知过，跳过；不等（含无记录）→ 视为新事件，通知。
- * 这天然满足「用户改 dueDate 后重新通知」（dueDate 变了，记录值不再相等）。
+ * Semantics: when the todo's dueDate equals the recorded value → already notified, skip;
+ * when different (including no record) → treated as a new event, notify. This naturally
+ * satisfies "re-notify after the user changes the dueDate" (dueDate changed, no longer equal to the record).
  */
 export const useReminderStore = defineStore('todoReminder', () => {
-  /** 记录「该 todo id 上次以哪个 dueDate 值通知过」；未记录的 id 视为未通知。 */
+  /** Records "which dueDate value this todo id was last notified at"; unrecorded ids count as not notified. */
   const notified = ref<Record<string, number>>({})
 
-  /** 查询某 todo 是否已以当前 dueDate 通知过。 */
+  /** Query whether a todo has already been notified at the given dueDate. */
   function isNotified(todoId: string, dueDate: number): boolean {
     return notified.value[todoId] === dueDate
   }
 
-  /** 标记某 todo 已以某 dueDate 通知过（写入会触发 saveOnChange 落盘）。 */
+  /** Mark a todo as notified at the given dueDate (the write triggers saveOnChange to persist). */
   function markNotified(todoId: string, dueDate: number) {
     notified.value[todoId] = dueDate
   }

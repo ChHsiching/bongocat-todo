@@ -1,34 +1,35 @@
 /**
- * 常见邮箱 IMAP 配置速查 + 授权码获取指引（T1 简化版 provider 识别）。
+ * Common mailbox IMAP config cheat sheet + authorization-code guidance (T1 simplified provider detection).
  *
- * 用户在表单输入邮箱地址后，按域名（`@` 后段）匹配本表自动填充 IMAP host/port，
- * 并展示该邮箱的「授权码获取指引」。T3 会扩展为完整 provider 识别（含 logo 自动识别）。
+ * After the user types a mail address in the form, matching against this table by domain (the part after `@`)
+ * auto-fills the IMAP host/port and shows that mailbox's "authorization-code guidance". T3 will extend this into
+ * full provider detection (including automatic logo detection).
  *
- * 未命中域名时返回 null，由调用方让用户手动填。
+ * Returns null on unmatched domains; the caller then lets the user fill in manually.
  */
 export interface ProviderPreset {
-  /** 匹配的域名列表（小写，不含 @）。 */
+  /** List of matching domains (lowercase, without @). */
   domains: string[]
-  /** IMAP 服务器地址。 */
+  /** IMAP server host. */
   imapHost: string
-  /** IMAP 端口（IMAPS 固定 993）。 */
+  /** IMAP port (fixed 993 for IMAPS). */
   imapPort: number
-  /** 该邮箱获取授权码/专用密码的指引文案（i18n key 后缀，见 locale 文件 providers.*）。 */
+  /** Guidance copy for getting this mailbox's authorization code / app password (i18n key suffix, see providers.* in the locale files). */
   hintKey: string
-  /** 该邮箱的展示名（如「Gmail」「QQ邮箱」「Outlook」），气泡来源标签用。 */
+  /** Display name of this mailbox (e.g. "Gmail", "QQ Mail", "Outlook"), used for the bubble source label. */
   displayName: string
-  /** 该邮箱的 webmail 入口 URL（点气泡跳转用）。 */
+  /** This mailbox's webmail entry URL (used when clicking the bubble to jump). */
   webmailUrl: string
   /**
-   * 该邮箱的 logo 静态资源路径（vite public 资源，绝对路径 `/mail-logos/...`）。
+   * Path to this mailbox's logo static asset (a vite public asset, absolute path `/mail-logos/...`).
    *
-   * 与项目字体加载一致用 public 目录（原样拷贝、不做 hash、生产/开发同路径）。
-   * 全部 RGBA 透明背景，适配暗色模式。
+   * Uses the public directory for consistency with project font loading (copied as-is, no hashing, same path in prod/dev).
+   * All RGBA transparent backgrounds, fits dark mode.
    */
   logo: string
 }
 
-/** 内置常见邮箱配置（覆盖国内外主流邮箱）。 */
+/** Built-in common mailbox configs (covering mainstream domestic and international providers). */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     domains: ['gmail.com', 'googlemail.com'],
@@ -94,8 +95,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     logo: '/mail-logos/logo-icloud.svg',
   },
   {
-    // ⚠️ Proton 不支持直连 IMAP，须本地运行 Proton Mail Bridge 桥接（默认监听 127.0.0.1:1143）。
-    // 此处保留预设只为 logo 自动识别 + 指引文案；连接前请按指引改 host/port 为 Bridge 实际地址。
+    // ⚠️ Proton does not support direct IMAP; the Proton Mail Bridge must run locally (listens on 127.0.0.1:1143 by default).
+    // This preset exists only for logo auto-detection + guidance copy; before connecting, follow the guidance to change host/port to the Bridge's actual address.
     domains: ['proton.me', 'protonmail.com'],
     imapHost: '127.0.0.1',
     imapPort: 1143,
@@ -116,12 +117,12 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 ]
 
 /**
- * 按邮箱地址匹配 provider 预设。
+ * Match a provider preset by mail address.
  *
- * 匹配顺序：①精确域名命中预设 → ②后缀模式（教育邮箱 `.edu.cn` / `.edu`）。
- * 教育邮箱是 SaaS（icoremail），域名千变万化，无法逐一枚举，按后缀兜底。
+ * Match order: ① exact domain hits a preset → ② suffix pattern (education mail `.edu.cn` / `.edu`).
+ * Education mail is SaaS (icoremail) with endlessly varying domains that cannot be enumerated one by one, so suffix matching is the fallback.
  *
- * @returns 命中的 ProviderPreset；未命中返回 null（调用方让用户手动填）
+ * @returns The matched ProviderPreset; null when unmatched (the caller lets the user fill in manually)
  */
 export function matchProvider(address: string): ProviderPreset | null {
   const at = address.lastIndexOf('@')
@@ -130,13 +131,13 @@ export function matchProvider(address: string): ProviderPreset | null {
   }
   const domain = address.slice(at + 1).toLowerCase()
 
-  // ① 精确域名匹配
+  // ① Exact domain match
   const exact = PROVIDER_PRESETS.find(p => p.domains.includes(domain))
   if (exact) {
     return exact
   }
 
-  // ② 后缀模式匹配（教育邮箱等无法枚举的域名）
+  // ② Suffix pattern match (domains that cannot be enumerated, e.g. education mail)
   for (const pattern of SUFFIX_PATTERNS) {
     if (domain.endsWith(pattern.suffix)) {
       return {
@@ -154,34 +155,34 @@ export function matchProvider(address: string): ProviderPreset | null {
   return null
 }
 
-/** 未识别邮箱的默认 logo（中性灰信封）。 */
+/** Default logo for unrecognized mailboxes (neutral gray envelope). */
 export const DEFAULT_MAIL_LOGO = '/mail-logos/logo-mail-default.svg'
 
-/** 教育邮箱通用 logo（毕业帽，学院蓝）。 */
+/** Generic logo for education mail (graduation cap, academy blue). */
 const EDU_MAIL_LOGO = '/mail-logos/logo-edu.svg'
 
 /**
- * 后缀模式匹配（精确域名未命中时的兜底）。
+ * Suffix pattern matching (the fallback when no exact domain hits).
  *
- * 教育邮箱（`.edu.cn` / `.edu`）是 Coremail/iCoremail SaaS，域名千变万化
- * （如 `s.ytu.edu.cn`），无法逐一枚举。这里按后缀模式匹配，统一走
- * `edu.icoremail.net` IMAP + `edu.icoremail.net` webmail。
- * displayName 从域名提取学校简称（如 `s.ytu.edu.cn` → YTU）。
+ * Education mail (`.edu.cn` / `.edu`) is Coremail/iCoremail SaaS with endlessly varying domains
+ * (e.g. `s.ytu.edu.cn`) that cannot be enumerated one by one. Matching is done by suffix pattern here,
+ * uniformly routed through `edu.icoremail.net` IMAP + `edu.icoremail.net` webmail.
+ * displayName extracts the school abbreviation from the domain (e.g. `s.ytu.edu.cn` → YTU).
  */
 interface SuffixPattern {
-  /** 域名后缀（小写，如 `.edu.cn`）。匹配时 endsWith。 */
+  /** Domain suffix (lowercase, e.g. `.edu.cn`). Matched with endsWith. */
   suffix: string
-  /** IMAP 服务器。 */
+  /** IMAP server. */
   imapHost: string
-  /** IMAP 端口。 */
+  /** IMAP port. */
   imapPort: number
-  /** 授权码指引 i18n key 后缀。 */
+  /** i18n key suffix for authorization-code guidance. */
   hintKey: string
-  /** webmail URL 模板（`{address}` 替换为完整邮箱地址）。 */
+  /** webmail URL template (`{address}` is replaced with the full mail address). */
   webmailUrlTemplate: string
   /**
-   * 从完整邮箱地址提取展示名。返回 null 时用 displayName 兜底。
-   * 教育邮箱提取学校简称（如 `s.ytu.edu.cn` → YTU）。
+   * Extract the display name from the full mail address. When it returns null, displayName is the fallback.
+   * For education mail, extracts the school abbreviation (e.g. `s.ytu.edu.cn` → YTU).
    */
   extractDisplayName?: (address: string, domain: string) => string | null
 }
@@ -206,16 +207,16 @@ const SUFFIX_PATTERNS: SuffixPattern[] = [
 ]
 
 /**
- * 从教育邮箱域名提取学校简称。
+ * Extract the school abbreviation from an education mail domain.
  *
- * 教育域名格式通常为 `<子域>.<学校简称>.edu.cn`（如 `s.ytu.edu.cn` → YTU，
- * `mail.tsinghua.edu.cn` → TSINGHUA）。取 `.edu.cn` 前最后一段作为简称，大写。
- * 无法提取时返回 null（用 displayName "教育邮箱" 兜底）。
+ * Education domains usually take the form `<subdomain>.<school-abbr>.edu.cn` (e.g. `s.ytu.edu.cn` → YTU,
+ * `mail.tsinghua.edu.cn` → TSINGHUA). Takes the last segment before `.edu.cn` as the abbreviation, uppercased.
+ * Returns null when extraction fails (falls back to the displayName "教育邮箱").
  */
 function extractEduAbbr(domain: string): string | null {
-  // 去掉 .edu.cn / .edu 后缀
+  // Strip the .edu.cn / .edu suffix
   const stripped = domain.replace(/\.edu(\.cn)?$/, '')
-  // 按 . 分割，取倒数第一段（学校简称段）
+  // Split by . and take the last segment (the school abbreviation segment)
   const parts = stripped.split('.')
   const last = parts[parts.length - 1]
   if (!last || last.length < 2) {
@@ -225,23 +226,23 @@ function extractEduAbbr(domain: string): string | null {
 }
 
 /**
- * 取邮箱地址对应的 logo 资源路径。
+ * Get the logo asset path for a mail address.
  *
- * 命中预设返回 `preset.logo`；未命中（自定义域名邮箱）返回默认信封 logo。
- * 设置页账号列表 + 添加表单输入框左侧 logo 联动都用本函数。
+ * Returns `preset.logo` on a preset hit; on a miss (custom-domain mailbox) returns the default envelope logo.
+ * Used by both the settings page account list and the add-form input's left-side logo linkage.
  */
 export function matchProviderLogo(address: string): string {
   return matchProvider(address)?.logo ?? DEFAULT_MAIL_LOGO
 }
 
 /**
- * 解析邮箱的 webmail 入口 URL。
+ * Resolve the webmail entry URL for a mailbox.
  *
- * 点击邮件气泡跳转用。按邮箱地址匹配 provider（含后缀模式）取 webmailUrl；
- * 未命中时回退按 IMAP host 匹配预设。都未命中返回 null。
+ * Used when clicking a mail bubble to jump. Matches the provider by mail address (including suffix patterns) to get webmailUrl;
+ * on a miss, falls back to matching presets by IMAP host. Returns null when both miss.
  *
- * @param address 邮箱地址（首选匹配键）
- * @param imapHost IMAP 服务器地址（address 未命中时的回退匹配键）
+ * @param address Mail address (primary match key)
+ * @param imapHost IMAP server host (fallback match key when address misses)
  */
 export function resolveWebmailUrl(address: string, imapHost?: string): string | null {
   const byAddr = matchProvider(address)
@@ -250,12 +251,12 @@ export function resolveWebmailUrl(address: string, imapHost?: string): string | 
   }
   if (imapHost) {
     const host = imapHost.toLowerCase()
-    // 先查精确预设
+    // First look up exact presets
     const byHost = PROVIDER_PRESETS.find(p => p.imapHost === host)
     if (byHost) {
       return byHost.webmailUrl
     }
-    // 再查后缀模式（教育邮箱 IMAP host = edu.icoremail.net）
+    // Then look up suffix patterns (education mail IMAP host = edu.icoremail.net)
     const bySuffix = SUFFIX_PATTERNS.find(p => p.imapHost === host)
     if (bySuffix) {
       return bySuffix.webmailUrlTemplate

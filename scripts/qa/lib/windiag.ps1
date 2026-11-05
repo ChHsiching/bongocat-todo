@@ -1,4 +1,4 @@
-# issue19 诊断：todo 窗口的样式位（WS_THICKFRAME）与子窗口列表
+# issue19 diagnostics: the todo window's style bits (WS_THICKFRAME) and its child window list
 param(
   [string]$ProcessName = 'bongo-cat',
   [string]$Title = '待办'

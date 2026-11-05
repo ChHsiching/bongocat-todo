@@ -8,15 +8,16 @@ import { PRIORITIES } from '@/plugins/todo/utils/priority'
 import InkDot from '../InkDot/index.vue'
 
 /**
- * 优先级选择器（PriorityPicker / T6）：三档墨点点击选中。
+ * Priority picker (PriorityPicker / T6): three ink dots, click to select.
  *
- * 用于新建 todo 的入口（主面板新建区 + 迷你窗），与 TodoItem 的「点击已有墨点循环切换」
- * 互补——这里是显式三选一（更清晰），那里是原地循环（更省地方）。
+ * Used at todo-creation entry points (the main panel's create area + the mini window),
+ * complementing TodoItem's "click the existing ink dot to cycle" — here it is an explicit
+ * three-way choice (clearer), there an in-place cycle (more compact).
  *
- * 视觉：三档墨点横排，选中的下方加手绘波浪底纹（粉墨水系强调），未选中半透明。
- * emit `update:priority`（v-model）。
+ * Visual: three ink dots in a row; the selected one gets a hand-drawn wavy underline (pink-ink
+ * emphasis); unselected ones are semi-transparent. emit `update:priority` (v-model).
  *
- * @see docs/designs/todo-panel-exploration/panel.html 墨点 path 事实来源
+ * @see docs/designs/todo-panel-exploration/panel.html ink dot path source of truth
  */
 const { modelValue } = defineProps<{
   modelValue: TodoPriority
@@ -64,7 +65,7 @@ function select(p: TodoPriority) {
       @click="select(p)"
     >
       <InkDot :priority="p" />
-      <!-- 选中标记：手绘波浪下划线（粉墨水系强调色） -->
+      <!-- Selected marker: hand-drawn wavy underline (pink-ink emphasis color) -->
       <svg
         v-if="p === modelValue"
         class="selected-mark"
@@ -89,7 +90,7 @@ function select(p: TodoPriority) {
   gap: 10px;
 }
 
-/* 单个墨点按钮：透明背景，hover 放大反馈。 */
+/* Single ink dot button: transparent background, hover scale-up feedback. */
 .dot-btn {
   position: relative;
   display: inline-flex;
@@ -107,7 +108,7 @@ function select(p: TodoPriority) {
     transform 0.2s;
 }
 
-/* 选中态不透明 + 手绘波浪下划线显式标出。 */
+/* Selected state is opaque + explicitly marked with the hand-drawn wavy underline. */
 .dot-btn.selected {
   opacity: 1;
 }
@@ -117,7 +118,7 @@ function select(p: TodoPriority) {
   transform: scale(1.2);
 }
 
-/* 手绘波浪下划线：选中档下方居中。 */
+/* Hand-drawn wavy underline: centered below the selected level. */
 .selected-mark {
   position: absolute;
   bottom: -4px;

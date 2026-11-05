@@ -1,15 +1,15 @@
 <script setup lang="ts">
 /**
- * 气泡溢出折入提示条（手绘风，T2）。
+ * Bubble overflow fold-in hint bar (hand-drawn style, T2).
  *
- * 当未处理气泡超过 3 条时，第 4 条起不展示新气泡，而是展示一行提示
- * 「还有 N 条，查看邮件列表」。点击打开邮件列表（T5 未完成，父级先 emit 一个事件占位）。
+ * When more than 3 bubbles are pending, from the 4th on no new bubble is shown; instead a one-line hint is shown:
+ * "N more, view the mail list". Clicking opens the mail list (T5 not done yet, so the parent first emits a placeholder event).
  *
- * 视觉对照 `docs/designs/phase2-exploration/bubble.html` 的 fold-hint：粉色淡描边手绘形状、
- * 尾部三角指向猫、居中文案。严禁 CSS border。
+ * Visuals follow the fold-hint in `docs/designs/phase2-exploration/bubble.html`: a hand-drawn shape with a pale pink stroke,
+ * a tail triangle pointing at the cat, centered copy. Never use CSS borders.
  *
- * 形状自适应：与 Bubble 同理，复用 genBubbleShape 按内容高度动态生成 path（原写死 viewBox
- * 360×44 的 path 底部 y≈32，内容若换行会溢出）。容器高度 = viewBox 高（1:1 不拉伸）。
+ * Shape adaptation: same idea as Bubble, reusing genBubbleShape to generate the path dynamically from the content height
+ * (the original hard-coded viewBox 360×44 path had bottom y≈32; wrapped content would overflow). Container height = viewBox height (1:1, no stretching).
  *
  * @see ADR 0002 D7
  */
@@ -19,14 +19,14 @@ import { useI18n } from 'vue-i18n'
 import { genBubbleShape } from '../../utils/bubbleShape'
 
 defineProps<{
-  /** 溢出条数（= total - 3）。 */
+  /** Overflow count (= total - 3). */
   count: number
 }>()
 
 const emit = defineEmits<{
-  /** 点击提示条 → 打开邮件列表（T5 窗口已实现）。 */
+  /** Click the hint bar → open the mail list (the T5 window is implemented). */
   click: []
-  /** 内容高度变化，父级据以重设窗口尺寸。payload = 像素高度。 */
+  /** Content height changed; the parent uses it to reset the window size. payload = height in pixels. */
   resize: [height: number]
 }>()
 
@@ -34,7 +34,7 @@ const { t } = useI18n()
 
 const filterId = `fh-sh-${Math.random().toString(36).slice(2, 8)}`
 
-/** 纯文字高度（单行文案，初始 20）。 */
+/** Text-only height (single-line copy, initial 20). */
 const textHeight = ref(20)
 
 const shape = computed(() => genBubbleShape(textHeight.value))

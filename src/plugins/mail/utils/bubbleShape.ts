@@ -1,65 +1,65 @@
 /**
- * 手绘气泡 SVG 形状生成（T2）。
+ * Hand-drawn bubble SVG shape generation (T2).
  *
- * 根因（用户报告的 bug）：设计稿原 path 的坐标是写死的（viewBox 360×100，底部边框 y≈66），
- * 当内容（文字换行）变高时，内容会溢出到形状外面——底部边框不会跟随内容下移。
+ * Root cause (user-reported bug): the original design's path coordinates were hard-coded (viewBox 360×100, bottom border y≈66);
+ * when the content (wrapped text) grows taller, it overflows outside the shape — the bottom border does not follow the content down.
  *
- * 本函数把「纯文字高度」+「宽度」作为输入，动态生成 path 的 d 属性 + viewBox，让形状的
- * 底部边框和尾部三角始终跟随内容底部移动、宽度跟随内容变宽。上下留白对称（都是 PAD），
- * 文字夹在中间。
+ * This function takes "text-only height" + "width" as input and dynamically generates the path d attribute + viewBox,
+ * so the shape's bottom border and tail triangle always follow the content's bottom and widen with the content.
+ * Top/bottom padding is symmetric (both PAD), with the text sandwiched in the middle.
  *
- * 模型（viewBox 坐标 = CSS 像素，1:1 不拉伸）：
- *   - 顶部边框 y = TOP（固定 10）
- *   - 文字区 [TOP+PAD, TOP+PAD+textH]（上下留白都是 PAD，对称）
- *   - 底部边框 y = TOP + PAD + textH + PAD
- *   - 尾部尖角 y = 底部边框 + TAIL（在底部边框下方凸出，指向桌宠），水平居中 W/2
- *   - viewBox 高 = 尾尖 + VB_BOT（给尖角底部留余量）
+ * Model (viewBox coordinates = CSS pixels, 1:1, no stretching):
+ *   - top border y = TOP (fixed 10)
+ *   - text area [TOP+PAD, TOP+PAD+textH] (padding is PAD on both top and bottom, symmetric)
+ *   - bottom border y = TOP + PAD + textH + PAD
+ *   - tail tip y = bottom border + TAIL (protruding below the bottom border, pointing at the desktop pet), horizontally centered at W/2
+ *   - viewBox height = tail tip + VB_BOT (leaves margin below the tail tip)
  *
- * 宽度自适应：默认 360（对齐 todo 面板）；内容更宽（如长链接不换行）时按实际宽度生成，
- * 避免内容溢出形状右侧。所有 x 坐标按 W 推导（右上角 W-20、右侧曲线 W-12、尾部 W/2）。
+ * Width adaptation: default 360 (aligned with the todo panel); when the content is wider (e.g. a long link that doesn't wrap),
+ * generate at the actual width to keep content from overflowing the shape's right edge. All x coordinates derive from W (top-right corner W-20, right curves W-12, tail W/2).
  *
- * 容器（.bubble）width/height 必须设为 viewBox 尺寸（1:1 不拉伸），否则
- * preserveAspectRatio="none" 会拉伸形状。
+ * The container's (.bubble) width/height must be set to the viewBox size (1:1, no stretching), otherwise
+ * preserveAspectRatio="none" will stretch the shape.
  *
- * 在真浏览器 harness 验证：短主题 + 长主题多行两种情况，边框完整包裹文字、上下留白对称、
- * 尾部居中不重叠。
+ * Verified in a real-browser harness: both short-subject and long-subject multi-line cases keep the border fully wrapping
+ * the text, symmetric top/bottom padding, and the tail centered without overlap.
  *
- * @see docs/designs/phase2-exploration/bubble.html 原始写死 path 的视觉来源
+ * @see docs/designs/phase2-exploration/bubble.html the visual source of the original hard-coded path
  */
 
-/** 顶部边框 y（固定）。 */
+/** Top border y (fixed). */
 export const SHAPE_TOP = 10
-/** 文字上下留白（对称，与原设计 padding 16 一致）。 */
+/** Text padding on top and bottom (symmetric, matches the original design padding of 16). */
 export const SHAPE_PAD = 16
-/** 尾部三角高度（底部边框下方凸出）。 */
+/** Tail triangle height (protruding below the bottom border). */
 export const SHAPE_TAIL = 14
-/** viewBox 底部余量（尾尖下方）。 */
+/** viewBox bottom margin (below the tail tip). */
 export const SHAPE_VB_BOT = 6
-/** 默认宽度（对齐 todo 面板，内容更窄时不缩）。 */
+/** Default width (aligned with the todo panel; does not shrink for narrower content). */
 export const SHAPE_DEFAULT_WIDTH = 360
 
 export interface BubbleShape {
-  /** viewBox 字符串（"0 0 W H"）。 */
+  /** viewBox string ("0 0 W H"). */
   viewBox: string
-  /** viewBox 高度（容器 + SVG 的 height 都用此值，保证 1:1 不拉伸）。 */
+  /** viewBox height (used for both container + SVG height, guaranteeing 1:1 with no stretching). */
   height: number
-  /** 形状宽度（容器 + SVG 的 width 都用此值）。 */
+  /** Shape width (used for both container + SVG width). */
   width: number
-  /** 阴影层 path d。 */
+  /** Paper shadow layer path d. */
   shadowD: string
-  /** 主形状 path d（白底 + 描边）。 */
+  /** Main shape path d (white fill + stroke). */
   mainD: string
-  /** 顶部装饰波浪 path d。 */
+  /** Top decorative wave path d. */
   waveD: string
-  /** 内容区 top（CSS 像素，content 元素绝对定位用）。 */
+  /** Content area top (CSS pixels, used for absolutely positioning the content element). */
   contentTop: number
 }
 
 /**
- * 根据纯文字高度 + 宽度生成手绘气泡的 SVG path + viewBox + 尺寸。
+ * Generate the hand-drawn bubble's SVG paths + viewBox + dimensions from the text-only height + width.
  *
- * @param textHeight 纯文字高度（px，不含上下 padding；通常 = content 元素 getBoundingClientRect().height）
- * @param width      形状宽度（px），默认 360；长内容（如长链接）可传更大值避免溢出
+ * @param textHeight Text-only height (px, excluding top/bottom padding; usually = the content element's getBoundingClientRect().height)
+ * @param width      Shape width (px), default 360; longer content (e.g. long links) can pass a larger value to avoid overflow
  */
 export function genBubbleShape(textHeight: number, width: number = SHAPE_DEFAULT_WIDTH): BubbleShape {
   const W = width
@@ -68,7 +68,7 @@ export function genBubbleShape(textHeight: number, width: number = SHAPE_DEFAULT
   const bottomEdge = contentTop + textHeight + SHAPE_PAD
   const tailTip = bottomEdge + SHAPE_TAIL
   const height = tailTip + SHAPE_VB_BOT
-  // 尾部三角水平居中（指向桌宠头顶），底边半宽 10
+  // Tail triangle horizontally centered (pointing at the desktop pet's head), base half-width 10
   const tailCx = Math.round(W / 2)
   const tailHalf = 10
 

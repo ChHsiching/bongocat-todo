@@ -10,40 +10,43 @@ import type { useReminderStore } from './reminderStore'
 import type { Todo, useTodoStore } from './todo'
 
 /**
- * 挑出「已到期且未完成」的 todo（T4 纯函数）。
+ * Pick out todos that are "due and not completed" (T4 pure function).
  *
- * 命中条件：`completed === false` **且** `dueDate !== undefined` **且** `dueDate <= now`。
+ * Match condition: `completed === false` **and** `dueDate !== undefined` **and** `dueDate <= now`.
  *
- * ⚠️ 调用方应传入 `visibleTodos`（已排除软删除项），本函数不再重复过滤 deletedAt ——
- * 职责分离：软删除可见性归 todo store 的 `visibleTodos`，到期判定归本函数。
+ * ⚠️ Callers should pass `visibleTodos` (soft-deleted items already excluded); this function
+ * does not re-filter deletedAt — separation of concerns: soft-delete visibility belongs to the
+ * todo store's `visibleTodos`, due detection belongs to this function.
  *
- * 纯函数：不修改入参、不读 store、不调 Tauri，便于 vitest 单测。
+ * Pure function: does not mutate inputs, read stores, or call Tauri — easy to unit test with vitest.
  *
- * @param todos 候选 todo 列表（通常传 `todoStore.visibleTodos`）
- * @param now   当前时间戳（ms），测试时可固定
- * @returns     到期未完成的 todo 子集（保持原顺序）
+ * @param todos candidate todo list (usually `todoStore.visibleTodos`)
+ * @param now   current timestamp (ms); can be fixed in tests
+ * @returns     subset of due, uncompleted todos (original order preserved)
  */
 export function findDueTodos(todos: Todo[], now: number): Todo[] {
   return todos.filter(todo => !todo.completed && todo.dueDate !== undefined && todo.dueDate <= now)
 }
 
-/** 轮询间隔（ms）。10s 轮询，最大延迟 10s（用户基本无感）。原 spec D6 写 60s，实测延迟体感差。 */
+/** Polling interval (ms). 10s polling caps the delay at 10s (barely perceptible to users). The original spec D6 said 60s, but the delay felt bad in practice. */
 const POLL_INTERVAL_MS = 10_000
 
 /**
- * 启动到期提醒轮询器（T4 副作用层）。
+ * Start the due reminder poller (T4 side-effect layer).
  *
- * - 先 `requestPermission()` 请求 OS 级通知权限（`notification:default` 只授予 JS→core
- *   桥接权限，OS 层仍需显式请求，否则首次 `sendNotification` 会静默失败）；
- * - 立即检查一次到期（覆盖「app 启动时已有过期 todo」）；
- * - 之后每 `POLL_INTERVAL_MS` 轮询一次；
- * - **去重（跨重启持久化）**：用 reminderStore 记录「上次以哪个 dueDate 通知过」。
- *   当 todo 的 dueDate 与记录值相等 → 跳过；不等（含无记录、用户改了 dueDate）→ 通知。
- *   持久化让「同一条过期 todo」不会每次启动都重复通知（用户改 dueDate 后仍能重新通知，
- *   满足 spec「改 dueDate 重置后应能再次通知」）。已完成 / 已删除的 todo 不会出现在
- *   `visibleTodos`，因此不会重复通知。
+ * - First `requestPermission()` asks for OS-level notification permission (`notification:default`
+ *   only grants the JS→core bridge permission; the OS layer still needs an explicit request,
+ *   otherwise the first `sendNotification` silently fails);
+ * - Immediately check for due todos once (covers "overdue todos already exist at app startup");
+ * - Then poll every `POLL_INTERVAL_MS`;
+ * - **Dedup (persisted across restarts)**: reminderStore records "the last dueDate each todo was
+ *   notified at". When the todo's dueDate equals the recorded value → skip; when different
+ *   (including no record, or the user changed the dueDate) → notify. Persisting means the same
+ *   overdue todo does not re-notify on every startup (after the user changes the dueDate it can
+ *   notify again, satisfying the spec's "changing dueDate resets and allows notifying again").
+ *   Completed / deleted todos never appear in `visibleTodos`, so they never re-notify.
  *
- * 必须在 todo store + reminder store 都 `$tauri.start()` 之后调用（数据才加载）。
+ * Must be called after both the todo store and the reminder store have run `$tauri.start()` (only then is data loaded).
  */
 export async function startReminder(
   todoStore: ReturnType<typeof useTodoStore>,
@@ -56,7 +59,7 @@ export async function startReminder(
     const dueTodos = findDueTodos(todoStore.visibleTodos, Date.now())
 
     for (const todo of dueTodos) {
-      // dueDate 在 findDueTodos 里已断言非空
+      // dueDate is already asserted non-null by findDueTodos
       const due = todo.dueDate as number
 
       if (reminderStore.isNotified(todo.id, due)) {
@@ -69,11 +72,11 @@ export async function startReminder(
           body: t('plugins.todo.labels.reminderBody', { title: todo.title }),
         })
         reminderStore.markNotified(todo.id, due)
-        // D8 双发：系统通知之后纯增量 emit 桌宠气泡（type:'todo'）。
-        // isNotified 去重对气泡同样生效（同一 todo 不会重复弹气泡）。
+        // D8 dual dispatch: after the system notification, purely incrementally emit a desktop-pet bubble (type:'todo').
+        // isNotified dedup applies to the bubble too (the same todo never pops the bubble twice).
         emit(LISTEN_KEY.SHOW_BUBBLE, { type: 'todo', id: todo.id, title: todo.title, dueDate: due })
       } catch (err) {
-        // 通知失败（如权限被拒）记录日志，避免静默吞错，便于排查「无运行时权限错误」
+        // Log notification failures (e.g. permission denied) instead of silently swallowing them; helps debug "no runtime permission error" cases
         await error(`todo reminder sendNotification failed for ${todo.id}: ${String(err)}`)
       }
     }

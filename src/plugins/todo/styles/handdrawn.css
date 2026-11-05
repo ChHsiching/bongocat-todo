@@ -1,16 +1,16 @@
 /**
- * Todo 面板手绘视觉样式（T2）。
+ * Hand-drawn visual styles for the todo panel (T2).
  *
- * - @font-face：851 手写杂字体，从 public/fonts 加载，vite 不内联（28MB），font-display:swap 不阻塞首屏。
- * - CSS 变量：粉墨水系色板（CONTEXT.md「设计探索决策」）。todo 面板根元素挂 class 即继承。
+ * - @font-face: the 851 handwriting font, loaded from public/fonts; vite does not inline it (28MB), font-display:swap avoids blocking first paint.
+ * - CSS variables: the pink-ink palette (CONTEXT.md "design exploration decisions"). Mount the class on the todo panel root element to inherit.
  *
- * 注意：本面板无暗色模式（设计稿 panel.html 只有亮色态）。不跟随系统暗色。
+ * Note: this panel has no dark mode (the design source panel.html only has a light state). It does not follow system dark mode.
  *
- * @see docs/designs/todo-panel-exploration/panel.html 视觉事实来源
+ * @see docs/designs/todo-panel-exploration/panel.html source of visual truth
  */
 
-/* todo 窗口透明：html/body/#app 全透明，只留 SVG 纸张本身可见（纸张外直接透出桌面）。
-   必须 !important 覆盖 uno preflight / antdv reset 可能设的背景。 */
+/* Todo window transparency: html/body/#app fully transparent; only the SVG paper itself is visible (outside the paper the desktop shows through).
+   !important is required to override backgrounds possibly set by uno preflight / antdv reset. */
 html,
 body,
 #app {
@@ -19,14 +19,14 @@ body,
 
 @font-face {
   font-family: 'Handwriting851';
-  /* vite public 资源：开发期绝对路径 /fonts/...，生产构建同路径，不做 hash（public 原样拷贝）*/
+  /* vite public asset: absolute path /fonts/... in dev, same path in production builds, no hashing (public is copied as-is) */
   src: url('/fonts/jingnan-pop-black.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
-/* ── 粉墨水系色板（设计稿唯一的亮色态）── */
+/* ── Pink-ink palette (the design's only light state) ── */
 .todo-handdrawn {
   --paper: #ffffff;
   --paper-shadow: #f0e8de;
@@ -39,7 +39,7 @@ body,
   --blue: #9bc4e0;
   --red-ink: #d4654a;
 
-  /* 窗口透明（transparent:true），纸张外直接透出桌面，无纯色边 */
+  /* Transparent window (transparent:true); outside the paper the desktop shows through, no solid border */
   background: transparent;
   color: var(--ink);
   font-family:
