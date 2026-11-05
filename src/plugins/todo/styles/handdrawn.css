@@ -19,14 +19,12 @@ body,
 
 @font-face {
   font-family: 'Handwriting851';
-  /* vite public asset: absolute path /fonts/... in dev, same path in production builds, no hashing (public is copied as-is) */
   src: url('/fonts/jingnan-pop-black.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
-/* ── Pink-ink palette (the design's only light state) ── */
 .todo-handdrawn {
   --paper: #ffffff;
   --paper-shadow: #f0e8de;
@@ -39,7 +37,6 @@ body,
   --blue: #9bc4e0;
   --red-ink: #d4654a;
 
-  /* Transparent window (transparent:true); outside the paper the desktop shows through, no solid border */
   background: transparent;
   color: var(--ink);
   font-family:

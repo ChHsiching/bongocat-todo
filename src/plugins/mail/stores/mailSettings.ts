@@ -11,17 +11,8 @@ import { ref } from 'vue'
  * Reuses `@tauri-store/pinia` persistence. New fields must take legacy data migration into account (see the pitfalls list).
  */
 export const useMailSettingsStore = defineStore('mailSettings', () => {
-  /**
-   * HTTP CONNECT proxy address (e.g. `127.0.0.1:7890`).
-   * Empty string = no proxy, direct connection.
-   */
   const proxy = ref('')
 
-  /**
-   * Master switch for new-mail bubble notifications.
-   * - true (default): pop a desktop-pet bubble when a new mail arrives.
-   * - false: fully silent; new mails only enter the local notification history (visible in the mail list), no bubble.
-   */
   const bubbleEnabled = ref(true)
 
   /**
@@ -31,12 +22,6 @@ export const useMailSettingsStore = defineStore('mailSettings', () => {
    */
   const bubbleAutoDismiss = ref(false)
 
-  /**
-   * Notify only unread mails.
-   * - true: only pop bubbles for mails with "local status=unread"; no bubble for already-read mails (avoids repeated disturbance).
-   * - false (default): pop for all new mails (under the current implementation everything upsertMail creates is unread,
-   *   so this switch effectively only affects future edge cases like "an already-read mail being re-pushed").
-   */
   const unreadOnly = ref(false)
 
   function setProxy(value: string) {

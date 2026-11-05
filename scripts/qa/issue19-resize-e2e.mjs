@@ -24,7 +24,7 @@ import { emitAppEvent, todoWindowInfo, waitForCdp } from './lib/cdp.mjs'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const PS = resolve(ROOT, 'scripts/qa/lib/native.ps1')
 
-const TOL = 3 // pixel tolerance (hit offset / rounding)
+const TOL = 3
 
 function ps(args) {
   execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS, ...args], { stdio: 'pipe' })
@@ -90,8 +90,7 @@ await sleep(700)
 // T4 drag to ~550×640 → persistence restore
 {
   await dragEdge('right', 170, 0) // 380 → ~550
-  const sized = await dragEdge('bottom', 0, 120) // 280 → ~400? After T3 the height is at min; raise it first
-  // Trust the measurement: just get near the target and record the current values
+  const sized = await dragEdge('bottom', 0, 120)
   const target = { width: sized.width, height: sized.height }
   await sleep(600) // wait for the debounce(300ms) to persist
   // Close then reopen (hide → show runs the full open flow)
@@ -104,7 +103,7 @@ await sleep(700)
   assert('T4 user size restored after reopen', Math.abs(restored.width - target.width) <= TOL && Math.abs(restored.height - target.height) <= TOL, `target=${target.width}x${target.height} restored=${restored.width}x${restored.height}`)
 }
 
-// T5 mini mode: restore miniWidth (width within 380-720, height locked at 130 on a single axis)
+// T5 mini mode
 {
   await emitAppEvent('show-todo-mini')
   await sleep(900)
@@ -118,14 +117,12 @@ await sleep(700)
   await sleep(500)
   const widened = await todoWindowInfo()
   assert('T5c mini band handle widens +50', Math.abs(widened.width - mini.width - 50) <= TOL, `before=${mini.width} after=${widened.width}`)
-  // T5d vertical drag stays locked (native bottom edge +80)
   const bx = widened.x + Math.round(widened.width / 2)
   const by = widened.y + widened.height - 3
   ps(['-Action', 'drag', '-FromX', String(bx), '-FromY', String(by), '-ToX', String(bx), '-ToY', String(by + 80), '-Steps', '20'])
   await sleep(500)
   const locked = await todoWindowInfo()
   assert('T5d mini vertical lock', Math.abs(locked.height - 130) <= TOL, `h=${locked.height}`)
-  // Wrap up: return to the panel mode for manual inspection
   await emitAppEvent('show-todo-full')
   await sleep(500)
 }

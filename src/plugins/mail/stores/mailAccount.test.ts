@@ -27,7 +27,6 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
   })
 
   it('放开限制后可添加多个不同 provider 的账号（T4）', () => {
-    // ticket #14: lift the single-account limit, support N accounts on simultaneous IDLE watch
     const store = useMailAccountStore()
     store.addAccount({
       address: 'alice@gmail.com',
@@ -36,7 +35,6 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
       username: 'alice@gmail.com',
     })
 
-    // A second account no longer throws (the old MAX_ACCOUNTS=1 limit was removed)
     const bob = store.addAccount({
       address: 'bob@qq.com',
       imapHost: 'imap.qq.com',
@@ -47,7 +45,6 @@ describe('useMailAccountStore — addAccount（多账号）', () => {
     expect(store.accounts).toHaveLength(2)
     expect(store.accounts[1]?.address).toBe('bob@qq.com')
 
-    // A third works too (N accounts, no cap)
     store.addAccount({
       address: 'carol@163.com',
       imapHost: 'imap.163.com',

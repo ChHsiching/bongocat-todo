@@ -17,14 +17,12 @@ export { useReminderStore } from './stores/reminderStore'
 export { useTodoStore } from './stores/todo'
 export type { Todo, TodoPriority } from './stores/todo'
 
-/** Args for setupTodoPlugin: stores instantiated by the caller at the top of setup + the i18n t function. */
 interface SetupTodoPluginArgs {
   todoStore: ReturnType<typeof useTodoStore>
   deviceStore: ReturnType<typeof useDeviceStore>
   reminderStore: ReturnType<typeof useReminderStore>
   menuBus: ReturnType<typeof useMenuBusStore>
   t: ReturnType<typeof useI18n>['t']
-  /** Current window label (used to confine global side effects to a single window, avoiding duplicate triggers across windows). */
   windowLabel: string
 }
 
@@ -50,9 +48,6 @@ export async function setupTodoPlugin({ todoStore, deviceStore, reminderStore, m
   await reminderStore.$tauri.start()
   deviceStore.init()
 
-  // Due reminder polling starts in the main window only (App.vue mounts in all three
-  // windows main/preference/todo; otherwise 3 timers and 3 notifications would fire).
-  // The main window owns the app lifecycle.
   if (windowLabel === WINDOW_LABEL.MAIN) {
     await startReminder(todoStore, reminderStore, t)
   }

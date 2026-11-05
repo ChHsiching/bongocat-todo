@@ -87,7 +87,6 @@ describe('matchProvider', () => {
   })
 
   it('所有预设端口都是 993（IMAPS）', () => {
-    // Proton uses the local Bridge port 1143, the only exception (as documented in the preset's comment)
     for (const p of PROVIDER_PRESETS) {
       if (p.hintKey === 'proton') {
         expect(p.imapPort).toBe(1143)

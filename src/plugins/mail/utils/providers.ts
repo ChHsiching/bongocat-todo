@@ -1,31 +1,10 @@
-/**
- * Common mailbox IMAP config cheat sheet + authorization-code guidance (T1 simplified provider detection).
- *
- * After the user types a mail address in the form, matching against this table by domain (the part after `@`)
- * auto-fills the IMAP host/port and shows that mailbox's "authorization-code guidance". T3 will extend this into
- * full provider detection (including automatic logo detection).
- *
- * Returns null on unmatched domains; the caller then lets the user fill in manually.
- */
 export interface ProviderPreset {
-  /** List of matching domains (lowercase, without @). */
   domains: string[]
-  /** IMAP server host. */
   imapHost: string
-  /** IMAP port (fixed 993 for IMAPS). */
   imapPort: number
-  /** Guidance copy for getting this mailbox's authorization code / app password (i18n key suffix, see providers.* in the locale files). */
   hintKey: string
-  /** Display name of this mailbox (e.g. "Gmail", "QQ Mail", "Outlook"), used for the bubble source label. */
   displayName: string
-  /** This mailbox's webmail entry URL (used when clicking the bubble to jump). */
   webmailUrl: string
-  /**
-   * Path to this mailbox's logo static asset (a vite public asset, absolute path `/mail-logos/...`).
-   *
-   * Uses the public directory for consistency with project font loading (copied as-is, no hashing, same path in prod/dev).
-   * All RGBA transparent backgrounds, fits dark mode.
-   */
   logo: string
 }
 
@@ -155,10 +134,8 @@ export function matchProvider(address: string): ProviderPreset | null {
   return null
 }
 
-/** Default logo for unrecognized mailboxes (neutral gray envelope). */
 export const DEFAULT_MAIL_LOGO = '/mail-logos/logo-mail-default.svg'
 
-/** Generic logo for education mail (graduation cap, academy blue). */
 const EDU_MAIL_LOGO = '/mail-logos/logo-edu.svg'
 
 /**
@@ -214,9 +191,7 @@ const SUFFIX_PATTERNS: SuffixPattern[] = [
  * Returns null when extraction fails (falls back to the displayName "教育邮箱").
  */
 function extractEduAbbr(domain: string): string | null {
-  // Strip the .edu.cn / .edu suffix
   const stripped = domain.replace(/\.edu(\.cn)?$/, '')
-  // Split by . and take the last segment (the school abbreviation segment)
   const parts = stripped.split('.')
   const last = parts[parts.length - 1]
   if (!last || last.length < 2) {
@@ -225,12 +200,6 @@ function extractEduAbbr(domain: string): string | null {
   return last.toUpperCase()
 }
 
-/**
- * Get the logo asset path for a mail address.
- *
- * Returns `preset.logo` on a preset hit; on a miss (custom-domain mailbox) returns the default envelope logo.
- * Used by both the settings page account list and the add-form input's left-side logo linkage.
- */
 export function matchProviderLogo(address: string): string {
   return matchProvider(address)?.logo ?? DEFAULT_MAIL_LOGO
 }
@@ -251,12 +220,10 @@ export function resolveWebmailUrl(address: string, imapHost?: string): string | 
   }
   if (imapHost) {
     const host = imapHost.toLowerCase()
-    // First look up exact presets
     const byHost = PROVIDER_PRESETS.find(p => p.imapHost === host)
     if (byHost) {
       return byHost.webmailUrl
     }
-    // Then look up suffix patterns (education mail IMAP host = edu.icoremail.net)
     const bySuffix = SUFFIX_PATTERNS.find(p => p.imapHost === host)
     if (bySuffix) {
       return bySuffix.webmailUrlTemplate

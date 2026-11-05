@@ -23,21 +23,13 @@ export type MailNotificationStatus = 'unread' | 'read' | 'archived'
 export interface MailNotification {
   /** Locally unique id (nanoid, unrelated to the mail UID; the same mail may appear multiple times due to re-pushes — deduplicated by uidKey). */
   id: string
-  /** Source account id (links to mailAccountStore.accounts[*].id). */
   accountId: string
-  /** Mail UID (used for offline catch-up dedup, unique per `<accountId>:<uid>`). 0 means unknown (should not happen, defensive). */
   uid: number
-  /** Sender (parsed from IMAP ENVELOPE.from, may be `mailbox@host` or a display name). */
   from: string
-  /** Subject (MIME decoded). */
   subject: string
-  /** Arrival timestamp (ms, pushed from Rust). */
   arrivedAt: number
-  /** Local status. */
   status: MailNotificationStatus
-  /** Timestamp when marked read (present when status=read/archived). */
   readAt?: number
-  /** Archive timestamp (present when status=archived). */
   archivedAt?: number
 }
 
@@ -54,15 +46,12 @@ export interface MailNotification {
  * @see docs/adr/0002-phase2-mail-and-bubble.md D9
  */
 export const useMailNotificationStore = defineStore('mailNotification', () => {
-  /** All mails (unread + read + archived). The UI renders them grouped via getters. */
   const notifications = ref<MailNotification[]>([])
 
-  /** Dedup key by `<accountId>:<uid>` (used by upsertMail). */
   function uidKey(accountId: string, uid: number): string {
     return `${accountId}:${uid}`
   }
 
-  /** Existing uidKey → notification.id (O(1) duplicate lookup). */
   const byUid = computed(() => {
     const m = new Map<string, string>()
     for (const n of notifications.value) {
@@ -107,11 +96,6 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     return notification
   }
 
-  /**
-   * Mark read locally (status: unread → read, records readAt).
-   *
-   * Calling again on already-read/archived mails has no side effect (idempotent). **Never sends STORE to the mail server** (D5-actual).
-   */
   function markRead(id: string, now: number = Date.now()) {
     const n = notifications.value.find(x => x.id === id)
     if (!n || n.status !== 'unread') {
@@ -121,7 +105,6 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     n.readAt = now
   }
 
-  /** Archive manually (status → archived, records archivedAt). Calling again on archived mails has no side effect. */
   function archive(id: string, now: number = Date.now()) {
     const n = notifications.value.find(x => x.id === id)
     if (!n || n.status === 'archived') {
@@ -131,29 +114,14 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     n.archivedAt = now
   }
 
-  /** Remove from the list entirely (used to purge 30-day-old archived items). */
   function purge(id: string) {
     notifications.value = notifications.value.filter(n => n.id !== id)
   }
 
-  /**
-   * Clear all notification history of an account (cascade cleanup when deleting an account).
-   *
-   * Called on account deletion: removes all unread/read/archived mails of that account from the local notification history,
-   * avoiding "the account is deleted but orphan items still hang in the mail list". Does not affect other accounts.
-   */
   function removeByAccount(accountId: string) {
     notifications.value = notifications.value.filter(n => n.accountId !== accountId)
   }
 
-  /**
-   * Retention rule tick: scans all mails and transitions states per the 24h/5min/30-day deadlines.
-   *
-   * Called once per minute by setupMailPlugin in the main window (a single timer, avoiding per-mail timers).
-   * Purely local state transitions, zero side effects on the mail server.
-   *
-   * @returns {changed} Whether anything changed (the UI can refresh accordingly).
-   */
   function tickRetention(now: number = Date.now()): { changed: boolean } {
     let changed = false
 
@@ -169,7 +137,6 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
       }
     }
 
-    // Purge archived items older than 30 days
     const before = notifications.value.length
     notifications.value = notifications.value.filter(
       n => !(n.status === 'archived' && n.archivedAt && shouldPurgeArchived(n.archivedAt, now)),
@@ -181,16 +148,12 @@ export const useMailNotificationStore = defineStore('mailNotification', () => {
     return { changed }
   }
 
-  // ── UI getters (consumed grouped by status in the mail list / archive windows) ──
-
-  /** Items shown in the mail list window: unread + read (archived excluded). */
   const activeMails = computed(() =>
     notifications.value
       .filter(n => n.status === 'unread' || n.status === 'read')
       .sort((a, b) => b.arrivedAt - a.arrivedAt),
   )
 
-  /** Items shown in the archive window (newest archived first). */
   const archivedMails = computed(() =>
     notifications.value
       .filter(n => n.status === 'archived')

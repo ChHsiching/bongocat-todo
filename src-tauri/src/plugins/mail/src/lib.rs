@@ -1,8 +1,3 @@
-//! Tauri plugin: mail notification center backend (IMAP IDLE + keyring).
-//!
-//! Registers the `mail_*` commands (see [`commands`]) + hosts the [`ConnectionManager`] (app state).
-//! On app startup, `init()`'s setup registers the ConnectionManager; the frontend spawns the IDLE task by calling `mail_connect`.
-
 use tauri::{
     Manager, Runtime,
     plugin::{Builder, TauriPlugin},

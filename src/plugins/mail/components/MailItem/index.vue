@@ -1,21 +1,4 @@
 <script setup lang="ts">
-/**
- * Mail list item (MailItem): hand-drawn style, visuals follow mail-list.html.
- *
- * Three states (styling decided by the status + meta passed by the parent):
- * - unread: a red-ink dot marker on the left (reusing the todo ink-dot style SVG path).
- * - read: an envelope icon on the left + muted colors + meta showing "Read, archived in N minutes".
- * - archived: an envelope icon on the left (even fainter) + opacity 0.7 + an "Archived" tag + the absolute date.
- *
- * Clicking triggers action (mail list=mark read + jump to webmail; archive=jump to webmail).
- * Right-side action buttons (T5a): archive (mail list only, controlled by showArchive) + delete (both lists).
- * Delete double-confirm, inline variant: one click turns it into a red-highlighted "Confirm delete?" plus a 700ms forced reaction dead zone
- * (clicks inside the dead zone are ignored, preventing an accidental double-click from deleting outright); clicking again within 3.3s after
- * the dead zone deletes, otherwise it auto-reverts.
- * All linework is SVG; never use CSS borders.
- *
- * @see docs/designs/phase2-exploration/mail-list.html
- */
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -24,35 +7,24 @@ import type { MailNotification } from '../../stores/mailNotification'
 import { minutesUntilArchive } from '../../utils/retention'
 
 const props = defineProps<{
-  /** Mail data. */
   mail: MailNotification
-  /** Status override (defaults to mail.status; the parent may pass read/archived to force the style). */
   status?: 'unread' | 'read' | 'archived'
-  /** Provider name shown in the meta area (e.g. "Gmail" / "QQ Mail"), resolved by the parent. */
   providerName?: string | null
-  /** Relative time shown in the meta area (e.g. "2 minutes ago" / "yesterday"), formatted by the parent. */
   timeLabel?: string
-  /** Absolute date shown in the meta area (e.g. "2026.8.3"), passed by both lists, displayed alongside the relative time. */
   dateLabel?: string
-  /** Whether to show the archive button (the mail list passes true; the archive list omits it / passes false). */
   showArchive?: boolean
 }>()
 
 const emit = defineEmits<{
-  /** Click the mail item (the parent decides mark read + jump to webmail). */
   action: [id: string]
-  /** Click the archive button (the parent calls mailNotificationStore.archive(id)). */
   archive: [id: string]
-  /** Click the delete button (after double-confirm; the parent calls mailNotificationStore.purge(id)). */
   delete: [id: string]
 }>()
 
 const { t } = useI18n()
 
-/** The status actually displayed: props.status takes priority, otherwise mail.status. */
 const effectiveStatus = computed(() => props.status ?? props.mail.status)
 
-/** Remaining minutes until an already-read mail is archived (based on readAt + current time). */
 const minutesLeft = computed(() =>
   props.mail.readAt ? minutesUntilArchive(props.mail.readAt, Date.now()) : 0,
 )
@@ -63,21 +35,17 @@ const minutesLeft = computed(() =>
 const DEADZONE_MS = 700
 const CONFIRM_WINDOW_MS = 3300
 const confirmingDelete = ref(false)
-/** Whether currently in the reaction dead zone (clicks are ignored inside it; visually grayed out to hint "please wait a moment"). */
 const inDeadzone = ref(false)
 let confirmTimer: ReturnType<typeof setTimeout> | undefined
 
-/** First delete click: enter the confirm state + start the dead zone; after the dead zone ends, enter the confirmable window. */
 function armConfirm(): void {
   confirmingDelete.value = true
   inDeadzone.value = true
   if (confirmTimer) {
     clearTimeout(confirmTimer)
   }
-  // Dead zone over: clickable to confirm
   confirmTimer = setTimeout(() => {
     inDeadzone.value = false
-    // Then start the confirmable window timer
     confirmTimer = setTimeout(() => {
       confirmingDelete.value = false
       inDeadzone.value = false
@@ -86,11 +54,9 @@ function armConfirm(): void {
   }, DEADZONE_MS)
 }
 
-/** Delete button click: ignored inside the dead zone; unconfirmed → enter confirm; confirmed → really delete. */
 function onClickDelete(): void {
   if (confirmingDelete.value) {
     if (inDeadzone.value) {
-      // Reaction dead zone: ignore the click, preventing the user from deleting outright via double-click
       return
     }
     if (confirmTimer) {
@@ -118,7 +84,6 @@ onBeforeUnmount(() => {
     :class="effectiveStatus"
     @click="emit('action', mail.id)"
   >
-    <!-- Unread: red-ink dot (reusing the todo ink-dot three-layer path) -->
     <svg
       v-if="effectiveStatus === 'unread'"
       class="unread-dot"
@@ -134,7 +99,6 @@ onBeforeUnmount(() => {
         fill="#d4654a"
       />
     </svg>
-    <!-- Read/archived: envelope icon -->
     <div
       v-else
       class="mail-icon"
@@ -160,7 +124,6 @@ onBeforeUnmount(() => {
       <div class="mail-subject">
         {{ mail.subject || '—' }}
       </div>
-      <!-- Meta two-column grid: left=provider/read hint/archived tag, right=relative + absolute date -->
       <div class="mail-meta">
         <div class="meta-left">
           <span v-if="providerName">{{ providerName }}</span>
@@ -181,12 +144,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Right-side action buttons (appear on hover; forced visible in confirm-delete/dead-zone states) -->
     <div
       class="mail-actions"
       :class="{ 'is-confirming': confirmingDelete }"
     >
-      <!-- Archive button: hand-drawn lidded box (mail list only; hidden in the confirm-delete state to focus on deleting) -->
       <button
         v-if="showArchive && !confirmingDelete"
         class="action-btn"
@@ -194,7 +155,6 @@ onBeforeUnmount(() => {
         type="button"
         @click.stop="emit('archive', mail.id)"
       >
-        <!-- Hand-drawn archive box: wavy lid line + box body + handle slot -->
         <svg
           fill="none"
           height="20"
@@ -205,15 +165,11 @@ onBeforeUnmount(() => {
           viewBox="0 0 24 24"
           width="20"
         >
-          <!-- Lid: hand-drawn wavy horizontal line -->
           <path d="M 4 7 Q 8 6 12 7 Q 16 8 20 7" />
-          <!-- Box body: hand-drawn irregular rectangle (Q curves, not straight lines) -->
           <path d="M 5 8 Q 4 8 4.5 9.5 L 6 19 Q 6 20.5 7.5 20.5 L 16.5 20.5 Q 18 20.5 18 19 L 19.5 9.5 Q 20 8 19 8" />
-          <!-- Handle slot: small arc on the lid -->
           <path d="M 10 6 Q 12 4.5 14 6" />
         </svg>
       </button>
-      <!-- Delete button: normal state=hand-drawn trash bin, confirm state="Confirm delete?" red text, dead-zone state=grayed-out disabled look -->
       <button
         class="action-btn"
         :class="{ confirming: confirmingDelete && !inDeadzone, deadzone: confirmingDelete && inDeadzone }"
@@ -237,7 +193,6 @@ onBeforeUnmount(() => {
           viewBox="0 0 24 24"
           width="20"
         >
-          <!-- Hand-drawn trash bin: lid horizontal line + handle + bin body + two vertical grooves -->
           <path d="M 4 7 Q 8 6.5 12 7 Q 16 7.5 20 7" />
           <path d="M 10 5 Q 12 4 14 5" />
           <path d="M 6 8 Q 5.5 8 5.7 9 L 7 19 Q 7.2 20 8.2 20 L 15.8 20 Q 16.8 20 17 19 L 18.3 9 Q 18.5 8 18 8" />
@@ -311,7 +266,6 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
-/* Meta two-column grid: keeps the archive list's provider · archived · relative · absolute from wrapping when squeezed */
 .mail-meta {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -357,7 +311,6 @@ onBeforeUnmount(() => {
   background: rgb(196 181 160 / 20%);
 }
 
-/* ── Right-side action button area ── */
 .mail-actions {
   display: flex;
   flex-shrink: 0;
@@ -372,7 +325,6 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-/* Confirm-delete/dead-zone states are forced visible (even when the mouse moves away) */
 .mail-actions.is-confirming {
   opacity: 1;
 }
@@ -410,7 +362,6 @@ onBeforeUnmount(() => {
   background: rgb(212 101 74 / 20%);
 }
 
-/* Dead-zone state: grayed-out disabled look, hinting the user to "please wait" */
 .action-btn.deadzone {
   padding: 4px 10px;
   color: var(--ink-faint);

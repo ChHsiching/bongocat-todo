@@ -25,13 +25,10 @@ use tauri::async_runtime::JoinHandle;
 
 use crate::logic::{POLL_INTERVAL, backoff_delay, classify_idle_error};
 
-/// Max backoff reconnect attempts (avoids infinite retries flooding the log; after reaching it, keep retrying at the capped wait).
 const MAX_BACKOFF_RETRIES: u32 = 8;
 
-/// Key prefix for mailbox passwords in the keyring (full key = `<KEY_PREFIX>/<accountId>`).
 pub const KEYRING_KEY_PREFIX: &str = "bongocat-todo/mail";
 
-/// Get an account's full keyring key.
 pub fn keyring_key(account_id: &str) -> String {
     format!("{KEYRING_KEY_PREFIX}/{account_id}")
 }
@@ -41,11 +38,9 @@ pub fn keyring_key(account_id: &str) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct NewMailPayload {
     pub account_id: String,
-    /// Mail UID (used by the frontend for offline catch-up dedup: unique per `<accountId>:<uid>`).
     pub uid: u32,
     /// Sender address (`mailbox@host`); the raw string when parsing fails.
     pub from: String,
-    /// Subject (UTF-8 decoded; mime-encoded is not deeply decoded for now, T1 uses from_utf8_lossy).
     pub subject: String,
     /// Arrival time (ms timestamp).
     pub arrived_at: i64,
@@ -78,18 +73,11 @@ pub struct LastSeenUidPayload {
 #[derive(Debug, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum ConnectionStatus {
-    /// Connected, IDLE watching.
     Connected,
-    /// Connecting.
     Connecting,
-    /// Connection failed.
     Error,
 }
 
-/// Connection manager (hosted as Tauri app state).
-///
-/// Internally uses `Mutex<HashMap<accountId, JoinHandle>>` to manage each account's IDLE task.
-/// The `Mutex` protects map consistency while accounts are added/removed concurrently.
 pub struct ConnectionManager {
     tasks: Mutex<HashMap<String, JoinHandle<()>>>,
 }
@@ -101,14 +89,6 @@ impl ConnectionManager {
         }
     }
 
-    /// Start an account's IDLE watch task.
-    ///
-    /// First fetches the password from the keyring (not held in memory long-term); returns an error if unavailable.
-    /// An existing task with the same id is cancelled first and then overwritten.
-    ///
-    /// `initial_last_seen_uid` comes from the frontend-persisted `mailAccount.lastSeenUid`: when non-zero it serves
-    /// as the offline catch-up baseline (fetch new mails that arrived offline with UID > last_seen_uid); when 0 it falls
-    /// back to `fetch_max_uid` (skipping all currently existing mails, T1 behavior).
     pub async fn connect<R: Runtime>(
         &self,
         app: AppHandle<R>,
@@ -119,14 +99,12 @@ impl ConnectionManager {
         proxy: Option<String>,
         initial_last_seen_uid: u32,
     ) -> Result<(), String> {
-        // Fetch the password from the keyring first
         let entry = Entry::new(&keyring_key(&account_id), &username)
             .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
         let password = entry
             .get_password()
             .map_err(|e| format!("keyring 取密码失败（账号 {}）: {e}", account_id))?;
 
-        // Cancel the existing task, if any
         self.disconnect(&account_id).await;
 
         let _ = app.emit(
@@ -153,22 +131,16 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Stop an account's IDLE task (cancelling the task closes the connection).
     pub async fn disconnect(&self, account_id: &str) {
         if let Some(handle) = self.tasks.lock().await.remove(account_id) {
             handle.abort();
         }
     }
 
-    /// Whether an account currently has an active IDLE connection (an existing task counts as active).
-    ///
-    /// In the multi-account scenario each account's state is independent: disconnecting/querying account A does not affect account B's connection.
-    /// Used for UI state display and multi-account isolation tests (`#[cfg(test)]`).
     pub async fn has_connection(&self, account_id: &str) -> bool {
         self.tasks.lock().await.contains_key(account_id)
     }
 
-    /// Current number of active connections (for diagnostics/logging in the multi-account scenario).
     pub async fn connection_count(&self) -> usize {
         self.tasks.lock().await.len()
     }
@@ -197,8 +169,6 @@ mod tests {
     /// This covers the AC of "given N accounts each with its own state → querying/toggling one does not affect the others",
     /// while the real end-to-end (2 providers on simultaneous IDLE) is verified by a manual tracer bullet.
     fn make_dummy_handle() -> JoinHandle<()> {
-        // Spawn a never-returning task as an "active connection" stand-in (simulating the idle_loop long-poll connection).
-        // Aborted at test end, so it never really occupies the runtime.
         tauri::async_runtime::spawn(async {
             std::future::pending::<()>().await;
         })
@@ -313,13 +283,6 @@ mod tests {
     }
 }
 
-/// The IDLE main loop for a single account.
-///
-/// Structure: an outer reconnect loop (error → backoff → reconnect) wrapping an inner IDLE loop (NewData → fetch → restart idle).
-/// The 29-minute keep-alive is provided by `Handle::wait()`'s built-in timeout; when it returns `Timeout`, the inner loop restarts idle.
-///
-/// When `initial_last_seen_uid` is non-zero it serves as the offline catch-up baseline (passed in persisted by the frontend); when 0, fall back to fetch_max_uid.
-/// On reconnect, **keep** the already-advanced last_seen_uid (do not reset to the initial value), avoiding re-pushing mails that were already caught up.
 async fn idle_loop<R: Runtime>(
     app: AppHandle<R>,
     account_id: String,
@@ -351,9 +314,6 @@ async fn idle_loop<R: Runtime>(
         .await
         {
             Ok(_returned_uid) => {
-                // Normal exit (e.g. manual cancellation) — do not reconnect.
-                // A normal exit means the task was cancelled / the process is ending; no need to keep the latest uid
-                // (the frontend has already persisted the uid after each push via the mail://last-seen-uid event).
                 break;
             }
             Err(err) => {
@@ -367,7 +327,6 @@ async fn idle_loop<R: Runtime>(
                 );
                 log::warn!("mail {} IDLE 异常退出，准备重连: {err}", account_id);
 
-                // Exponential backoff
                 let delay = backoff_delay(retries.min(MAX_BACKOFF_RETRIES));
                 retries = retries.saturating_add(1);
                 tokio::time::sleep(delay).await;
@@ -376,10 +335,6 @@ async fn idle_loop<R: Runtime>(
     }
 }
 
-/// Establish one complete IMAP connection and run IDLE until an error or cancellation.
-///
-/// Returning `Ok(last_seen_uid)` means a normal end (task cancelled), carrying the latest pushed UID
-/// for the outer reconnect loop to keep; `Err` means a reconnect is needed.
 async fn run_idle_session<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -390,7 +345,6 @@ async fn run_idle_session<R: Runtime>(
     proxy: Option<&str>,
     initial_last_seen_uid: u32,
 ) -> Result<u32, String> {
-    // 1-3. Establish the TLS connection + login + select INBOX (shared with mail_test_connection)
     let session = build_imap_session(imap_host, imap_port, username, password, proxy).await?;
 
     let _ = app.emit(
@@ -404,11 +358,10 @@ async fn run_idle_session<R: Runtime>(
 
     // 4. IDLE loop (idle() consumes the session, done() returns it)
     //    wait() has a built-in 29-minute timeout (see async-imap idle.rs); it returns Timeout when it fires,
-    //    and restarting idle at the top of the loop completes the RFC 2177 keep-alive — no extra should_reset_idle check needed.
+    //    and restarting idle at the top of the loop completes the RFC 2177 keep-alive.
     //    Connection params are passed in: if IDLE is unsupported, idle_wait_loop needs to rebuild a session and fall back to poll_loop.
     let (mut session, last_seen_uid) = idle_wait_loop(app, account_id, session, initial_last_seen_uid, imap_host, imap_port, username, password, proxy).await?;
 
-    // 5. Log out on exit (graceful shutdown)
     let _ = session.logout().await;
     Ok(last_seen_uid)
 }
@@ -430,8 +383,6 @@ pub(crate) async fn build_imap_session(
     use tokio::time::timeout;
     use std::time::Duration;
 
-    // Per-network-step timeout (TCP/TLS/login/select). A dead proxy forward would hang forever,
-    // so a timeout is required to let the UI error out instead of spinning forever.
     const STEP_TIMEOUT: Duration = Duration::from_secs(30);
 
     // rustls TLS: uses webpki-roots' built-in Mozilla root CAs, with no certificate revocation checks (OCSP/CRL).
@@ -444,15 +395,12 @@ pub(crate) async fn build_imap_session(
         .with_no_client_auth();
     let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
 
-    // Establish the TCP connection: through an HTTP CONNECT tunnel when a proxy is set, direct otherwise.
     let tcp = if let Some(proxy_addr) = proxy {
         log::info!("[mail] 使用代理 {proxy_addr} 建立到 {imap_host}:{imap_port} 的隧道");
-        // First TCP-connect to the proxy server
         let mut proxy_tcp = timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect(proxy_addr))
             .await
             .map_err(|_| format!("连接代理超时（{proxy_addr}，30s 无响应）"))?
             .map_err(|e| format!("连接代理失败 {proxy_addr}: {e}"))?;
-        // HTTP CONNECT tunnel to the target IMAP server
         timeout(STEP_TIMEOUT, async_http_proxy::http_connect_tokio(&mut proxy_tcp, imap_host, imap_port))
             .await
             .map_err(|_| "代理隧道建立超时（30s 无响应）".to_string())?
@@ -664,7 +612,6 @@ async fn idle_wait_loop<R: Runtime>(
                 return Ok((session, last_seen_uid));
             }
             Err(e) => {
-                // wait failed: try sending DONE to return the session (failure is fine, the outer loop will reconnect)
                 let _ = handle.done().await;
                 return Err(format!("IDLE wait 出错: {e}"));
             }
@@ -672,11 +619,6 @@ async fn idle_wait_loop<R: Runtime>(
     }
 }
 
-/// Polling mode: the degraded loop used when the server does not support IDLE.
-///
-/// No IDLE at all, just a `sleep(POLL_INTERVAL) → fetch_new_envelopes` loop.
-/// The fetch logic matches the Timeout/NewData branches of [`idle_wait_loop`] (emit new mails + advance last_seen_uid).
-/// A fetch error returns Err for the outer loop to reconnect.
 async fn poll_loop<R: Runtime>(
     app: &AppHandle<R>,
     account_id: &str,
@@ -701,7 +643,6 @@ async fn poll_loop<R: Runtime>(
     }
 }
 
-/// Get INBOX's current max UID (used to initialize the dedup baseline, avoiding pushing all existing mails at startup).
 async fn fetch_max_uid(
     session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
 ) -> Result<u32, String> {
@@ -720,16 +661,11 @@ async fn fetch_max_uid(
     Ok(max_uid)
 }
 
-/// Fetch envelope metadata for new mails after last_seen_uid (dedup + MIME decoding).
-///
-/// Only mails with UID > last_seen_uid are pushed, avoiding re-pushing existing mails or flag changes.
-/// Subjects get MIME encoded-word decoding (`=?utf-8?B?...?=` / `=?utf-8?Q?...?=`).
 async fn fetch_new_envelopes(
     account_id: &str,
     session: &mut async_imap::Session<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>,
     last_seen_uid: &mut u32,
 ) -> Result<Vec<NewMailPayload>, String> {
-    // Fetch mails from last_seen_uid+1 to *
     let range = format!("{}:*", last_seen_uid.saturating_add(1));
     let mut fetch_stream = session
         .uid_fetch(&range, "ENVELOPE")
@@ -742,7 +678,6 @@ async fn fetch_new_envelopes(
         let Ok(fetch) = fetch else { continue };
         let Some(uid) = fetch.uid else { continue };
 
-        // Skip already-pushed ones
         if uid <= *last_seen_uid {
             continue;
         }
@@ -783,28 +718,21 @@ async fn fetch_new_envelopes(
 }
 
 /// Decode MIME encoded-words (RFC 2047): `=?charset?B?base64?=` or `=?charset?Q?quoted?=`.
-///
-/// Mail subjects with non-ASCII characters get encoded. This function handles UTF-8 Base64 and Quoted-Printable;
-/// other encodings fall back to the raw lossy string. Supports multiple concatenated encoded-words.
 fn decode_mime_words(input: &str) -> String {
     use base64::Engine;
 
-    // Regex matching is too heavy; manually scan `=?charset?enc?data?=` segments
     let mut result = String::new();
     let mut rest = input;
 
     while let Some(start) = rest.find("=?") {
-        // Plain-text part
         result.push_str(&rest[..start]);
 
         let after = &rest[start + 2..];
-        // Find the closing ?=
         let Some(end_rel) = after.find("?=") else {
             result.push_str(&rest[start..]);
             return result;
         };
 
-        // encoded-word content: charset?enc?data
         let encoded = &after[..end_rel];
         let parts: Vec<&str> = encoded.splitn(3, '?').collect();
         if parts.len() < 3 {
@@ -813,7 +741,6 @@ fn decode_mime_words(input: &str) -> String {
             continue;
         }
 
-        let charset = parts[0].to_lowercase();
         let enc = parts[1].to_lowercase();
         let data = parts[2];
 
@@ -855,15 +782,7 @@ fn decode_mime_words(input: &str) -> String {
         };
 
         match decoded_bytes {
-            Some(b) => {
-                if charset.starts_with("utf") {
-                    result.push_str(&String::from_utf8_lossy(&b));
-                }
-                else {
-                    // Non-UTF-8 falls back to lossy (tracer bullet simplification)
-                    result.push_str(&String::from_utf8_lossy(&b));
-                }
-            }
+            Some(b) => result.push_str(&String::from_utf8_lossy(&b)),
             None => result.push_str(&rest[start..start + 2 + end_rel + 2]),
         }
 
@@ -874,7 +793,6 @@ fn decode_mime_words(input: &str) -> String {
     result
 }
 
-/// Get the current Unix timestamp (ms). Based on SystemTime, no chrono dependency.
 fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()

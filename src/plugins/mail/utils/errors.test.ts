@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { formatConnectionError } from './errors'
 
-// Test translation function: returns the key itself (verifies the correct i18n key was fetched)
 const t = (key: string) => key
 
 describe('formatConnectionError', () => {

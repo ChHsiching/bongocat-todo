@@ -8,36 +8,6 @@ import HandDateInput from '../HandDateInput/index.vue'
 import PawLogo from '../PawLogo/index.vue'
 import PriorityPicker from '../PriorityPicker/index.vue'
 
-/**
- * Mini input window (MiniInput / T5, with priority selection added in T6).
- *
- * The positioning anchor is the upper right of the desktop pet (main window), not the cursor —
- * in practice the pet's right-click menu pops up far from the cursor, and following the
- * cursor would put the mini window somewhere unexpected.
- *
- * Three states: idle (placeholder) → typing (user input) → saved (green "Added", centered and
- * enlarged across the window, closes after fading out).
- * Layout (T6, two rows):
- *   Row1 = PawLogo (drag) + title input + close ×
- *   Row2 = PriorityPicker (three ink dots, default medium) + HandDateInput (reuses T5's 5 handwritten digit boxes)
- *
- * Date-time entry is all handwritten digit boxes (no calendar popup, no antd dependency); the
- * skin is fully hand-drawn and controllable. Since T6 the date input is extracted into the
- * HandDateInput component for the main panel's create form to reuse; this component no longer
- * inlines the digit-box logic.
- *
- * Dragging: the paw print and the non-input areas of Row2/Row3 explicitly carry
- * data-tauri-drag-region; inputs/buttons are naturally exempt.
- *
- * Close paths: top-right × / Esc / a fade-out timer after submit. Does **not** auto-close on
- * input blur or window focus loss (the former would break tabbing to the next box).
- *
- * Visuals reuse T2 assets: the 851 handwriting font (inherited via .todo-handdrawn), pink-ink
- * CSS variables, PawLogo, HandClock. The border SVG path is lifted from
- * docs/designs/todo-panel-exploration/mini-input.html variant B (medium stroke).
- *
- * @see docs/designs/todo-panel-exploration/mini-input.html source of visual truth
- */
 const emit = defineEmits<{
   close: []
   create: [title: string, dueDate: number | undefined, priority: TodoPriority]
@@ -47,18 +17,14 @@ const { t } = useI18n()
 
 type State = 'idle' | 'typing' | 'saved'
 const state = ref<State>('idle')
-/** Fade-out flag for the saved state: when true the whole mini window smoothly fades opacity→0. */
 const fading = ref(false)
 
 const title = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 
-/** Priority of the new todo (default medium). */
 const priority = ref<TodoPriority>('medium')
-/** Due-date timestamp of the new todo (undefined when no date is filled). */
 const dueDate = ref<number | undefined>(undefined)
 
-/** saved display duration: the first half shows "Added" statically, the second half fades out. */
 const SAVED_HOLD_MS = 300
 const SAVED_FADE_MS = 300
 let holdTimer: null | ReturnType<typeof setTimeout> = null
@@ -84,7 +50,6 @@ function onDateChange(value: number | undefined) {
   markTyping()
 }
 
-/** Enter in the date boxes: submit if the title has content, otherwise focus the title box. */
 function handleDateEnter() {
   if (title.value.trim()) {
     handleSubmit()
@@ -101,7 +66,6 @@ function handleSubmit() {
   emit('create', trimmed, dueDate.value, priority.value)
 
   state.value = 'saved'
-  // The first half shows "Added" statically, the second half fades out, then it closes.
   holdTimer = setTimeout(() => {
     fading.value = true
   }, SAVED_HOLD_MS)
@@ -111,7 +75,6 @@ function handleSubmit() {
 }
 
 function handleClose() {
-  // The saved state closes via its own timer, avoiding duplicate emits.
   if (state.value === 'saved')
     return
   clearTimers()
@@ -135,8 +98,6 @@ function clearTimers() {
     class="mini-window"
     :class="{ 'is-fading': fading }"
   >
-    <!-- SVG hand-drawn border: viewBox matches the window size; preserveAspectRatio="none" stretches it to fill.
-         In the saved state the stroke/fill turn green (#6b9c47 / #f6fbf2); other states use white fill + brown ink stroke. -->
     <svg
       class="frame-bg"
       preserveAspectRatio="none"
@@ -165,7 +126,6 @@ function clearTimers() {
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      <!-- Shadow layer (scaled proportionally for 280→380) -->
       <path
         d="M 19 12 Q 21.7 10 27.1 10 L 361 12 Q 369.1 14 367.8 18 L 370.5 98 Q 367.8 104 361 104 L 24.4 102 Q 16.3 100 17.6 96 Z"
         :fill="state === 'saved' ? '#e0f0d8' : '#e8dcc8'"
@@ -186,7 +146,6 @@ function clearTimers() {
     </svg>
 
     <div class="mini-content">
-      <!-- Top-right close × (reuses TodoPanel's hand-drawn × path, shrunk to 16px) -->
       <button
         class="close-btn"
         :title="t('plugins.todo.labels.closeButton')"
@@ -207,7 +166,6 @@ function clearTimers() {
         </svg>
       </button>
 
-      <!-- saved state: "Added" + hand-drawn check mark, centered and enlarged across the window -->
       <div
         v-if="state === 'saved'"
         class="saved-view"
@@ -228,12 +186,7 @@ function clearTimers() {
         <span class="saved-text">{{ t('plugins.todo.labels.miniSaved') }}</span>
       </div>
 
-      <!-- Input state: title + priority + date across the rows.
-           Draggable areas explicitly carry data-tauri-drag-region (paw print, priority-row blanks, date-row blanks);
-           inputs/buttons are naturally exempt and stay interactive. -->
       <template v-else>
-        <!-- Row1: the whole row is a drag-region (following TodoPanel's .panel-header pattern).
-             The paw print sets pointer-events:none to pass through to the row's drag-region; the title input is naturally exempt and stays interactive. -->
         <div
           class="title-row"
           data-tauri-drag-region
@@ -253,9 +206,6 @@ function clearTimers() {
           >
         </div>
 
-        <!-- Row2: priority + date-time on one row (compact layout consistent with the main panel's create area).
-             The whole row is a drag-region; PriorityPicker buttons and HandDateInput inputs are naturally exempt and interactive.
-             HandDateInput already contains the clock icon on the left, so no icon on the right to avoid overflow (user feedback). -->
         <div
           class="controls-row"
           data-tauri-drag-region
@@ -273,12 +223,10 @@ function clearTimers() {
 </template>
 
 <style scoped>
-/* Mini window size matches the window's setSize (380×130, same width as the main panel). Transparent background lets the desktop show through. */
 .mini-window {
   position: relative;
   width: 100%;
   height: 100%;
-  /* saved fade-out: opacity smoothly transitions to 0 (spec "fade out to close"). */
   transition: opacity 300ms ease-out;
 }
 
@@ -311,7 +259,6 @@ function clearTimers() {
   gap: 8px;
 }
 
-/* Top-right close × */
 .close-btn {
   position: absolute;
   top: 6px;
@@ -342,7 +289,6 @@ function clearTimers() {
   margin-top: 6px;
 }
 
-/* Paw print: decorative; pointer-events:none lets clicks/drags pass through to the row's drag-region (TodoPanel proven pattern). */
 .paw-deco {
   display: flex;
   align-items: center;
@@ -369,8 +315,6 @@ function clearTimers() {
   font-weight: 500;
 }
 
-/* Row2: priority + date in one row, justified (priority to the left, date to the right).
-   The row's blank space is draggable (drag-region); PriorityPicker buttons / HandDateInput inputs are naturally exempt. */
 .controls-row {
   display: flex;
   align-items: center;
@@ -378,12 +322,10 @@ function clearTimers() {
   gap: 12px;
 }
 
-/* HandDateInput outer wrapper: the date group does not shrink and sits to the right. */
 .date-row-wrap {
   flex-shrink: 0;
 }
 
-/* saved state: centered and enlarged across the window; the check mark scales up too. */
 .saved-view {
   display: flex;
   flex: 1;

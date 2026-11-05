@@ -1,18 +1,4 @@
 <script setup lang="ts">
-/**
- * Mail list window (T5, D9).
- *
- * An independent companion window (WINDOW_LABEL.MAIL_LIST) with a hand-drawn paper container (reusing MailPanel),
- * showing unread + read mails. Clicking a mail → mark read locally + jump to webmail (archiving after 5 minutes is handled by the store tick).
- *
- * Independent webview; stores are not inherited from the main window — onMounted must call `$tauri.start()` to load persisted data.
- * Positioning reuses the todo panel's clamp + edge flip (anchored to the main window, centered right above the cat).
- *
- * Read/archived are purely local states; **never send IMAP STORE to the mail server** (D5-actual zero-write constraint).
- *
- * @see docs/designs/phase2-exploration/mail-list.html
- * @see ADR 0002 D9
- */
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
@@ -40,7 +26,6 @@ const appWindow = getCurrentWebviewWindow()
 const FADE_MS = 200
 const PANEL_SIZE = new PhysicalSize(400, 560)
 
-// Follow-up to issue #19: resizable (constraints + restore + persistence); min height estimated from "header area + one mail + footer"
 const { applyConstraints } = useResizablePanel({
   min: { width: 400, height: 320 },
   max: { width: 720, height: 8192 },
@@ -57,7 +42,6 @@ const { t } = useI18n()
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
-/** now tick: refresh the relative time copy every minute (keeps "2 minutes ago" rolling). */
 const now = ref(Date.now())
 let nowTimer: ReturnType<typeof setInterval> | undefined
 
@@ -86,36 +70,27 @@ onBeforeUnmount(() => {
   }
 })
 
-/** Unread group (status=unread). */
 const unreadMails = computed(() =>
   mailNotificationStore.activeMails.filter(m => m.status === 'unread'),
 )
 
-/** Read group (status=read, auto-archived within 5 minutes). */
 const readMails = computed(() =>
   mailNotificationStore.activeMails.filter(m => m.status === 'read'),
 )
 
-/** Resolve the provider display name by accountId (for the meta area's "Gmail" / "QQ Mail"). */
 function providerName(accountId: string): string | null {
   const account = mailAccountStore.getAccount(accountId)
   return account ? (matchProvider(account.address)?.displayName ?? null) : null
 }
 
-/** Relative time (arrival time). */
 function timeLabel(mail: { arrivedAt: number }): string {
   return relativeTime(mail.arrivedAt, now.value)
 }
 
-/** Absolute date (year.month.day), shown in the meta area alongside the relative time. */
 function dateLabel(mail: { arrivedAt: number }): string {
   return absoluteDate(mail.arrivedAt)
 }
 
-/**
- * Open the window: centered right above the cat + clamp + edge flip, setSize → show → fade in.
- * Reuses the positioning pattern of the todo panel / bubble.
- */
 useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
   const panelTarget = await applyConstraints()
 
@@ -164,32 +139,28 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_LIST, async () => {
  * Click a mail → mark read locally + jump to webmail.
  *
  * Read is a purely local state (no STORE sent to the mailbox, D5-actual). Archiving after 5 minutes is handled
- * by the main window's tickRetention timer scan; this window needs no separate timer.
+ * by the retention tick — this window runs its own local tick as a fallback (idempotent, coexists with the
+ * main window's timer), so mails read here still get archived.
  */
 function handleAction(id: string) {
   const mail = mailNotificationStore.notifications.find(n => n.id === id)
   if (!mail) {
     return
   }
-  // Mark read locally (idempotent: clicking an already-read mail has no side effect)
   mailNotificationStore.markRead(id)
 
-  // Jump to webmail (match the provider by the account address, fall back to imapHost on a miss)
   const account = mailAccountStore.getAccount(mail.accountId)
   const url = account ? resolveWebmailUrl(account.address, account.imapHost) : null
   if (url) {
     openUrl(url).catch(() => {
-      // Open failure does not block
     })
   }
 }
 
-/** Archive button: archive directly (without opening the browser). Idempotent: calling again on archived mails has no side effect. */
 function handleArchive(id: string) {
   mailNotificationStore.archive(id)
 }
 
-/** Delete button (after double-confirm): remove entirely from the store. */
 function handleDelete(id: string) {
   mailNotificationStore.purge(id)
 }
@@ -216,7 +187,6 @@ function handleClose() {
       :inset-top="18"
     />
     <MailPanel>
-      <!-- Header area (draggable to move the window; child elements use pointer-events:none so dragging passes through) -->
       <div
         class="panel-header"
         data-tauri-drag-region
@@ -266,16 +236,13 @@ function handleClose() {
             viewBox="0 0 24 24"
             width="20"
           >
-            <!-- Hand-drawn ×: two smooth large crossing arcs, consistent with the todo panel -->
             <path d="M 6 6 Q 9.5 13 19 19" />
             <path d="M 18 6 Q 8.5 10 5 18" />
           </svg>
         </button>
       </div>
 
-      <!-- Scrollable list area -->
       <div class="panel-scroll">
-        <!-- Unread group -->
         <div
           v-if="unreadMails.length"
           class="section-label"
@@ -296,7 +263,6 @@ function handleClose() {
           @delete="handleDelete"
         />
 
-        <!-- Read group -->
         <div
           v-if="readMails.length"
           class="section-label"
@@ -317,7 +283,6 @@ function handleClose() {
           @delete="handleDelete"
         />
 
-        <!-- Empty state -->
         <div
           v-if="!unreadMails.length && !readMails.length"
           class="empty-state"

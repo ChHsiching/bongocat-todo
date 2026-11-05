@@ -23,12 +23,6 @@ const appWindow = getCurrentWebviewWindow()
 
 const visibleTodos = computed(() => todoStore.visibleTodos)
 
-/**
- * Fade in/out: opacity transition on the root element.
- * - Open: set true on the frame after show; CSS goes opacity:0 → 1 (fade in).
- * - Close: set false first to run the fade-out, then hideWindow after FADE_MS (the window actually hides).
- * panel / mini modes share the same logic.
- */
 const FADE_MS = 200
 const shown = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | undefined
@@ -46,7 +40,8 @@ const MINI_HEIGHT_MAX = 200
 // ── issue #19: the panel mode is drag-resizable (logical px constraints) ──
 // Do not statically configure minHeight/maxHeight in tauri.conf.json: it would clamp the mini mode's programmatic setSize(380×130).
 // Set dynamically when the panel opens, cleared before entering mini (see applyPanelConstraints / clearPanelConstraints).
-/** Width floor = default width (the viewBox basis of MiniInput/PaperPanel). */
+// show goes through showWindow (reusing App.vue's SHOW_WINDOW handler → the Rust show_window
+// command, not calling core:window:show directly, avoiding a new capability grant).
 const PANEL_MIN_WIDTH = 380
 /**
  * Height floor 280: the measured minimum to fully show "header area + section label + one todo
@@ -59,18 +54,7 @@ const PANEL_MAX_WIDTH = 720
 /** No meaningful height ceiling (no typographic basis to pick a number); 8K height is a fallback meaning "unlimited". */
 const PANEL_MAX_HEIGHT = 8192
 
-/**
- * Current window mode: panel (main panel 380×560) / mini (mini input window 280×110).
- *
- * The same WINDOW_LABEL.TODO window renders different components at different sizes (see D2 "quick create reuses the same label").
- * The initial value is classified by outerSize at mount; onResized re-classifies so the mode switches immediately after setSize.
- */
 const mode = ref<'mini' | 'panel'>('panel')
-/**
- * A key incremented on each open of the mini mode, forcing MiniInput to remount to reset its
- * three states (reopening after saved must return to the input state).
- * The panel mode needs no such mechanism (TodoPanel needs no reset).
- */
 const miniKey = ref(0)
 
 function classifyByHeight(height: number) {
@@ -95,13 +79,8 @@ function markProgrammaticResize() {
   }, 500)
 }
 
-/** Persistence debounce timer: every per-frame resize during a drag resets it; it commits 300ms after the last event. */
 let persistTimer: ReturnType<typeof setTimeout> | undefined
 
-/**
- * issue #19: store the panel size (logical) into the store after the user finishes dragging.
- * Recorded only in panel mode and for non-programmatic resizes; on restore, converted to physical via the current scaleFactor.
- */
 function schedulePersistPanelSize() {
   if (persistTimer)
     clearTimeout(persistTimer)
@@ -119,7 +98,6 @@ function schedulePersistPanelSize() {
   }, 300)
 }
 
-/** When the panel mode opens: apply size constraints + restore the user's last size (default FULL_SIZE if none recorded). */
 async function applyPanelConstraints() {
   await appWindow.setResizable(true)
   await appWindow.setMinSize(new LogicalSize(PANEL_MIN_WIDTH, PANEL_MIN_HEIGHT))
@@ -127,7 +105,6 @@ async function applyPanelConstraints() {
 
   const stored = todoStore.panelSize
   const scale = await appWindow.scaleFactor()
-  // Clamp the restored value within the current constraints (guard against stale values exceeding bounds after switching to a smaller screen or changing constraints)
   const logical = stored
     ? {
         width: Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, stored.width)),
@@ -154,19 +131,7 @@ onMounted(async () => {
   })
 })
 
-/**
- * Main panel mode opens: anchor to the cat window directly above (horizontally centered on
- * the cat) → setSize → show → fade in.
- *
- * The anchor is the cat (main window), not the mouse — same as quick create; following the
- * desktop pet matches intuition better.
- * Horizontal: panel center aligned with the cat's center, clamped into the screen (no left/right overflow).
- * Vertical: an 8px gap directly above the cat; if it does not fit above, flip below the cat; finally clamp into the screen.
- * show goes through showWindow (reusing App.vue's SHOW_WINDOW handler → the Rust show_window
- * command, not calling core:window:show directly, avoiding a new capability grant).
- */
 useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
-  // issue #19: apply constraints + restore the user's last size (including the programmatic flag); anchor-to-cat positioning is computed from the actual restored size
   const panelTarget = await applyPanelConstraints()
 
   const monitors = await availableMonitors()
@@ -177,21 +142,16 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
   if (catWindow) {
     const catPos = await catWindow.outerPosition()
     const catSize = await catWindow.outerSize()
-    // The monitor containing the cat (falls back to the first one)
     const monitor = monitors.find(m =>
       catPos.x >= m.position.x && catPos.x < m.position.x + m.size.width
       && catPos.y >= m.position.y && catPos.y < m.position.y + m.size.height,
     ) ?? monitors[0]
 
     if (monitor) {
-      // Horizontal: panel center aligned with the cat's center
       x = catPos.x + Math.round(catSize.width / 2 - panelTarget.width / 2)
-      // Vertical: an 8px gap directly above the cat
       y = catPos.y - panelTarget.height - 8
-      // Does not fit above → flip below the cat
       if (y < monitor.position.y)
         y = catPos.y + catSize.height + 8
-      // Clamp into the screen
       x = Math.max(monitor.position.x, Math.min(x, monitor.position.x + monitor.size.width - panelTarget.width))
       y = Math.max(monitor.position.y, Math.min(y, monitor.position.y + monitor.size.height - panelTarget.height))
     }
@@ -205,16 +165,6 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_FULL, async () => {
   shown.value = true
 })
 
-/**
- * Mini window mode opens: position to the upper right of the desktop pet (main window) → setSize → show.
- * miniKey self-increments to force MiniInput to remount, resetting to the idle state.
- *
- * The positioning anchor is the desktop pet, not the cursor — when the right-click menu pops up
- * the cursor sits far from where the mini window is actually wanted; following the pet matches
- * intuition better (the mini window seems to pop out of the cat). Vertically, an 8px gap
- * directly above the pet; horizontally, shifted right by 60% of the pet's width ("upper
- * right"); if it exceeds the monitor's right edge, flip to the left side, offset left.
- */
 useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   const monitors = await availableMonitors()
   let x: number
@@ -224,16 +174,13 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
   if (catWindow) {
     const catPos = await catWindow.outerPosition()
     const catSize = await catWindow.outerSize()
-    // Upper right: horizontally shifted right by 60% of the pet's width; vertically an 8px gap above it.
     x = catPos.x + Math.round(catSize.width * 0.6)
     y = catPos.y - MINI_SIZE.height - 8
   } else {
-    // When the main window cannot be found, fall back to the top-left of the first monitor's visible area; never crash.
     x = monitors[0]?.position.x ?? 0
     y = (monitors[0]?.position.y ?? 0) + 40
   }
 
-  // Boundary clamp: the mini window must not overflow the monitor containing the pet. If there is not enough room above, flip below the pet.
   const monitor = monitors.find((m) => {
     const { position, size } = m
     return x >= position.x && x < position.x + size.width
@@ -246,7 +193,6 @@ useTauriListen(LISTEN_KEY.SHOW_TODO_MINI, async () => {
     const minY = monitor.position.y
     x = Math.max(monitor.position.x, Math.min(x, maxX))
     if (y < minY) {
-      // Does not fit above → flip below the pet
       const catWindow2 = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
       const catBottom = catWindow2 ? (await catWindow2.outerPosition()).y + (await catWindow2.outerSize()).height : minY + 100
       y = catBottom + 8
@@ -290,11 +236,10 @@ function handleToggle(id: string) {
 }
 
 function handleRemove(id: string) {
-  todoStore.removeTodo(id)
+  todoStore.softDeleteTodo(id)
 }
 
 function handleClose() {
-  // Run the fade-out first, then actually hide the window after the animation ends
   if (hideTimer)
     clearTimeout(hideTimer)
   shown.value = false
@@ -340,7 +285,6 @@ function handleClose() {
 </template>
 
 <style scoped>
-/* Fade in/out: opacity transition. .fade starts at opacity:0; adding .fade-shown brings it to 1. */
 .fade {
   opacity: 0;
   transition: opacity 200ms ease;

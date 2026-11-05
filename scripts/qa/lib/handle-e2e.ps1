@@ -56,7 +56,7 @@ $grabX = $before.R - 27
 $grabY = $before.T + [int](($before.B - $before.T) / 2)
 [Hq1]::SetCursorPos($grabX, $grabY) | Out-Null
 Start-Sleep -Milliseconds 80
-[Hq1]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero) # LEFTDOWN → the mousedown lands on the handle div → startResizeDragging
+[Hq1]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero) # LEFTDOWN
 Start-Sleep -Milliseconds 120
 for ($i = 1; $i -le 20; $i++) {
   [Hq1]::SetCursorPos($grabX + [int](80 * $i / 20), $grabY) | Out-Null

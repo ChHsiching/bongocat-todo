@@ -7,18 +7,6 @@ import { PRIORITIES } from '@/plugins/todo/utils/priority'
 
 import InkDot from '../InkDot/index.vue'
 
-/**
- * Priority picker (PriorityPicker / T6): three ink dots, click to select.
- *
- * Used at todo-creation entry points (the main panel's create area + the mini window),
- * complementing TodoItem's "click the existing ink dot to cycle" — here it is an explicit
- * three-way choice (clearer), there an in-place cycle (more compact).
- *
- * Visual: three ink dots in a row; the selected one gets a hand-drawn wavy underline (pink-ink
- * emphasis); unselected ones are semi-transparent. emit `update:priority` (v-model).
- *
- * @see docs/designs/todo-panel-exploration/panel.html ink dot path source of truth
- */
 const { modelValue } = defineProps<{
   modelValue: TodoPriority
 }>()
@@ -65,7 +53,6 @@ function select(p: TodoPriority) {
       @click="select(p)"
     >
       <InkDot :priority="p" />
-      <!-- Selected marker: hand-drawn wavy underline (pink-ink emphasis color) -->
       <svg
         v-if="p === modelValue"
         class="selected-mark"
@@ -90,7 +77,6 @@ function select(p: TodoPriority) {
   gap: 10px;
 }
 
-/* Single ink dot button: transparent background, hover scale-up feedback. */
 .dot-btn {
   position: relative;
   display: inline-flex;
@@ -108,7 +94,6 @@ function select(p: TodoPriority) {
     transform 0.2s;
 }
 
-/* Selected state is opaque + explicitly marked with the hand-drawn wavy underline. */
 .dot-btn.selected {
   opacity: 1;
 }
@@ -118,7 +103,6 @@ function select(p: TodoPriority) {
   transform: scale(1.2);
 }
 
-/* Hand-drawn wavy underline: centered below the selected level. */
 .selected-mark {
   position: absolute;
   bottom: -4px;

@@ -18,7 +18,6 @@ pub async fn mail_test_connection(
     password: String,
     proxy: Option<String>,
 ) -> Result<(), String> {
-    // Reuse build_imap_session: TLS connection + login + select INBOX; on success log out and return, holding no state
     let mut session = build_imap_session(&imap_host, imap_port, &username, &password, proxy.as_deref()).await?;
     let _ = session.logout().await;
     Ok(())
@@ -40,15 +39,12 @@ pub async fn mail_connect<R: Runtime>(
     initial_last_seen_uid: u32,
 ) -> Result<(), String> {
     let manager = app.state::<ConnectionManager>();
-    // connect needs an owned AppHandle (the spawned task holds it), so clone one to pass along,
-    // avoiding a conflict with the `.state()` borrow above.
     manager
         .inner()
         .connect(app.clone(), account_id, imap_host, imap_port, username, proxy, initial_last_seen_uid)
         .await
 }
 
-/// Stop an account's IDLE watch (cancels the task).
 #[command]
 pub async fn mail_disconnect<R: Runtime>(
     app: AppHandle<R>,
@@ -87,7 +83,6 @@ pub async fn mail_delete_password(
         .map_err(|e| format!("keyring entry 创建失败: {e}"))?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
-        // Already absent counts as success (idempotent delete)
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(format!("keyring 删密码失败: {e}")),
     }

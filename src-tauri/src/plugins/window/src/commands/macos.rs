@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 use crate::MAIN_WINDOW_LABEL;
 use tauri::{AppHandle, Runtime, WebviewWindow, command};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel};

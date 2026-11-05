@@ -41,7 +41,7 @@ function sleep(ms) {
 
 async function captureForm(eventKey, filename, expect) {
   await emitAppEvent(eventKey)
-  await sleep(600) // setSize + show + 200ms fade-in
+  await sleep(600)
   const info = await todoWindowInfo()
   console.log(`[${eventKey}] window rect: x=${info.x} y=${info.y} w=${info.width} h=${info.height} scale=${info.scale}`)
   if (expect && (info.width !== expect.width || info.height !== expect.height)) {

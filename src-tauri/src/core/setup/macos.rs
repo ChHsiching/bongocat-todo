@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewWindow};
 use tauri_nspanel::{CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt, tauri_panel};
 use tauri_plugin_custom_window::MAIN_WINDOW_LABEL;

@@ -24,8 +24,8 @@ import type { Todo, useTodoStore } from './todo'
  * @param now   current timestamp (ms); can be fixed in tests
  * @returns     subset of due, uncompleted todos (original order preserved)
  */
-export function findDueTodos(todos: Todo[], now: number): Todo[] {
-  return todos.filter(todo => !todo.completed && todo.dueDate !== undefined && todo.dueDate <= now)
+export function findDueTodos(todos: Todo[], now: number): (Todo & { dueDate: number })[] {
+  return todos.filter((todo): todo is Todo & { dueDate: number } => !todo.completed && todo.dueDate !== undefined && todo.dueDate <= now)
 }
 
 /** Polling interval (ms). 10s polling caps the delay at 10s (barely perceptible to users). The original spec D6 said 60s, but the delay felt bad in practice. */
@@ -59,8 +59,7 @@ export async function startReminder(
     const dueTodos = findDueTodos(todoStore.visibleTodos, Date.now())
 
     for (const todo of dueTodos) {
-      // dueDate is already asserted non-null by findDueTodos
-      const due = todo.dueDate as number
+      const due = todo.dueDate
 
       if (reminderStore.isNotified(todo.id, due)) {
         continue
@@ -72,11 +71,8 @@ export async function startReminder(
           body: t('plugins.todo.labels.reminderBody', { title: todo.title }),
         })
         reminderStore.markNotified(todo.id, due)
-        // D8 dual dispatch: after the system notification, purely incrementally emit a desktop-pet bubble (type:'todo').
-        // isNotified dedup applies to the bubble too (the same todo never pops the bubble twice).
         emit(LISTEN_KEY.SHOW_BUBBLE, { type: 'todo', id: todo.id, title: todo.title, dueDate: due })
       } catch (err) {
-        // Log notification failures (e.g. permission denied) instead of silently swallowing them; helps debug "no runtime permission error" cases
         await error(`todo reminder sendNotification failed for ${todo.id}: ${String(err)}`)
       }
     }

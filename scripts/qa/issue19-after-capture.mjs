@@ -32,7 +32,6 @@ async function dragEdge(edge, dx, dy) {
 }
 
 async function sizeTo(width, height) {
-  // Drag edge by edge to the target (delta computed from the current rect); multiple convergence rounds eliminate drag step loss / boundary effects
   for (let i = 0; i < 4; i++) {
     const r = await todoWindowInfo()
     const dw = width - r.width

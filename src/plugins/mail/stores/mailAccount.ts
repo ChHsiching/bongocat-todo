@@ -11,21 +11,13 @@ export type MailAccountStatus = 'idle' | 'connecting' | 'connected' | 'error'
  * ⚠️ Never put passwords in this struct — they go to the OS keyring (Rust `mail_store_password` / `mail_get_password`).
  */
 export interface MailAccount {
-  /** Unique id (nanoid) */
   id: string
-  /** Mail address (user input, e.g. alice@gmail.com) */
   address: string
-  /** IMAP server host (e.g. imap.gmail.com) */
   imapHost: string
-  /** IMAP port (usually 993 for IMAPS) */
   imapPort: number
-  /** IMAP login username (usually = mail address) */
   username: string
-  /** Provider domain (extracted from the part after `@` in the mail address, used for provider auto-detection since T3) */
   providerDomain: string
-  /** Whether listening is enabled (pauses the account without deleting it) */
   enabled: boolean
-  /** Connection status (frontend-only, driven by Rust events) */
   status: MailAccountStatus
   /**
    * The largest IMAP UID already pushed (persisted, used for offline catch-up).
@@ -40,37 +32,15 @@ export interface MailAccount {
   lastSeenUid: number
 }
 
-/**
- * Mail account configuration store (array structure, multi-account).
- *
- * - Persistence: reuses `@tauri-store/pinia` `saveOnChange`, same pattern as the todo store.
- *   Call `$tauri.start()` on component mount, then it is ready to use after loading.
- * - **No passwords stored here**: passwords go to the keyring (Rust commands); pinia only holds non-sensitive IMAP config.
- * - T4 (ticket #14) lifted the single-account limit and supports N accounts on simultaneous IDLE watch; the Rust `ConnectionManager`
- *   manages each connection independently by accountId (disconnecting one does not affect the others).
- *
- * @see docs/adr/0002-phase2-mail-and-bubble.md D2 / D4
- */
 export const useMailAccountStore = defineStore('mailAccount', () => {
   /** The list of bound accounts. */
   const accounts = ref<MailAccount[]>([])
 
-  /** Extract the provider domain from a mail address (the part after `@`). Returns an empty string when there is no `@`. */
   function extractDomain(address: string): string {
     const at = address.lastIndexOf('@')
     return at >= 0 ? address.slice(at + 1).toLowerCase() : ''
   }
 
-  /**
-   * Append a new account to the array.
-   *
-   * Data layer only: builds the MailAccount and pushes it. Password storage + connection setup are done
-   * by the caller after a successful push, via serial calls to `mailStorePassword` + `mailConnect`
-   * (see the setupMailPlugin flow in mail/index.ts).
-   * Multi-account: no count limit; each account has its own independent IDLE task on the Rust side (they do not affect each other).
-   *
-   * @returns The newly created MailAccount.
-   */
   function addAccount(input: {
     address: string
     imapHost: string
@@ -93,12 +63,10 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     return account
   }
 
-  /** Find an account by id. */
   function getAccount(id: string): MailAccount | undefined {
     return accounts.value.find(a => a.id === id)
   }
 
-  /** Update an account's connection status (called when driven by the Rust `mail://connection-status` event). */
   function setStatus(id: string, status: MailAccountStatus) {
     const account = getAccount(id)
     if (account) {
@@ -106,13 +74,6 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     }
   }
 
-  /**
-   * Toggle an account's enabled state (the switch in the settings page account list).
-   *
-   * Only changes this field; it does not directly open/close connections — the caller (settings page)
-   * decides between mailConnect/mailDisconnect based on the returned new state.
-   * Turning off then on again is effectively "pause listening": account config + keyring password are both kept, only the IDLE task is stopped.
-   */
   function setEnabled(id: string, enabled: boolean) {
     const account = getAccount(id)
     if (account) {
@@ -154,7 +115,6 @@ export const useMailAccountStore = defineStore('mailAccount', () => {
     }
   }
 
-  /** Remove an account from the array (password cleanup + disconnect are done by the caller via Rust commands before removal). */
   function removeAccount(id: string) {
     accounts.value = accounts.value.filter(a => a.id !== id)
   }

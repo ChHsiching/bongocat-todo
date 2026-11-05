@@ -70,7 +70,6 @@ Start-Sleep -Milliseconds 60
 [OpenP]::keybd_event(13, 0, 2, [UIntPtr]::Zero)
 Start-Sleep -Milliseconds 800
 
-# Confirm the panel window is visible
 [OpenP]::found = [IntPtr]::Zero
 [OpenP]::Find([uint32]$proc.Id, '待办')
 if ([OpenP]::found -ne [IntPtr]::Zero) {

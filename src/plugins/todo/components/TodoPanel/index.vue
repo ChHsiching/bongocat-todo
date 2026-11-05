@@ -11,21 +11,6 @@ import PriorityPicker from '../PriorityPicker/index.vue'
 import TodoItem from '../TodoItem/index.vue'
 import WaveDivider from '../WaveDivider/index.vue'
 
-/**
- * Todo panel body (TodoPanel).
- * - Header area: PawLogo + title + hand-drawn close X.
- * - Pending section: uncompleted todos, separated by a WaveDivider.
- * - Completed section: completed todos.
- * - "＋ New todo" button: clicking expands an inline hand-drawn style form (title + priority
- *   picker + date input); Enter saves.
- * - Empty-state hint.
- *
- * T6 input-control completion: the create area adds PriorityPicker (three levels, default
- * medium) + HandDateInput (reusing T5's handwritten digit boxes).
- *
- * Data operations are decoupled from the parent via props (todos)/emits
- * (toggle/remove/create/changePriority); the parent wires the store.
- */
 const { todos } = defineProps<{
   todos: Todo[]
 }>()
@@ -40,10 +25,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-/** Priority weights: high > medium > low. */
 const priorityWeight: Record<TodoPriority, number> = { high: 0, medium: 1, low: 2 }
 
-/** Sort: priority ascending → dueDate (missing goes last) → createdAt (earlier created first). */
 function sortTodos(a: Todo, b: Todo): number {
   const pDiff = priorityWeight[a.priority] - priorityWeight[b.priority]
   if (pDiff !== 0)
@@ -62,9 +45,7 @@ const completedTodos = computed(() => todos.filter(todo => todo.completed).sort(
 
 const showAddInput = ref(false)
 const newTitle = ref('')
-/** Priority of the new todo (default medium). */
 const newPriority = ref<TodoPriority>('medium')
-/** Due-date timestamp of the new todo (undefined when no date is filled). */
 const newDueDate = ref<number | undefined>(undefined)
 const addInputEl = ref<HTMLInputElement | null>(null)
 const dateInputEl = ref<InstanceType<typeof HandDateInput> | null>(null)
@@ -86,7 +67,6 @@ function handleCancelAdd() {
   resetAddForm()
 }
 
-/** Enter in the date boxes: submit if the title has content, otherwise focus the title box. */
 function handleDateEnter() {
   if (newTitle.value.trim()) {
     handleAdd()
@@ -106,7 +86,6 @@ function resetAddForm() {
 
 <template>
   <PaperPanel>
-    <!-- Header area (draggable to move the window; child elements use pointer-events:none to let drags pass through, the button alone restores them) -->
     <div
       class="panel-header"
       data-tauri-drag-region
@@ -121,7 +100,6 @@ function resetAddForm() {
         type="button"
         @click="emit('close')"
       >
-        <!-- Hand-drawn ×: two smooth crossing arcs, like one natural pen stroke -->
         <svg
           fill="none"
           height="22"
@@ -131,17 +109,13 @@ function resetAddForm() {
           viewBox="0 0 24 24"
           width="22"
         >
-          <!-- Top-left→bottom-right: a smooth wide arc, control point offset from the line toward bottom-left -->
           <path d="M 6 6 Q 9.5 13 19 19" />
-          <!-- Top-right→bottom-left: a smooth wide arc, control point offset from the line toward top-left -->
           <path d="M 18 6 Q 8.5 10 5 18" />
         </svg>
       </button>
     </div>
 
-    <!-- Middle scrollable area: list content scrolls here when it overflows, without breaking the ink frame -->
     <div class="panel-scroll">
-      <!-- Pending section -->
       <div
         v-if="pendingTodos.length"
         class="section-label"
@@ -161,7 +135,6 @@ function resetAddForm() {
         />
       </div>
 
-      <!-- Completed section -->
       <div
         v-if="completedTodos.length"
         class="section-label"
@@ -181,7 +154,6 @@ function resetAddForm() {
         />
       </div>
 
-      <!-- Empty state -->
       <div
         v-if="!todos.length"
         class="empty-hint"
@@ -190,12 +162,10 @@ function resetAddForm() {
       </div>
     </div>
 
-    <!-- Footer create area (fixed, does not scroll with the list; blank areas drag to move the window) -->
     <div
       class="panel-footer"
       data-tauri-drag-region
     >
-      <!-- Inline expanded input: title + priority + date -->
       <div
         v-if="showAddInput"
         class="add-form"
@@ -234,7 +204,6 @@ function resetAddForm() {
           </button>
         </div>
       </div>
-      <!-- "＋ New todo" button -->
       <button
         v-else
         class="add-btn"
@@ -256,7 +225,6 @@ function resetAddForm() {
   margin-bottom: 22px;
 }
 
-/* The title row also participates in dragging: child content does not intercept the mouse, letting the drag-region work */
 .panel-title-row {
   display: flex;
   align-items: center;
@@ -309,7 +277,6 @@ function resetAddForm() {
   flex-direction: column;
 }
 
-/* Middle scroll area: overflow scrolls here inside the ink frame; scrollbar hidden */
 .panel-scroll {
   flex: 1;
   min-height: 0;
@@ -352,7 +319,6 @@ function resetAddForm() {
   color: var(--pink-deep);
 }
 
-/* Create form: title input + priority/date controls + confirm/cancel buttons. */
 .add-form {
   width: 100%;
   display: flex;
@@ -382,7 +348,6 @@ function resetAddForm() {
   background: color-mix(in srgb, var(--pink) 14%, var(--paper));
 }
 
-/* Priority picker + date input in a row. */
 .add-controls {
   display: flex;
   align-items: center;

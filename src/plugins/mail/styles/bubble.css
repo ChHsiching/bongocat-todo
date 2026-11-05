@@ -20,14 +20,12 @@ body,
 
 @font-face {
   font-family: 'Handwriting851';
-  /* vite public asset: shares the same font file with the todo panel */
   src: url('/fonts/jingnan-pop-black.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
-/* ── Pink-ink palette (identical to the todo panel tokens) ── */
 .bubble-handdrawn {
   --paper: #ffffff;
   --paper-shadow: #f0e8de;

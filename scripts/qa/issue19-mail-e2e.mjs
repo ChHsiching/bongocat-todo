@@ -75,7 +75,6 @@ async function suite(urlSub, eventKey, label) {
   const m4 = await dragEdge(urlSub, -5000)
   assert(`${label} M4 min ≥400`, m4.width >= 400 - TOL, `w=${m4.width}`)
 
-  // M5 close/reopen restore
   await emitAppEvent('hide-window', urlSub.includes('archive') ? 'mail-archive' : 'mail-list')
   await sleep(400)
   await emitAppEvent(eventKey)

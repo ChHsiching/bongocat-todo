@@ -10,16 +10,6 @@ import HandCheckbox from '../HandCheckbox/index.vue'
 import HandClock from '../HandClock/index.vue'
 import InkDot from '../InkDot/index.vue'
 
-/**
- * Todo item (TodoItem): composes HandCheckbox + InkDot + HandClock + title/meta.
- * - Priority ink dot: renders red/orange/blue per todo.priority; since T6 clicking the dot
- *   cycles the priority (low→med→high→low).
- * - Due label: since T6 a relative phrase coexists with the exact time (e.g. "Tomorrow 14:30",
- *   "Today 09:00", "Overdue 7/28 14:30").
- * - Due visuals: with a dueDate that is today/overdue, HandClock enters the urgent state
- *   (red stroke) + red text.
- * - emit toggle/remove/changePriority for the parent to operate the store.
- */
 const { todo } = defineProps<{
   todo: Todo
 }>()
@@ -44,25 +34,10 @@ const priorityLabel = computed(() => {
   }
 })
 
-/** Zero-pad to two digits. */
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/**
- * Due label (T6): a relative phrase coexists with the exact time.
- * - Today, not yet due: `Today 14:30`
- * - Today, overdue: `Overdue 14:30` (the time has passed, accurate to the minute)
- * - Tomorrow: `Tomorrow 14:30`
- * - Overdue on an earlier day: `Overdue 7/28 14:30`
- * - Further out: `7/30 14:30` (falls back to month/day + HH:mm when relative words run out)
- *
- * Overdue detection is accurate to the minute (`dueDate < now`), no longer compared by whole
- * day — avoiding the perceived issue of "due today 10:15, now 10:20, still showing a blue 'Today'".
- *
- * Every dueDate carries a time (the timestamp MiniInput builds is accurate to the minute),
- * so HH:mm is always displayed.
- */
 const dueLabel = computed<null | string>(() => {
   if (!todo.dueDate)
     return null
@@ -74,7 +49,6 @@ const dueLabel = computed<null | string>(() => {
   const now = Date.now()
   const overdue = todo.dueDate < now
 
-  // Overdue shows "Overdue" first: today past the time also shows "Overdue HH:mm" (no month/day — unnecessary for today)
   if (overdue) {
     const today = startOfDay(now)
     const dueDay = startOfDay(todo.dueDate)
@@ -94,21 +68,19 @@ const dueLabel = computed<null | string>(() => {
   return `${md} ${hm}`
 })
 
-/** Due needs highlighting (today or overdue). */
+/** Due today: blue "today" hint; the red overdue warning is flagged separately by isOverdue. */
 const isUrgent = computed(() => {
   if (!todo.dueDate)
     return false
-  return todo.dueDate <= Date.now()
+  return startOfDay(todo.dueDate) === startOfDay(Date.now())
 })
 
-/** Overdue (the time has passed, accurate to the minute) shows a red warning; before the time, a blue hint. */
 const isOverdue = computed(() => {
   if (!todo.dueDate)
     return false
   return todo.dueDate < Date.now()
 })
 
-/** Click the ink dot to cycle the priority. */
 function cyclePriority() {
   emit('changePriority', todo.id, nextPriority(todo.priority))
 }
@@ -161,7 +133,6 @@ function startOfDay(ts: number): number {
       </div>
     </div>
 
-    <!-- Delete: hand-drawn style trash can (same as the mail list's delete button), shown/hidden on hover -->
     <button
       class="remove-btn"
       :title="t('plugins.todo.labels.deleteButton')"
@@ -178,7 +149,6 @@ function startOfDay(ts: number): number {
         viewBox="0 0 24 24"
         width="16"
       >
-        <!-- Hand-drawn trash can: lid line + handle + can body + two vertical grooves (replicated from MailItem) -->
         <path d="M 4 7 Q 8 6.5 12 7 Q 16 7.5 20 7" />
         <path d="M 10 5 Q 12 4 14 5" />
         <path d="M 6 8 Q 5.5 8 5.7 9 L 7 19 Q 7.2 20 8.2 20 L 15.8 20 Q 16.8 20 17 19 L 18.3 9 Q 18.5 8 18 8" />
@@ -203,11 +173,6 @@ function startOfDay(ts: number): number {
 
 .todo-item:hover {
   background: color-mix(in srgb, var(--pink) 8%, transparent);
-}
-
-/* Use a softer pink for hover in dark mode */
-html.dark .todo-item:hover {
-  background: color-mix(in srgb, var(--pink) 14%, transparent);
 }
 
 .checkbox-wrap {

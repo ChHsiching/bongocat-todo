@@ -9,12 +9,6 @@ const COMMAND = {
   DELETE_PASSWORD: 'plugin:mail|mail_delete_password',
 }
 
-/**
- * Test the IMAP connection (saves nothing; only verifies login + INBOX selection).
- *
- * The frontend "test and save" button calls this command first, then `mailStorePassword` + `mailConnect` on success.
- * On failure the Rust Err(String) is thrown as a rejection.
- */
 export function mailTestConnection(
   imapHost: string,
   imapPort: number,
@@ -42,7 +36,6 @@ export function mailConnect(
   return invoke(COMMAND.CONNECT, { accountId, imapHost, imapPort, username, proxy, initialLastSeenUid })
 }
 
-/** Stop an account's IDLE watch (cancels the task). */
 export function mailDisconnect(accountId: string): Promise<void> {
   return invoke(COMMAND.DISCONNECT, { accountId })
 }
@@ -56,7 +49,6 @@ export function mailStorePassword(
   return invoke(COMMAND.STORE_PASSWORD, { accountId, username, password })
 }
 
-/** Delete the mailbox password from the keyring (called on account deletion, idempotent). */
 export function mailDeletePassword(accountId: string, username: string): Promise<void> {
   return invoke(COMMAND.DELETE_PASSWORD, { accountId, username })
 }

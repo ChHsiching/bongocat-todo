@@ -63,18 +63,15 @@ export const MAIL_EVENT = {
   LAST_SEEN_UID: 'mail://last-seen-uid',
 } as const
 
-/** setupMailPlugin args: stores + the i18n t function instantiated by the caller at the top of setup. */
 interface SetupMailPluginArgs {
   mailAccountStore: ReturnType<typeof useMailAccountStore>
   mailNotificationStore: ReturnType<typeof useMailNotificationStore>
   mailSettingsStore: ReturnType<typeof useMailSettingsStore>
   menuBus: ReturnType<typeof useMenuBusStore>
   t: ReturnType<typeof useI18n>['t']
-  /** Current window label (used to scope global side effects to the main window, avoiding duplicate listeners across windows). */
   windowLabel: string
 }
 
-/** Retention rule tick interval (scan once per minute for 24h/5min timeout archiving + 30-day purge). */
 const RETENTION_TICK_MS = 60 * 1000
 
 /**
@@ -102,11 +99,8 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   // ⚠️ All listen registrations must be awaited before issuing mailConnect.
   // Reason: the offline catch-up fetch runs immediately after the Rust connection is established and emits mail://new-mail;
   // if the frontend listen is not yet registered (listen returns a Promise that wasn't awaited), the caught-up mails get dropped.
-  // New mail → ① upsert into the mailNotification store (local history) ② emit SHOW_BUBBLE (pop a bubble, controlled by the settings toggles)
   await listen<NewMailPayload>(MAIL_EVENT.NEW_MAIL, ({ payload }) => {
     const inserted = mailNotificationStore.upsertMail(payload, payload.uid)
-    // Bubble master switch off → no bubble (the mail still enters local history, visible in the mail list)
-    // unreadOnly on + the mail is no longer unread (an existing stale item being re-pushed) → no bubble
     if (!mailSettingsStore.bubbleEnabled) {
       return
     }
@@ -116,23 +110,18 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
     emit(LISTEN_KEY.SHOW_BUBBLE, { ...payload, type: 'mail' })
   })
 
-  // Connection status → update the store (drives the status display in the account list UI)
   await listen<ConnectionStatusPayload>(MAIL_EVENT.CONNECTION_STATUS, ({ payload }) => {
     mailAccountStore.setStatus(payload.accountId, payload.status)
   })
 
-  // last-seen-uid → persist into mailAccount.lastSeenUid (the offline catch-up baseline, used on next startup)
   await listen<LastSeenUidPayload>(MAIL_EVENT.LAST_SEEN_UID, ({ payload }) => {
     mailAccountStore.setLastSeenUid(payload.accountId, payload.lastSeenUid)
   })
 
-  // Retention rule tick: scan every minute, transition timed-out unread/read mails to archived + purge 30-day-old archived items
   setInterval(() => {
     mailNotificationStore.tickRetention()
   }, RETENTION_TICK_MS)
 
-  // Register the two context-menu items "mail list" + "archived mail" with menuBus (D9).
-  // The actions emit dedicated events so the mail-list / mail-archive pages can position + setSize before show.
   const mailMenuItems: MenuItemDescriptor[] = [
     {
       id: 'mail-list',
@@ -149,8 +138,6 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   ]
   menuBus.registerItems(mailMenuItems)
 
-  // After app startup, auto-reconnect persisted accounts (the store is loaded after $tauri.start()).
-  // First migrate legacy account data (backfill the lastSeenUid default), then pass the persisted lastSeenUid as the offline catch-up baseline.
   mailAccountStore.migrateLastSeenUid()
   const proxy = mailSettingsStore.proxy || null
   for (const account of mailAccountStore.accounts) {
@@ -164,16 +151,13 @@ export async function setupMailPlugin({ mailAccountStore, mailNotificationStore,
   }
 }
 
-/** "Test and save" flow: verify connectivity first → store to keyring → add to store → start watching. Throws on any failure. */
 export async function testAndSaveAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
   input: { address: string, imapHost: string, imapPort: number, username: string, password: string },
   proxy: string | null,
 ): Promise<void> {
-  // 1. Test connectivity (nothing is saved)
   await mailTestConnection(input.imapHost, input.imapPort, input.username, input.password, proxy)
 
-  // 2. Add to the store (generates the id; during the single-account phase the length was capped at 1, over the cap it threw)
   const account = mailAccountStore.addAccount({
     address: input.address,
     imapHost: input.imapHost,
@@ -185,28 +169,19 @@ export async function testAndSaveAccount(
   try {
     await mailStorePassword(account.id, account.username, input.password)
   } catch (err) {
-    // Password storage failed, roll back the store item just added
     mailAccountStore.removeAccount(account.id)
     throw err
   }
 
-  // 4. Start the IDLE watch (a new account's lastSeenUid=0; Rust seeds the baseline with the current max INBOX UID)
   mailAccountStore.setStatus(account.id, 'connecting')
   try {
     await mailConnect(account.id, account.imapHost, account.imapPort, account.username, proxy, 0)
   } catch (err) {
-    // Connection failed: the password is already in the keyring, keep the account (the user can see the error state in the list and retry)
     mailAccountStore.setStatus(account.id, 'error')
     throw err
   }
 }
 
-/**
- * Delete an account: stop watching → delete keyring password → clear notification history → remove from store. Throws on any failure.
- *
- * Cascade cleanup: ① keyring password (`mail_delete_password`); ② all of that account's
- * notification history in mailNotification (unread/read/archived), avoiding orphan items hanging in the mail list after account deletion.
- */
 export async function removeAccount(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
   mailNotificationStore: ReturnType<typeof useMailNotificationStore>,
@@ -217,7 +192,6 @@ export async function removeAccount(
     return
   }
 
-  // Order: disconnect first (stop the task) → delete the password (keyring) → clear notification history → remove from store
   await mailDisconnect(accountId).catch(() => {
     // Disconnect failure does not block the deletion flow (the task may have already exited on its own)
   })
@@ -226,14 +200,6 @@ export async function removeAccount(
   mailAccountStore.removeAccount(accountId)
 }
 
-/**
- * Toggle an account's enabled state and open/close the connection (the switch in the settings page account list).
- *
- * - On → connect: fetching the password from the keyring is handled on the Rust side; the frontend only passes connection params + the lastSeenUid catch-up baseline.
- * - Off → disconnect: stop the IDLE task. Account config + keyring password are both kept (turning it back on resumes).
- *
- * The store's enabled field is updated by this function; the caller does not need a separate setEnabled.
- */
 export async function toggleAccountEnabled(
   mailAccountStore: ReturnType<typeof useMailAccountStore>,
   accountId: string,

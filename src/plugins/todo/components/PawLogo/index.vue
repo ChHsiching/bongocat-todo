@@ -1,8 +1,4 @@
 <script setup lang="ts">
-/**
- * Paw print logo (PawLogo): 4 circles + an ellipse drawn in SVG (a real paw shape), not an emoji.
- * SVG path lifted from docs/designs/todo-panel-exploration/panel.html.
- */
 defineProps<{
   /** Size in px, default 34 (the design's header-area size) */
   size?: number

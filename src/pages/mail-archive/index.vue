@@ -1,18 +1,4 @@
 <script setup lang="ts">
-/**
- * Archived mail window (T5, D9).
- *
- * An independent companion window (WINDOW_LABEL.MAIL_ARCHIVE) with a hand-drawn paper container, showing archived mails
- * (fainter styling with opacity 0.7 + an "Archived" tag). Click → jump to webmail (archived items are not marked read, idempotent).
- *
- * Independent webview; stores are not inherited from the main window — onMounted must call `$tauri.start()` to load persisted data.
- * Positioning reuses the todo panel's clamp + edge flip.
- *
- * Archiving is purely local state; **never send IMAP MOVE to the mail server** (D5-actual zero-write constraint).
- *
- * @see docs/designs/phase2-exploration/mail-list.html ② Archived mail
- * @see ADR 0002 D9
- */
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
@@ -40,7 +26,6 @@ const appWindow = getCurrentWebviewWindow()
 const FADE_MS = 200
 const PANEL_SIZE = new PhysicalSize(400, 560)
 
-// Follow-up to issue #19: resizable (constraints + restore + persistence); min height estimated from "header area + one mail + footer"
 const { applyConstraints } = useResizablePanel({
   min: { width: 400, height: 320 },
   max: { width: 720, height: 8192 },
@@ -79,7 +64,6 @@ onBeforeUnmount(() => {
   }
 })
 
-/** Archived mails (newest archived first). */
 const archivedMails = computed(() => mailNotificationStore.archivedMails)
 
 function providerName(accountId: string): string | null {
@@ -91,7 +75,6 @@ function timeLabel(mail: { archivedAt?: number }): string {
   return mail.archivedAt ? relativeTime(mail.archivedAt, now.value) : ''
 }
 
-/** Absolute date (year.month.day), shown alongside the relative time in the archive list meta. Uses the arrival time. */
 function dateLabel(mail: { arrivedAt: number }): string {
   return absoluteDate(mail.arrivedAt)
 }
@@ -140,7 +123,6 @@ useTauriListen(LISTEN_KEY.SHOW_MAIL_ARCHIVE, async () => {
   now.value = Date.now()
 })
 
-/** Click an archived mail → jump to webmail (archived items are not marked read, idempotent). */
 function handleAction(id: string) {
   const mail = mailNotificationStore.notifications.find(n => n.id === id)
   if (!mail) {
@@ -150,12 +132,10 @@ function handleAction(id: string) {
   const url = account ? resolveWebmailUrl(account.address, account.imapHost) : null
   if (url) {
     openUrl(url).catch(() => {
-      // Open failure does not block
     })
   }
 }
 
-/** Delete button (after double-confirm): remove entirely from the store. */
 function handleDelete(id: string) {
   mailNotificationStore.purge(id)
 }
@@ -188,7 +168,6 @@ function handleClose() {
       >
         <div class="panel-title-row">
           <div class="panel-paw">
-            <!-- Archive icon: box + top lid line (per the design) -->
             <svg
               fill="none"
               height="30"
@@ -226,7 +205,6 @@ function handleClose() {
             viewBox="0 0 24 24"
             width="20"
           >
-            <!-- Hand-drawn ×: two smooth large crossing arcs, consistent with the todo panel -->
             <path d="M 6 6 Q 9.5 13 19 19" />
             <path d="M 18 6 Q 8.5 10 5 18" />
           </svg>

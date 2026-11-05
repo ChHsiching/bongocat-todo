@@ -95,7 +95,7 @@ describe('useTodoStore', () => {
       const alive = todoStore.createTodo('活着', 'dev', 100)
       const dead = todoStore.createTodo('已删', 'dev', 100)
 
-      todoStore.removeTodo(dead.id, 200)
+      todoStore.softDeleteTodo(dead.id, 200)
 
       expect(todoStore.visibleTodos.map(t => t.id)).toEqual([alive.id])
     })
@@ -161,13 +161,13 @@ describe('useTodoStore', () => {
     })
   })
 
-  describe('removeTodo', () => {
+  describe('softDeleteTodo', () => {
     it('打 deletedAt 时间戳，移出可见列表，但 todos 原始数组保留', () => {
       const todoStore = useTodoStore()
 
       const todo = todoStore.createTodo('要删', 'dev', 100)
 
-      todoStore.removeTodo(todo.id, 500)
+      todoStore.softDeleteTodo(todo.id, 500)
 
       expect(todo.deletedAt).toBe(500)
       expect(todo.updatedAt).toBe(500)
@@ -178,7 +178,7 @@ describe('useTodoStore', () => {
     it('不存在的 id 静默忽略', () => {
       const todoStore = useTodoStore()
 
-      expect(() => todoStore.removeTodo('不存在', 100)).not.toThrow()
+      expect(() => todoStore.softDeleteTodo('不存在', 100)).not.toThrow()
     })
   })
 

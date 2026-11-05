@@ -1,27 +1,9 @@
 <script setup lang="ts">
-/**
- * Mail panel container (MailPanel): hand-drawn paper + very faint gray grain texture + hand-drawn shadow.
- *
- * Visually shares its origin with the todo PaperPanel (same SVG shape + tokens); it is the main container of the mail list/archive windows.
- * Panel SVG from the design docs/designs/phase2-exploration/mail-list.html, 400×560.
- *
- * Follow-up to issue #19: the window is drag-resizable, so the border switched to **9-slice segments**
- * (same approach as the todo PaperPanel, geometry re-cut from the mail 400×560 path):
- * - Four corners fixed at 30×30 (Q arcs stay undeformed); the four straight edges stretch one way + vector-effect keeps the stroke constant;
- * - paper shadow / soft shadow = .mail-frame double drop-shadow (follows the composited outline, fits any size);
- * - texture = CSS radial-gradient dot matrix (a CSS port of the original pattern 3-dot/40px tile);
- * - wave decoration = fixed-size overlay anchored top-left.
- * - Segment offsets calibrated against the baseline by measurement (border line targets L20/R378/T17.5/B539 @400×560).
- *
- * Pitfall log in docs/research/2026-11-03-issue19-todo-window-resize.md and
- * the todo PaperPanel comments (SVG intrinsic-size fallback / filter space separation / segment overlap coupling).
- */
 </script>
 
 <template>
   <div class="mail-panel">
     <div class="mail-frame">
-      <!-- Four corners: fixed 30×30 -->
       <svg
         class="corner corner-tl"
         viewBox="8 3 30 30"
@@ -75,7 +57,10 @@
         />
       </svg>
 
-      <!-- Four edges: straight lines stretching one way -->
+      <!-- Four edges: line segments stretched one-way (vector-effect keeps the stroke width).
+           Note: positioning belongs to the div; the svg fills it at 100% — absolutely positioning
+           the <svg> itself with left/right would fall back to the SVG intrinsic size (300×150),
+           leaving the line under-drawn and transparent holes at the corners. -->
       <div class="edge edge-top">
         <svg
           preserveAspectRatio="none"
@@ -137,11 +122,9 @@
         </svg>
       </div>
 
-      <!-- Paper core: white fill + CSS grain dot matrix (CSS port of the original pattern 3-dot) -->
       <div class="mail-center" />
     </div>
 
-    <!-- Wave decoration: fixed-size overlay anchored top-left -->
     <svg
       class="deco deco-wave"
       viewBox="38 24 46 12"
@@ -260,7 +243,6 @@
   width: 30px;
 }
 
-/* Paper core: overlaps the edge segment fills without crossing the border line (original pattern 3 dots: r0.4@0.18 ×2 + r0.3@0.14) */
 .mail-center {
   position: absolute;
   top: 24px;

@@ -26,21 +26,8 @@ public static class NativeQa {
 
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 
-# Virtual desktop bounds (aggregated from Screen.AllScreens; physical pixels once DPI aware)
-$vxs = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.X }
-$vys = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.Y }
-$vw = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.Right } | Measure-Object -Maximum | Select-Object -ExpandProperty Maximum
-$vh = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.Bounds.Bottom } | Measure-Object -Maximum | Select-Object -ExpandProperty Maximum
-$vx = ($vxs | Measure-Object -Minimum).Minimum
-$vy = ($vys | Measure-Object -Minimum).Minimum
-$vw = $vw - $vx; $vh = $vh - $vy
-
 function Move-Abs([int]$px, [int]$py) {
-  # MOUSEEVENTF_ABSOLUTE|MOVE maps to the virtual desktop
-  $nx = [int](($px - $vx) * 65535 / [Math]::Max(1, $vw - 1))
-  $ny = [int](($py - $vy) * 65535 / [Math]::Max(1, $vh - 1))
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($px, $py)
-  Start-Sleep -Milliseconds 5
 }
 
 function Drag-Input([int]$fx, [int]$fy, [int]$tx, [int]$ty, [int]$steps) {
