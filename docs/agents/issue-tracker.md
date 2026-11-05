@@ -2,7 +2,7 @@
 
 Issues and PRDs for this repo live as GitHub issues in **`ChHsiching/bongocat-todo`** (the `origin` remote). Use the `gh` CLI for all operations, always with `--repo ChHsiching/bongocat-todo` to avoid ambiguity with the `upstream` remote (`ayangweb/BongoCat`).
 
-> 本仓库是 fork：**只在 origin (`ChHsiching/bongocat-todo`) 建 issue**，绝不往 upstream 建。feature request / bug report 都指本 fork 自己的 backlog。
+> This repository is a fork: **create issues only on origin (`ChHsiching/bongocat-todo`)**, never on upstream. Feature requests / bug reports all go to this fork's own backlog.
 
 ## Conventions
 
@@ -13,7 +13,7 @@ Issues and PRDs for this repo live as GitHub issues in **`ChHsiching/bongocat-to
 - **Apply / remove labels**: `gh issue edit <number> --repo ChHsiching/bongocat-todo --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --repo ChHsiching/bongocat-todo --comment "..."`
 
-`gh` infers the repo from the sole GitHub push remote when run inside a clone, but本仓库同时配置了 upstream，所以**始终显式带 `--repo`**，不要依赖自动推断。
+`gh` infers the repo from the sole GitHub push remote when run inside a clone, but this repo also has `upstream` configured, so **always pass `--repo` explicitly**; don't rely on auto-inference.
 
 ## Pull requests as a triage surface
 

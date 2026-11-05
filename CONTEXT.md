@@ -1,489 +1,489 @@
 # CONTEXT.md
 
-本文件是 `bongocat-todo` fork 的 single-context 词汇表与决策快照。任何 agent 在动手前都应先读这里 + `docs/adr/`。
+This file is the single-context glossary and decision snapshot for the `bongocat-todo` fork. Any agent should read this plus `docs/adr/` before starting work.
 
-## 仓库定位
+## Repository positioning
 
-- 本仓库是 [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat)（Tauri 2 + Vue 3 桌宠）的 fork。
-- fork 的核心扩展目标：以**插件化方式**新增 todo list 等模块，并持续接收上游更新。
-- 同步约定见 `AGENTS.md`；架构决策见 `docs/adr/`。
+- This repository is a fork of [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat) (a Tauri 2 + Vue 3 desktop pet).
+- The fork's core extension goal: add todo list and other modules in a **plugin-based** way while continuously receiving upstream updates.
+- Sync conventions live in `AGENTS.md`; architecture decisions in `docs/adr/`.
 
-## 分发渠道（fork 独立于上游）
+## Distribution channels (fork-specific, independent of upstream)
 
-| 平台 | 渠道 | 包名 | 状态 |
+| Platform | Channel | Package name | Status |
 |------|------|------|------|
-| **macOS** | Homebrew Cask | `ChHsiching/tap/bongo-cat-todo` | 计划中 |
-| **Arch/Manjaro** | AUR | `bongo-cat-todo-bin` | 计划中 |
-| **Windows** | GitHub Release（exe） | — | ✅ 已有 |
-| **Debian/Ubuntu/Mint** | GitHub Release（deb） | — | ✅ 已有（`dpkg -i` 安装） |
-| **Fedora/RHEL** | GitHub Release（rpm） | — | ✅ 已有（`rpm -i` 安装） |
-| **Linux 通用** | GitHub Release（AppImage） | — | ✅ 已有 |
+| **macOS** | Homebrew Cask | `ChHsiching/tap/bongo-cat-todo` | Planned |
+| **Arch/Manjaro** | AUR | `bongo-cat-todo-bin` | Planned |
+| **Windows** | GitHub Release (exe) | — | ✅ Available |
+| **Debian/Ubuntu/Mint** | GitHub Release (deb) | — | ✅ Available (install via `dpkg -i`) |
+| **Fedora/RHEL** | GitHub Release (rpm) | — | ✅ Available (install via `rpm -i`) |
+| **Linux (generic)** | GitHub Release (AppImage) | — | ✅ Available |
 
-- fork 的包名用 `bongo-cat-todo`（Homebrew Cask）/ `bongo-cat-todo-bin`（AUR），与上游 `bongo-cat` 区分。
-- Homebrew tap 仓库：`ChHsiching/homebrew-tap`（Casks/bongo-cat-todo.rb，GUI app 用 Cask 不是 Formula）。
-- release.yml 发版后自动更新 Homebrew Cask + AUR PKGBUILD（CI 自动化，待实现）。
-- 暂不做 PPA/COPR（维护成本高，`.deb`/`.rpm` 手动安装够用）。
+- The fork's package names are `bongo-cat-todo` (Homebrew Cask) / `bongo-cat-todo-bin` (AUR), distinct from upstream's `bongo-cat`.
+- Homebrew tap repository: `ChHsiching/homebrew-tap` (Casks/bongo-cat-todo.rb; a GUI app uses a Cask, not a Formula).
+- release.yml auto-updates the Homebrew Cask + AUR PKGBUILD after each release (CI automation, to be implemented).
+- No PPA/COPR for now (high maintenance cost; manual `.deb`/`.rpm` install is sufficient).
 
-## 词汇表（Ubiquitous Language）
+## Glossary (Ubiquitous Language)
 
-| 术语 | 含义 |
+| Term | Meaning |
 |------|------|
-| **上游（upstream）** | `ayangweb/BongoCat`，只 fetch 用于合并 |
-| **插件（plugin）** | 本仓库新增的自包含模块，位于 `src/plugins/<name>/`，通过注册机制挂到 UI |
-| **菜单总线（menu bus）** | 一个 pinia store（`menuBus`），插件向其登记菜单项描述数据，`useAppMenu` 消费 |
-| **伴随窗口（companion window）** | 贴在桌宠旁边、同风格的独立 Tauri 窗口（如 todo 面板） |
-| **缩回-蹦出（tuck-and-pop）** | ~~伴随窗口的跟随交互~~ **已废弃**（ADR 0001 D3 superseded），实际用简单渐隐渐显。保留词条供历史追溯 |
-| **Phase 1** | 菜单/插件架构 + todo 本地 MVP（无同步） |
-| **Phase 2** | 邮件通知中心 + 桌宠气泡通知 + todo 提醒双发（详见 ADR 0002） |
-| **桌宠气泡（bubble）** | 贴桌宠正上方的轻量通知组件，**常驻显示**，用户手动关闭/点击后消失。最多 3 条未处理，超出折入邮件列表。邮件与 todo 到期共用 |
-| **邮件提醒器（mail notifier）** | 监听各账号 INBOX 的 IMAP IDLE，新邮件到达时触发气泡。只读信封元数据（发件人+主题），对邮箱**零写操作**、零正文，点击跳 webmail |
-| **邮件列表（mail list）** | 桌宠右键菜单独立入口，本地缓存被气泡提醒过的邮件（发件人+主题）。纯本地状态（已读/归档），不碰邮箱服务端。留存规则：默认 24 小时后归档；点击标本地已读 + 5 分钟后归档 |
-| **归档邮件（archived mail）** | 桌宠右键菜单独立入口（与邮件列表并列），展示已归档邮件，样式更淡，可再次点击跳转 webmail |
-| **软删除（soft delete）** | 删除时不真删，打 `deletedAt` 时间戳，供未来同步使用 |
-
-## 上游架构事实（agent 必知）
-
-- **两个静态路由**：`/`（Main 桌宠）和 `/preference`（设置），定义在 `src/router/index.ts`，同一 Vue 应用共享 pinia/i18n/stores。
-- **窗口 label 是静态枚举**：`WINDOW_LABEL` 在 `src/constants/index.ts`，main/preference 两个值。
-- **窗口配置在 `src-tauri/tauri.conf.json`**：main 是透明无标题栏置顶窗口；preference 是普通窗口。
-- **Rust 端窗口逻辑**：`src-tauri/src/plugins/window/` 是自定义 Tauri 插件，`show_window` 通用（不绑 label），新增窗口不需改 Rust。
-- **菜单来源**：`useAppMenu.ts` 生成菜单项 → `main/index.vue:142` 的 `handleContextmenu`（右键桌宠）和 `useTray.ts`（托盘）消费。
-- **持久化**：所有 store 通过 `@tauri-store/pinia`（`main.ts:15` `saveOnChange: true`）自动落地 JSON，零额外代码。
-- **拖拽**：`main/index.vue:139` `appWindow.startDragging()` 是 Tauri 原生拖拽，拖动中前端拿不到实时位置，只有结束后有 `tauri://move` 事件。
-
-## Phase 1 决策快照
-
-详见 `docs/adr/0001-plugin-architecture-for-todo.md`。要点：
-
-- 插件挂 UI 走**共享 store 菜单总线**（姿态 D），侵入点仅 `useAppMenu.ts` 末尾 spread。
-- todo 面板是**独立伴随窗口** `WINDOW_LABEL.TODO`，配置照抄 main 的 `decorations:false/skipTaskbar/alwaysOnTop`。
-- 跟随交互用**简单渐隐渐显**（原 tuck-and-pop 方案已否决，见 ADR D3 superseded）。
-- 存储**复用 pinia 持久化**（零新增依赖），数据结构含 4 个 Phase 2 同步预留字段。
-- 日期提醒用 `@tauri-apps/plugin-notification`（新增依赖 + 权限）。
-- 上游接触点共 8 处，**全部是追加**，不改原有逻辑。
-
-## Phase 2 决策快照
-
-详见 `docs/adr/0002-phase2-mail-and-bubble.md`。要点：
-
-- **范围**：邮件通知中心 + 桌宠气泡通知 + 邮件列表 + todo 提醒双发。~~轮盘菜单~~已取消（D7 rejected），~~Android 同步~~推迟独立仓库（D5 同步字段不浪费）。
-- **邮件协议**：通用 IMAP IDLE 长连接（Rust `async-imap` + tokio），覆盖 Gmail/QQ/163 等，用各家专用密码绕开 OAuth 审核。
-- **凭证安全**：OS keyring（Rust `keyring` v4 `v1` feature），pinia store **不持密码**，密码走 `Entry::new(service, username)`，key=`bongocat-todo/mail/<accountId>`。
-- **连接生命周期**：Rust 后端 tokio task，绑 **app 进程**（不绑窗口，桌宠开着就有推送）。
-- **多账号**：tracer bullet 先单账号打通，多账号紧随其后，两者均为 Phase 2 必交付。数据结构从一开始是数组。
-- **邮件边界（D5 superseded）**：从「瞬时通知器」升级为「本地通知中心」——只读信封元数据（发件人+主题）、对邮箱**零写操作**（已读/归档全是本地状态，不碰服务端）、零正文、点击跳 webmail。**放开**本地通知历史。
-- **邮件列表（D9）**：桌宠右键菜单两个独立入口（在待办/快速新建下面）——「邮件列表」+「归档邮件」，各自打开伴随窗口。本地缓存被气泡提醒过的邮件。留存规则：默认 24 小时后归档；点击标本地已读 + 5 分钟后归档。归档邮件窗口可再次跳转 webmail。
-- **设置入口**：preference 设置窗侧边栏新开一个邮件页（不新建窗口/路由侵入）。
-- **气泡通知（D7 改）**：桌宠正上方 / **常驻显示，用户手动关闭/点击后消失** / 最多 3 条未处理，超出折成「还有 N 条，查看邮件列表」/ 邮件→webmail·todo→面板。邮件与 todo 共用气泡组件。
-- **todo 提醒**：双发——系统通知（D6 保留）+ 桌宠气泡（纯增量），不拆 `plugin-notification`。
-- **设计稿**：spec **之前**做（气泡 UI + 邮件列表 + 邮件设置界面），作为 spec 的 UI 输入；后端（IMAP/keyring/连接管理）靠 TDD 不依赖设计稿。
-
-## 上游代码与视觉约定（二次分析产出，to-spec/implement 必读）
-
-### 样式与原子类
-- **unocss 配置**（`uno.config.ts`）：`presetWind3()` + `presetIcons()` + `presetAntd()`（来自 `@antdv-next/unocss`）。todo 组件的原子类用 wind3 风格（`flex gap-2 text-sm` 等），暗色/间距/圆角自动继承 antd theme。
-- **transformerVariantGroup**：支持 `class="text-4 font-medium"` 这种变体组写法（见 `pro-list/index.vue`）。
-- **transformerDirectives**：支持 `--uno` 变量指令。
-- **`not-last:mb-4`** 这类变体修饰符可用（见 pro-list）。
-
-### ESLint 规则（`@antfu/eslint-config` 定制）
-- **import 必须按字母升序排序**（`perfectionist/sort-imports`，natural order）。
-- **Vue 属性每行一个**（`vue/max-attributes-per-line: error`），且**按字母序**（`vue/attributes-order` alphabetical）。
-- **大括号风格 1tbs**（`style/brace-style`）。
-- **未使用 import 直接报错**（`unused-imports/no-unused-imports: error`）。
-- todo 模块代码必须严格遵守，否则 lint 失败。
-
-### Store 写法（pinia setup 风格 + 渐进迁移）
-- **setup 风格** `defineStore('name', () => { ... })`，不用 options 风格。
-- **字段分组用 `reactive`**（如 `model`、`window`），标量用 `ref`。
-- **导出 interface** 声明结构（`export interface XxxStore`）。
-- **迁移范式**：旧字段标 `@deprecated`，新结构放 `reactive`，`init()` 里做一次性迁移，`migrated` ref 做幂等标志。todo store 如果未来改结构，照此模式。
-
-### 组件写法
-- **`defineProps<{ ... }>()`** 类型化 props，不用 runtime 声明。
-- **`<script setup lang="ts">`** 必用。
-- **antdv-next 组件优先**（`Flex`、`List`、`Checkbox` 等），不自己造基础组件。
-- **`data-tauri-drag-region`** 属性标记可拖拽区域（窗口无标题栏时的拖拽替代）。
-- 组件目录扁平：`src/components/<name>/index.vue`（见 `pro-list`、`pro-list-item`、`shortcut`、`update-app`）。
-
-### i18n 结构
-- **5 个 JSON 文件**：`src/locales/{zh-CN,zh-TW,en-US,vi-VN,pt-BR}.json`。
-- **嵌套结构**：`pages.<page>.<section>.labels.<key>` 或 `composables.<name>.labels.<key>`。
-- todo 新增 key 建议：`plugins.todo.labels.<key>`（新建 `plugins` 命名空间，标明是本仓库扩展）。
-- **vue-i18n composition 模式**（`legacy: false`），用 `const { t } = useI18n()`。
-- antd 自己的 locale 通过 `getAntdLocale()` 单独注入（`App.vue` ConfigProvider），todo 用 antd 组件自动继承。
-
-### antdv-next 集成
-- **`App.vue` 已挂 ConfigProvider**，自动处理暗色模式（`generalStore.appearance.isDark`）和语言。
-- **HappyProvider** 已挂（happy-work-theme），按钮有水波纹。
-- todo 面板作为 preference/main 同应用的子路由，**自动继承**这些 provider，无需重复配置。
-- 暗色模式：todo 不用自己处理，用 antd 组件 + unocss 的 `dark:` 变体即可。
-
-### Rust 端窗口逻辑（二次确认）
-- `src-tauri/src/plugins/window/src/commands/mod.rs` 的 `show_window_by_label` 是**通用的**——任何 label 只要窗口在 `tauri.conf.json` 声明了就能显示。
-- `MAIN_WINDOW_LABEL`/`PREFERENCE_WINDOW_LABEL` 只是 Rust 端常量，**不限制**其他 label。todo 窗口无需改 Rust。
-
-## ⚠️ 视觉原则（不可违反）
-
-**所有本仓库新增的 UI 必须符合 BongoCat 自身的视觉风格，不得默认使用 antd 视觉。**
-
-### BongoCat 的真实视觉调性（基于 README 截图分析）
-- **桌宠本体**：极简手绘/简笔画风，线条 2-3px 均匀，边缘圆润，纯白身体 + 淡粉色斑点（`#FFD1D1` 左右），扁平无阴影，治愈系。
-- **整体调性**：扁平插画 + 治愈 + 活泼 + 柔和。高饱和但柔和的配色，**不是企业级冷静蓝**。
-- **图标策略**：主视觉/导航用 Solar（扁平、圆润、双色、插画感），功能操作用 Lucide（细线、简洁）。主导航是 Solar，这是门面。
-
-### antd 的真实定位（避免再误解）
-- antdv-next 在上游只是**工程选择**（表单控件懒得自己写），**不是视觉判决**。
-- preference 页面用 antd 是凑合，不代表 todo 面板也该贴 antd。
-- todo 面板是**桌宠的伴随功能**，视觉应向桌宠本体靠拢，不是向 antd 表单靠拢。
-
-### 反复犯过的错（警惕）
-1. 把「上游 import 了 antdv-next」当成「视觉必须用 antd」——**代码依赖 ≠ 视觉判决**。
-2. 没看截图就凭代码推断视觉——**视觉项目必须先看图（README/截图），再读代码**。
-3. 把「antd 省事」当成「antd 正确」——**省事不等于正确**。
-
-### 结论
-- todo 面板视觉目标：**像那只猫一样**——大圆角（12-16px）、暖/柔配色（粉/橙/米白）、简线条、萌图标、软质感。
-- antd 组件**只用于功能性交互逻辑**（Checkbox 状态、DatePicker 选择），**视觉皮肤必须自定义**覆盖默认。
-- 此原则适用于本仓库所有后续 UI 模块，不止 todo。
-
-## 🚨 已踩坑清单（T1-T5 实战积累，必读）
-
-> 这些是 T1-T5 实现过程中**反复踩过的坑**，每个都付出过调试代价。新 agent 必读，避免重蹈覆辙。
-
-### 暗色模式：用户明确否决（不要擅自加）
-- 设计稿 `panel.html` **只有亮色态**，没有暗色模式。
-- T2 第一版擅自加了 `html.dark` 暗色覆盖，被用户严厉否决（"设计稿也没有暗色主题，别自作主张"）。
-- **已彻底删除**：`handdrawn.css` 无 `html.dark` 块，`pages/todo/index.vue` 无 `watch(isDark)`。
-- 如果未来要做暗色，**必须先和用户确认视觉方向**，不要擅自加。
-
-### 拖拽区 data-tauri-drag-region（proven 模式，照抄别发明）
-T2、T5 两次踩坑才对。正确模式（`TodoPanel.panel-header` 是范本）：
-- **drag-region 挂整行 div**（不是子元素）
-- 装饰子元素（爪印/时钟/spacer）用 `pointer-events: none` 透传到 drag-region
-- input/button 天然豁免（不需要额外处理）
-- **错误做法**：把整个容器设 `data-tauri-drag-region`（列表项点不了/输入框用不了）；或 drag-region 挂子元素（有 input 兄弟时不可靠）
-
-### 窗口 show 权限：用 showWindow(label)，不要 appWindow.show()
-- `appWindow.show()` 需要 `core:window:allow-show` 权限，capability 没有。
-- **正确**：用 `showWindow(WINDOW_LABEL.TODO)`（→ `App.vue` handler → Rust `show_window` 命令，权限已有）。
-
-### native date input 在 WebView2 不可用
-- `<input type="date">` 在 Windows WebView2 里占位符显示 `yyyy/mm/日`（locale mismatch 四不像），前端无法改文字。
-- T5 最终用 **5 个手写数字输入框**（年/月/日 + 时:分）替代，无日历弹层、无 antd DatePicker。
-- antd DatePicker 也有问题：弹层小窗溢出 + 企业蓝皮肤难覆盖 + 宽度塌缩看不见。
-- **结论**：迷你窗别用 native date input 或 antd DatePicker，用手写输入框。
-
-### locale 文件：新 key 追加末尾，别重排字母序
-- 用脚本（python json.dump）重排 labels 字母序会产生 deletion 噪声，破坏上游功能分组顺序。
-- **正确**：新 key **追加到末尾**，保留现有顺序。merge upstream 时 diff 干净。
-
-### pre-commit hook 绕过（已知工程债）
-- 上游 `package.json` 的 `lint-staged: { "*": "eslint --fix" }` 配太宽，对 `Cargo.lock`/`pnpm-lock.yaml`/`Cargo.toml`/`lib.rs` 报 `File ignored` warning，lint-staged 把 warning 当 failure 中止 commit。
-- **绕过**：commit 时用 `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`。
-
-### Pinia store 必须在 setup 顶层实例化（跨 async 边界会失效）
-- T1 踩坑：`setupTodoPlugin()` 在 `onMounted(async)` 回调里调 `useXxxStore()`，报 `code:26 "Must be called at the top of a setup function"`。
-- **根因**：Pinia 的 inject 跨 async 边界失效。
-- **正确**：store 实例化放 setup 顶层（和上游 store 同位置），异步操作（`$tauri.start()`）可在 onMounted 里。
-
-### Tauri 窗口配置：改 key 时检查无重复
-- T2 踩坑：todo 窗口改 `transparent: true` 时只加没删原 `false`，两个 key 共存后者覆盖前者，透明不生效。
-- **教训**：改 `tauri.conf.json` 窗口配置时务必检查 key 没有重复。
-
-### pnpm tauri dev 重启前杀残留 WebView2 进程
-- `pnpm tauri dev` 重启时残留的 `msedgewebview2.exe` 进程会导致新 exe 启动即退出（exit code -1，无 Rust panic 日志）。
-- **解决**：重启前 `taskkill //F //IM msedgewebview2.exe`（Windows Tauri/WebView2 环境问题，非代码问题）。
-
-### git reset 会丢文档回流 commit（single-context 教训）
-- T3 会话 `git reset --hard 5aaa70a` 重做动效时，连带丢掉了上一轮的文档回流 commit（CONTEXT.md 踩坑清单 + ADR 侵入账单更新）。
-- **教训**：reset 前先确认 reset 点之后是否有非功能 commit（文档/配置）；文档回流应尽快 merge 到稳定基线，不要长期挂在 feature 分支末端容易被 reset。
-
-### Vue multi-arg emit 不能用 `$event[0]/$event[1]` 解包（T6 code-review 抓的真 bug）
-- **错误写法**：`@change-priority="emit('changePriority', $event[0], $event[1])"`
-- **原因**：Vue 3.5+ 编译器把 `emit(...)` 判为 inline statement，handler 编译成**单参**箭头 `$event => ...`，`$event` 只绑 emit 的**第一个参数**（id 字符串），`$event[0]/$event[1]` 变成索引字符串字符 → 点击墨点循环优先级会静默失效（updateTodo 找不到 id）。
-- **正确写法**：`@change-priority="(id, priority) => emit('changePriority', id, priority)"`（命名箭头，多参数显式声明）
-- **教训**：以后 multi-arg emit 透传一律用命名箭头，别用 `$event` 数组索引。
-
-### eslint --fix 在 Windows segfault 的可靠绕过
-- `pnpm lint` / `npx eslint` 在大目录树 + Windows 上偶发段错误（exit 0xC0000005）。
-- **可靠绕过**：`node --max-old-space-size=4096 ./node_modules/eslint/bin/eslint.js <path>`（不带 `--fix`，手动改）。
-- 比 `npx eslint <file>` 更稳定（npx 本身也会崩）。
-
-### 上游 release.yml 的 Node 版本已过时（T-CI 修复，勿回退）
-- **问题**：上游 `release.yml` 用 `setup-node@v4` + `node-version: 20`。GitHub runner 现默认 Node 24，导致 `pnpm install` 崩溃（`ERR_UNKNOWN_BUILTIN_MODULE`）。**这是上游 workflow 本身的问题，上游自己现在也跑不通**。
-- **修复**（`ee93b40`）：`setup-node@v4→@v5`、`node 20→24`，共 6 处替换，结构不变。
-- **勿回退**：未来 merge 上游时这一行会冲突，**按版本号策略保留我们的**（上游的也是坏的）。
-
-### master 不直接开发，任何 commit 都走分支 + no-ff merge（反复踩！）
-- **已发生 2 次**：T-CI 会话 + Phase 1 收尾，都在 master 上直接 commit 了（违反 AGENTS.md 分支策略）。
-- **教训**：**任何** commit——哪怕只是改一个参数、一行文档——都先 `git checkout -b <branch>`，在分支上 commit，再 `git checkout master && git merge --no-ff <branch>`。
-- **已 push 的违规 commit 修正成本高**（要 force push 回退 origin）。commit 前先看 `git branch --show-current` 是不是 master，是的话**停下来先建分支**。
-
-### identifier 改变会导致 tauri-store 数据目录变化（数据"丢失"假象）
-- tauri-store/pinia 的持久化路径基于 app identifier（`tauri.conf.json` 的 `identifier`）。
-- T-CI 把 identifier 从 `com.ayangweb.BongoCat` 改成 `com.chhsiching.bongocat-todo` 后，存储目录从 `%APPDATA%/com.ayangweb.BongoCat/` 变成了 `%APPDATA%/com.chhsiching.bongocat-todo/`。
-- **症状**：手动往旧目录写持久化数据，app 读不到（面板空），因为 app 实际从新目录读。
-- **排查**：identifier 变更后，查数据文件要找**新 identifier 对应的目录**，不是旧上游的。
-- **Windows 路径**：`%APPDATA%/<identifier>/tauri-plugin-pinia/<store-id>.dev.json`（dev 模式带 `.dev` 后缀）。
-
-### Phase 2 邮件模块踩坑（T1 实现，必读）
-
-> 以下 8 个坑都是 T1 实现过程中付出调试代价才发现的，ADR 0002 D1/D2/D3 已更新对应决策。
-
-#### native-tls/SChannel 吊销检查导致 TLS 握手失败 → 用 rustls
-- **问题**：`tokio-native-tls` 在 Windows 上走 SChannel，默认做证书吊销检查（OCSP/CRL）。用户网络下吊销服务器不可达 → `CRYPT_E_REVOCATION_OFFLINE` → TLS 握手失败。curl（同样走 SChannel）复现。
-- **修复**：改用 `tokio-rustls` + `rustls`（不检查吊销）+ `webpki-roots`（内置 Mozilla 根 CA，不用系统证书库）。
-- **详见**：ADR 0002 D1 T1 纠正段。
-
-#### rustls 0.23 crypto provider 必须显式安装（否则永久卡死）
-- **坑**：rustls 0.23 首次调 `ClientConfig::builder()` 时需要进程级 crypto provider。**不安装会永久卡死**——不 panic、不超时、`tokio::time::timeout` 都救不了（卡在 provider 初始化的内部锁上）。
-- **修复**：插件 init 的 setup 里 `rustls::crypto::ring::default_provider().install_default()`。幂等，重复调用返回 Err 忽略。
-
-#### async-imap IDLE `wait()` 在 Tauri runtime 卡死 → `wait_with_timeout(10s)`
-- **坑**：`Handle::wait()` 默认 29 分钟超时，在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（timer future 永久 Pending）。`NewData` 路径正常，但 `Timeout` 路径完全失效。
-- **修复**：改用 `handle.wait_with_timeout(Duration::from_secs(10))`，10 秒短周期循环。Timeout 分支做兜底 `fetch_new_envelopes`，补查 IDLE 推送间隙漏掉的新邮件（QQ 邮箱 IDLE 推送不稳定，10 秒兜底保证体感延迟可控）。
-- **详见**：ADR 0002 D3 T1 纠正段。
-
-#### keyring v4 删除 API 是 `delete_credential`（不是 `delete_password`）
-- **坑**：ADR 0002 D2 原写 `delete_password()`，实际 keyring v4 v1 feature 的 API 是 `delete_credential()`。写错编译失败。
-
-#### Tauri 2 capability 权限要显式 allow
-- **坑**：Tauri 2 权限模型要求插件命令在 `src-tauri/capabilities/default.json` 显式 allow。建插件时漏了，导致 `mail_test_connection not allowed`。
-- **修复**：`capabilities/default.json` 加 `mail:allow-*` 权限。**新建 Tauri plugin 时必须同时加 capability 权限**。
-
-#### vue-i18n 的 `@` 必须 literal 转义
-- **坑**：vue-i18n 把 message 里的 `@` 当 linked-message 语法符（`@:key`）。`addressPlaceholder` 的 `alice@gmail.com` 导致编译失败，启动报 `SyntaxError: Invalid linked format`。
-- **修复**：locale 文件的 `@` 改为 `{'@'}`。
-
-#### TUN 透明代理对 993 端口不稳定 → 程序需自带 HTTP CONNECT 代理
-- **问题**：国内用户的境外邮箱（Gmail 等）需代理。TUN 透明代理对 993 端口转发不稳定（`stack: system` 已知问题）。
-- **修复**：程序内置 HTTP CONNECT 代理支持（`async-http-proxy` crate），设置页提供代理输入框。详见 ADR 0002 D10。
-
-#### WebView2 console.log 不转发到 Tauri stdout（T2 踩坑）
-- **问题**：Windows WebView2 的 `console.log` **不会**出现在 `pnpm tauri dev` 的 Rust stdout 里。前端调试时以为日志没输出，实际是被 WebView2 吞了。
-- **修复**：前端调试用 `@tauri-apps/plugin-log` 的 `info()` / `error()`，这些会转发到 Tauri 日志系统可见。
-
-#### Rust serde 蛇形/驼峰不匹配是静默 bug（T2 修复 T1 遗留）
-- **坑**：Rust struct 字段默认蛇形（`account_id`），前端 JS 读驼峰（`accountId`）。如果 struct 缺 `#[serde(rename_all = "camelCase")]`，前端 `payload.accountId` 会拿到 **`undefined`**——**不报错、不崩溃、静默失败**。
-- **修复**：`NewMailPayload` / `ConnectionStatusPayload` 加 `#[serde(rename_all = "camelCase")]`。
-- **规则**：**后续新增任何 Rust → 前端 event payload struct，必须加这个属性**。
-
-#### SVG path 写死坐标是布局炸弹（T2 踩坑）
-- **坑**：设计稿 `bubble.html` 的气泡 SVG path 坐标是写死的（固定高度）。内容变高时气泡形状不跟着变，文字溢出到气泡外面。`preserveAspectRatio="none"` 会强行拉伸变形。
-- **修复**：新增 `bubbleShape.ts` 的 `genBubbleShape(textHeight)`，按内容高度动态生成 path d。
-- **规则**：**手绘风 UI 的 SVG 形状不能用写死坐标**，必须根据内容尺寸动态生成 path。T5 邮件列表/归档面板也是手绘风，同样适用。
-
-#### Tauri listen 不 await 是竞态炸弹（T5 踩坑）
-- **坑**：`setupMailPlugin` 里 4 个 `listen()` 没 `await`，监听器还没注册完 Rust 就补发 emit `mail://new-mail`，离线补发的邮件被丢弃。正常 IDLE 推送（10 秒后）不暴露这个 bug，但离线补发是「连接后立即 emit」，时序紧得多。
-- **修复**：全部加 `await`，确保注册完再 `mailConnect`。
-- **规则**：**Tauri `listen` 是异步的（返回 Promise）**，如果有「连接后立即 emit」的场景，必须 await 所有 listen 完成后再建立连接。
-
-#### store 加新字段要做数据迁移（T5 踩坑）
-- **坑**：T5 给 mailAccount store 加 `lastSeenUid` 字段，但 T5 前创建的账号持久化 JSON 没这个字段（`undefined`）。`setLastSeenUid` 里 `uid > undefined` 是 `false`（NaN 比较），永远不更新 → 离线补发永不触发。
-- **修复**：`migrateLastSeenUid()` 给旧账号补 `lastSeenUid: 0`；`setLastSeenUid` 用 `?? 0` 兜底。
-- **规则**：**给已有持久化 store 加新字段时，必须写 migrate 函数给旧数据补默认值**，否则 undefined 参与比较运算会静默 false。
-
-#### `monitors.find(m => ...)` 的 m 闭包泄漏（T5 踩坑）
-- **坑**：`mail-list/index.vue` 的 clamp 定位代码 `monitors.find(m => ...)` 里参数名 `m`，在 find 回调外部作用域被误引用 → `ReferenceError`，整个监听回调崩溃，邮件列表窗口打不开。归档窗口用的参数名是 `monitor` 所以没踩。
-- **修复**：`m` → `monitor`。
-- **教训**：ESLint 抓不到这种「find 回调参数名跨作用域泄漏」，只有运行时 ReferenceError 才暴露。**find/filter 回调参数名要语义化、不与外部变量重名**。
-
-#### inline 二次确认必须有强制反应死区（T5a 踩坑）
-- **坑**：inline 二次确认（按钮变形，非弹窗）如果没有死区，用户快速双击会瞬间删除，等于没有二次确认。
-- **修复**：进入确认态后先有 **700ms 死区**（按钮变灰禁用 + `cursor: not-allowed` + 点击忽略），死区结束后才变红色高亮可点击，再过 3.3 秒不点自动恢复。
-- **规则**：**inline 二次确认必须配死区**，否则防不住误双击。死区内按钮视觉必须明确禁用（灰+not-allowed），不能只是「逻辑上忽略点击但视觉正常」。
-
-#### 气泡布局必须向上扩展（T6 踩坑）
-- **坑**：气泡内容多行或多气泡堆叠时，向下扩展会侵入桌宠 sprite 区域（遮挡猫）。原设计有「翻猫下方」分支，但翻下方必然跨猫更糟。
-- **修复**：窗口底部锚定 `catY - 8px`，多气泡/多行内容**向上堆叠**；去掉翻下方分支，空间不足时顶部 clamp 到屏幕顶。宽度自适应（`genBubbleShape` 加 width 参数，取 `max(360, 子组件自然宽度)`），长链接撑宽不溢出。
-- **规则**：**气泡只向上扩展，不向下、不翻下方**。
-
-#### `ReturnType<typeof useXxxStore>` 在 index.ts 需要 `import type`（T3 踩坑，顺带修了 T1 遗留）
-- **坑**：`src/plugins/mail/index.ts` 的 `SetupMailPluginArgs` / `removeAccount` 签名用 `ReturnType<typeof useMailNotificationStore>`，但该 store 只 `export {}`（运行时 re-export）没 `import type`。tsc 报 `Cannot find name 'useMailNotificationStore'`（**静默通过 vite 但 vue-tsc/tsc 报错**）。T1 就埋了这个雷（SetupMailPluginArgs 的 notification/settings 两个字段一直报错），T3 加 removeAccount 签名时暴露。
-- **修复**：文件顶部补 `import type { useMailNotificationStore } from './stores/mailNotification'`（settings 同理）。`useMailAccountStore` 一直有 `import type` 所以没踩。
-- **规则**：**在 index.ts 这类「re-export + 自身签名引用」的聚合文件里，所有被 `ReturnType<typeof X>` 引用的 store 必须在顶部 `import type { X }`**，光 re-export 不够（re-export 不把名字引入当前模块作用域）。
-
-#### 静态资源（logo/图片）用 public 目录，别用 src/assets（T3 决策）
-- **决策**：邮箱 logo 10 个文件放 `public/mail-logos/`（绝对路径 `/mail-logos/xxx`），与项目字体（`public/fonts/`）一致。**不用 `src/assets/`**——后者要 `import logo from '@/assets/...'` + vite hash 文件名，对于按域名动态匹配 logo 的场景（`matchProviderLogo` 返回字符串路径）反而麻烦（import 得静态分析，不能运行时拼路径）。
-- **public 原样拷贝**：开发期 `/mail-logos/...` 直接可访问，生产构建同路径不做 hash，`matchProviderLogo` 返回的字符串路径两端（store + img src）一致。
-
-#### PNG logo「白底转透明」误杀内部白色（QQ logo 踩坑）
-- **坑**：简单白底转透明（`r>235 && g>235 && b>235 → alpha=0`）会把 logo 内部的白色部分也转透明。QQ 企鹅的白肚皮/眼白和背景白色 RGB 接近，简单阈值把肚皮也清了 → 企鹅变成空心轮廓。
-- **正确方法**：**flood fill 重建 alpha**——从图像四角的非 logo 色背景开始扩散，标记「连通到边缘的背景」为透明，被 logo 主体色（黑/红）包围的内部白色（肚皮/眼白）保留不透明。需用浏览器 canvas `getImageData` 逐像素处理（不要手写 node PNG 编解码器）。
-- **规则**：logo 有内部白色区域时，不能用简单阈值转透明，必须 flood fill 按连通性区分背景 vs 内部白色。
-
-#### 账号卡片 logo 尺寸偏离设计稿（T3 用户决策）
-- **设计稿** `mail-settings.html`：容器 36×36，logo 22×22。
-- **用户调整**：放大到容器 48×48（`h-12 w-12`）、logo 32×32（`h-8 w-8`）、`object-contain` 保比例、垂直居中。**不要 `h-full w-full` 撑满容器**（用户明确否决「太难看了盛满容器」）。
-- **IMAP 详情行** `pl-15`（60px = 容器 48 + gap 12）对齐文字起始位置。
-- **设计稿未改**（仍是 36×36 原值），以实际实现 48×48 为准。
-
-#### Coremail 服务器不支持 IDLE → 轮询降级（T4 踩坑）
-- **坑**：Coremail（论客）服务器对 IDLE 命令返回 `BAD command not support`，不实现 IMAP IDLE 扩展。教育邮箱（如 `.edu.cn`）多由 Coremail 教育版 SaaS 托管。
-- **修复**：`logic.rs` 新增 `classify_idle_error(err_msg) -> IdleSupport`（Unsupported vs Transient）纯函数 + `manager.rs` 新增 `poll_loop`：IDLE init 失败且判定 Unsupported 时，重建 session 走纯轮询（`POLL_INTERVAL` 5 秒 sleep + fetch 循环）。
-- **技术细节**：`session.idle()` 消耗 session 进 handle，init 失败后 async-imap 没有安全 API 拿回 session（`done()` 会再次触发 BAD），所以降级时**重新 `build_imap_session` 建新连接**。
-
-#### 网易系邮箱（163/126）要求 IMAP ID 命令（1.3.1 修复）
-- **坑**：网易邮箱（163/126/yeah.net）要求第三方客户端在 LOGIN 后、SELECT 等操作前发送 IMAP ID 命令（RFC 2971）表明身份（name/version/vendor 等），否则后续操作返回 `Unsafe Login` 错误。之前 `build_imap_session` 跳过了 ID 命令直接 select INBOX，导致 163/126 用户全部被拒。
-- **修复**：`build_imap_session` 在 login 后、select 前调用 `session.id([("name", ...), ("version", ...), ...])`。用 `let _ =` 忽略返回——不支持 ID 的服务器返回 BAD 也不影响后续流程。
-- **ID 命令时序**：163 的要求是**先 LOGIN 后 ID**（不是 LOGIN 前）。LOGIN 本身会成功返回 OK，但不发 ID 的话 SELECT 会被拒。参考：[网易帮助](https://help.mail.163.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac2eda07326646e6eb0)。
-- **async-imap 0.11.3** 的 `Session::id()` 方法签名：`id(identification: impl IntoIterator<Item = (&str, Option<&str>)>) -> Result<Option<HashMap<String, String>>>`。
-
-#### build_imap_session 代理覆盖 bug（T4 修复 pre-existing）
-- **坑**：`manager.rs` 有重复的 `let tcp = TcpStream::connect(...)`，把代理分支建立的隧道 tcp 覆盖了——**代理路径从未生效过**。
-- **修复**：删除重复代码。注意用户实际没用代理（国内邮箱直连），这个 bug 是潜在的。
-
-#### antdv-next Input type="number" 绑定的仍是 string（T4 踩坑）
-- **坑**：`<Input type="number">` 的 `v-model:value` 绑定的是 **string**（HTML input value 永远是 string），传给 Rust `u16` 报 `invalid type: string "993", expected u16`。
-- **修复**：`handleTestAndSave` 显式 `Number(imapPort.value)` + 范围校验（1-65535）。
-- **规则**：**antdv-next Input type="number" 的 v-model 绑定值是 string 不是 number**，传给 Rust 强类型参数前必须显式转换。
-
-#### 教育邮箱 IMAP 地址公网 DNS 无解析（T4 踩坑）
-- **坑**：学校给的 IMAP 地址（如 `imap.s.ytu.edu.cn`）**公网 DNS 无解析**（仅学校内网 DNS 有记录）。实际可用地址是 `edu.icoremail.net`（Coremail 教育版 SaaS 通用接入）。
-- **修复**：`providers.ts` 新增 `SUFFIX_PATTERNS`（`.edu.cn` / `.edu` → `edu.icoremail.net`）+ `extractEduAbbr`（从域名提取学校简称用于 displayName）。
-- **规则**：学校给的地址不一定校外可用，教育邮箱用户需 fallback 到 `edu.icoremail.net`。
-
-#### 右键菜单偶发失效（未解决，已搁置）
-- **症状**：右键桌宠弹出原生菜单，偶发无法用鼠标点击（不高亮、无法选中），但**键盘方向键能选中**。完全随机，无明确触发条件。
-- **已排除的 6 个方向（不要再试）**：① `setAlwaysOnTop` 没 await ② Win32 `SetForegroundWindow` 前台锁定 hack ③ `handleMouseDown` 的 startDragging 与 menu.popup 竞争 ④ alwaysOnTop 轮询线程 16ms 竞争 ⑤ 鼠标悬停隐藏 setIgnoreCursorEvents ⑥ 鼠标穿透开关。
-- **确定事实**：菜单弹出了（可见）+ 键盘能操作（有焦点）+ 鼠标不行（事件被拦截/穿透）+ 与 alwaysOnTop 无关 + 与穿透无关 + 无其他窗口干扰。
-- **结论**：Tauri/WebView2 在 Windows 上的底层交互问题，fork 代码层面诊断到极限。等 Tauri 上游修复或将来有更多线索再查。
-
-## todo 插件组件清单（Phase 1 完成，T1-T6 全部组件）
-
-> 位于 `src/plugins/todo/components/`，扁平目录 `<Name>/index.vue`。复用时直接 import。
-
-| 组件 | 来源 | 说明 |
+| **Upstream** | `ayangweb/BongoCat`, fetch-only, used for merging |
+| **Plugin** | Self-contained module added by this repo, located in `src/plugins/<name>/`, attached to the UI through a registration mechanism |
+| **Menu bus** | A pinia store (`menuBus`); plugins register menu-item descriptor data into it, `useAppMenu` consumes it |
+| **Companion window** | A standalone Tauri window anchored next to the desktop pet in the same style (e.g. the todo panel) |
+| **Tuck-and-pop** | ~~Follow interaction for companion windows~~ **Deprecated** (superseded by ADR 0001 D3); the actual implementation uses simple fade in/out. Entry kept for historical traceability |
+| **Phase 1** | Menu/plugin architecture + local todo MVP (no sync) |
+| **Phase 2** | Mail notification center + desktop pet bubble notifications + dual delivery of todo reminders (see ADR 0002) |
+| **Bubble** | Lightweight notification component pinned right above the desktop pet; **persists on screen** until the user dismisses/clicks it. At most 3 pending; the overflow folds into the mail list. Shared by mail and due todos |
+| **Mail notifier** | Monitors each account's INBOX via IMAP IDLE and triggers bubbles on new mail arrival. Reads envelope metadata only (sender + subject), **zero write operations** on the mailbox, no body fetch; clicking jumps to webmail |
+| **Mail list** | Standalone entry in the desktop pet's context menu; locally caches mail that has been bubble-notified (sender + subject). Purely local state (read/archived), never touching the mail server. Retention: auto-archive after 24 hours by default; on click, mark locally read + archive after 5 minutes |
+| **Archived mail** | Standalone entry in the desktop pet's context menu (alongside the mail list); shows archived mail with a faded style; clicking still jumps to webmail |
+| **Soft delete** | Deletion doesn't actually remove the record; a `deletedAt` timestamp is stamped for future sync |
+
+## Upstream architecture facts (agents must know)
+
+- **Two static routes**: `/` (Main desktop pet) and `/preference` (settings), defined in `src/router/index.ts`; one Vue app sharing pinia/i18n/stores.
+- **Window labels are a static enum**: `WINDOW_LABEL` in `src/constants/index.ts`, with main/preference values.
+- **Window config lives in `src-tauri/tauri.conf.json`**: main is a transparent, titlebar-less, always-on-top window; preference is a normal window.
+- **Rust-side window logic**: `src-tauri/src/plugins/window/` is a custom Tauri plugin; `show_window` is generic (not label-bound), so new windows need no Rust changes.
+- **Menu source**: `useAppMenu.ts` generates menu items → consumed by `handleContextmenu` in `main/index.vue:142` (right-click on the pet) and `useTray.ts` (tray).
+- **Persistence**: every store lands as JSON automatically via `@tauri-store/pinia` (`main.ts:15` `saveOnChange: true`), zero extra code.
+- **Dragging**: `main/index.vue:139` `appWindow.startDragging()` is Tauri native dragging; the frontend cannot get real-time position during a drag, only the `tauri://move` event after it ends.
+
+## Phase 1 decision snapshot
+
+See `docs/adr/0001-plugin-architecture-for-todo.md` for details. Key points:
+
+- Plugins attach UI through the **shared store menu bus** (posture D); the only intrusion is a spread at the end of `useAppMenu.ts`.
+- The todo panel is a **standalone companion window** `WINDOW_LABEL.TODO`, copying main's `decorations:false/skipTaskbar/alwaysOnTop` config.
+- Follow interaction uses **simple fade in/out** (the original tuck-and-pop proposal was rejected; see ADR D3 superseded).
+- Storage **reuses pinia persistence** (zero new dependencies); the data structure carries 4 Phase 2 sync-reserved fields.
+- Date reminders use `@tauri-apps/plugin-notification` (new dependency + permission).
+- 8 upstream touch points in total, **all additive**, no existing logic changed.
+
+## Phase 2 decision snapshot
+
+See `docs/adr/0002-phase2-mail-and-bubble.md` for details. Key points:
+
+- **Scope**: mail notification center + desktop pet bubble notifications + mail list + dual delivery of todo reminders. ~~Radial menu~~ cancelled (D7 rejected); ~~Android sync~~ postponed to a separate repo (the D5 sync fields are not wasted).
+- **Mail protocol**: generic IMAP IDLE long connections (Rust `async-imap` + tokio), covering Gmail/QQ/163 etc., using each provider's app-specific passwords to bypass OAuth review.
+- **Credential security**: OS keyring (Rust `keyring` v4 `v1` feature); the pinia store **never holds passwords**; passwords go through `Entry::new(service, username)` with key=`bongocat-todo/mail/<accountId>`.
+- **Connection lifecycle**: Rust backend tokio task, bound to the **app process** (not to windows; push works as long as the pet is running).
+- **Multi-account**: tracer bullet with a single account first, multi-account immediately after; both are Phase 2 deliverables. The data structure is an array from day one.
+- **Mail boundary (D5 superseded)**: upgraded from 'ephemeral notifier' to 'local notification center' — read envelope metadata only (sender + subject), **zero write operations** on the mailbox (read/archived are purely local states, never touching the server), no body fetch, click jumps to webmail. Local notification history is **allowed**.
+- **Mail list (D9)**: two standalone entries in the desktop pet's context menu (below todo/quick add) — 'Mail list' + 'Archived mail', each opening its own companion window. Locally caches mail that has been bubble-notified. Retention: auto-archive after 24 hours by default; on click, mark locally read + archive after 5 minutes. The archived-mail window can still jump to webmail.
+- **Settings entry**: a new mail page in the preference window's sidebar (no new window/route intrusion).
+- **Bubble notification (D7 revised)**: right above the desktop pet / **persists on screen, disappears when the user dismisses/clicks it** / at most 3 pending; the overflow folds into 'N more, view the mail list' / mail → webmail, todo → panel. Mail and todo share the bubble component.
+- **Todo reminders**: dual delivery — system notification (D6 retained) + desktop pet bubble (purely additive); `plugin-notification` is not split.
+- **Design mockups**: done **before** the spec (bubble UI + mail list + mail settings UI) as the spec's UI input; the backend (IMAP/keyring/connection management) relies on TDD and does not depend on mockups.
+
+## Upstream code and visual conventions (from second-pass analysis; required reading for to-spec/implement)
+
+### Styles and atomic utilities
+- **UnoCSS config** (`uno.config.ts`): `presetWind3()` + `presetIcons()` + `presetAntd()` (from `@antdv-next/unocss`). todo components use wind3-style atomic utilities (`flex gap-2 text-sm` etc.); dark mode/spacing/radius automatically inherit the antd theme.
+- **transformerVariantGroup**: supports variant-group syntax like `class="text-4 font-medium"` (see `pro-list/index.vue`).
+- **transformerDirectives**: supports `--uno` variable directives.
+- Variant modifiers like **`not-last:mb-4`** are available (see pro-list).
+
+### ESLint rules (customized `@antfu/eslint-config`)
+- **Imports must be sorted alphabetically ascending** (`perfectionist/sort-imports`, natural order).
+- **One Vue attribute per line** (`vue/max-attributes-per-line: error`), **alphabetically ordered** (`vue/attributes-order` alphabetical).
+- **1tbs brace style** (`style/brace-style`).
+- **Unused imports are hard errors** (`unused-imports/no-unused-imports: error`).
+- todo module code must follow these strictly or lint fails.
+
+### Store conventions (pinia setup style + gradual migration)
+- **Setup style** `defineStore('name', () => { ... })`, not options style.
+- **Group fields with `reactive`** (e.g. `model`, `window`); scalars use `ref`.
+- **Export an interface** declaring the shape (`export interface XxxStore`).
+- **Migration pattern**: mark old fields `@deprecated`, put the new structure in `reactive`, do a one-shot migration in `init()`, use a `migrated` ref as the idempotence flag. If the todo store ever changes shape, follow this pattern.
+
+### Component conventions
+- **`defineProps<{ ... }>()`** typed props, not runtime declarations.
+- **`<script setup lang="ts">`** is mandatory.
+- **Prefer antdv-next components** (`Flex`, `List`, `Checkbox`, etc.); don't build basic components yourself.
+- The **`data-tauri-drag-region`** attribute marks draggable regions (drag replacement for titlebar-less windows).
+- Flat component directories: `src/components/<name>/index.vue` (see `pro-list`, `pro-list-item`, `shortcut`, `update-app`).
+
+### i18n structure
+- **5 JSON files**: `src/locales/{zh-CN,zh-TW,en-US,vi-VN,pt-BR}.json`.
+- **Nested structure**: `pages.<page>.<section>.labels.<key>` or `composables.<name>.labels.<key>`.
+- Suggested namespace for new todo keys: `plugins.todo.labels.<key>` (a new `plugins` namespace marking this repo's extensions).
+- **vue-i18n composition mode** (`legacy: false`); use `const { t } = useI18n()`.
+- antd's own locale is injected separately via `getAntdLocale()` (`App.vue` ConfigProvider); todo inherits it automatically when using antd components.
+
+### antdv-next integration
+- **`App.vue` already mounts ConfigProvider**, automatically handling dark mode (`generalStore.appearance.isDark`) and language.
+- **HappyProvider** is mounted (happy-work-theme); buttons get the ripple effect.
+- As a sub-route of the same app as preference/main, the todo panel **automatically inherits** these providers; no repeated setup.
+- Dark mode: todo doesn't handle it itself — antd components + unocss `dark:` variants suffice.
+
+### Rust-side window logic (second-pass confirmation)
+- `show_window_by_label` in `src-tauri/src/plugins/window/src/commands/mod.rs` is **generic** — any label works as long as the window is declared in `tauri.conf.json`.
+- `MAIN_WINDOW_LABEL`/`PREFERENCE_WINDOW_LABEL` are just Rust-side constants and **do not restrict** other labels. The todo window needs no Rust changes.
+
+## ⚠️ Visual principles (non-negotiable)
+
+**All UI added by this repo must match BongoCat's own visual style; do not default to antd visuals.**
+
+### BongoCat's actual visual tone (based on README screenshot analysis)
+- **The pet itself**: minimalist hand-drawn/stick style, uniform 2-3px lines, rounded edges, pure white body + light pink spots (around `#FFD1D1`), flat with no shadows, healing vibe.
+- **Overall tone**: flat illustration + healing + lively + soft. Saturated yet soft colors, **not corporate calm blue**.
+- **Icon strategy**: Solar for main visuals/navigation (flat, rounded, duotone, illustrative); Lucide for functional actions (thin lines, minimal). Primary navigation is Solar — that's the storefront.
+
+### antd's actual role (to avoid repeat misunderstandings)
+- In upstream, antdv-next is merely an **engineering choice** (avoiding hand-written form controls), **not a visual verdict**.
+- The preference page settling for antd doesn't mean the todo panel should also stick to antd.
+- The todo panel is a **companion feature of the pet**; its visuals should lean toward the pet itself, not toward antd forms.
+
+### Repeatedly-made mistakes (beware)
+1. Treating 'upstream imports antdv-next' as 'visuals must use antd' — **a code dependency is not a visual verdict**.
+2. Inferring visuals from code without looking at screenshots — **for visual work, look at images first (README/screenshots), then read code**.
+3. Treating 'antd is convenient' as 'antd is correct' — **convenient is not correct**.
+
+### Conclusion
+- The todo panel's visual goal: **look like the cat** — large radii (12-16px), warm/soft palette (pink/orange/off-white), simple lines, cute icons, soft texture.
+- antd components are **only for functional interaction logic** (Checkbox state, DatePicker selection); **visual skin must be customized** to override defaults.
+- This principle applies to every future UI module in this repo, not just todo.
+
+## 🚨 Pitfall log (accumulated during T1-T5; required reading)
+
+> These pitfalls were **repeatedly hit** during T1-T5 implementation; each cost debugging time. New agents must read this to avoid repeating them.
+
+### Dark mode: explicitly rejected by the user (do not add it on your own)
+- The mockup `panel.html` **has a light theme only**, no dark mode.
+- T2's first version added an `html.dark` dark override unilaterally and was firmly rejected by the user ('The mockup has no dark theme either; don't act on your own initiative').
+- **Fully removed**: no `html.dark` block in `handdrawn.css`, no `watch(isDark)` in `pages/todo/index.vue`.
+- If dark mode is ever wanted, **confirm the visual direction with the user first**; do not add it unilaterally.
+
+### Drag region data-tauri-drag-region (proven pattern; copy it, don't reinvent)
+It took two hits (T2, T5) to get right. Correct pattern (`TodoPanel.panel-header` is the reference):
+- **Put drag-region on the whole-row div** (not on child elements)
+- Decorative children (paw/clock/spacer) use `pointer-events: none` so clicks pass through to the drag region
+- input/button are naturally exempt (no extra handling needed)
+- **Wrong**: setting `data-tauri-drag-region` on the whole container (list items unclickable / inputs unusable); or putting drag-region on a child (unreliable when an input sibling exists)
+
+### Window show permission: use showWindow(label), not appWindow.show()
+- `appWindow.show()` requires the `core:window:allow-show` permission, which the capability file doesn't grant.
+- **Correct**: use `showWindow(WINDOW_LABEL.TODO)` (→ `App.vue` handler → Rust `show_window` command; the permission already exists).
+
+### Native date input is unusable in WebView2
+- `<input type="date">` in Windows WebView2 shows the placeholder as `yyyy/mm/day` (a locale-mismatch chimera), and the frontend cannot change the text.
+- T5 ended up replacing it with **5 hand-written digit inputs** (year/month/day + hour:minute), no calendar popup, no antd DatePicker.
+- antd DatePicker also has issues: popup overflow from the mini window + corporate-blue skin hard to override + width collapse making it invisible.
+- **Conclusion**: for the mini window, don't use native date input or antd DatePicker; use hand-written inputs.
+
+### Locale files: append new keys at the end; don't re-sort alphabetically
+- Re-sorting labels alphabetically with a script (python json.dump) creates deletion noise and destroys upstream's functional grouping order.
+- **Correct**: **append** new keys **at the end**, preserving existing order. Diffs stay clean when merging upstream.
+
+### Pre-commit hook bypass (known engineering debt)
+- Upstream's `package.json` has an overly broad `lint-staged: { "*": "eslint --fix" }`; it emits `File ignored` warnings for `Cargo.lock`/`pnpm-lock.yaml`/`Cargo.toml`/`lib.rs`, and lint-staged treats warnings as failures, aborting the commit.
+- **Bypass**: commit with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
+
+### Pinia stores must be instantiated at the top of setup (breaks across async boundaries)
+- T1 pitfall: `setupTodoPlugin()` called `useXxxStore()` inside an `onMounted(async)` callback, raising `code:26 "Must be called at the top of a setup function"`.
+- **Root cause**: Pinia's inject stops working across async boundaries.
+- **Correct**: instantiate stores at the top of setup (same position as upstream stores); async operations (`$tauri.start()`) can stay in onMounted.
+
+### Tauri window config: check for duplicate keys when editing
+- T2 pitfall: when switching the todo window to `transparent: true`, the original `false` was added but the old one not removed; both keys coexisted, the latter overrode the former, and transparency never took effect.
+- **Lesson**: when editing window config in `tauri.conf.json`, always verify no duplicate keys remain.
+
+### Kill leftover WebView2 processes before restarting pnpm tauri dev
+- When restarting `pnpm tauri dev`, leftover `msedgewebview2.exe` processes make the new exe exit immediately (exit code -1, no Rust panic log).
+- **Fix**: run `taskkill //F //IM msedgewebview2.exe` before restarting (a Windows Tauri/WebView2 environment issue, not a code issue).
+
+### git reset can lose doc write-back commits (single-context lesson)
+- In the T3 session, `git reset --hard 5aaa70a` while redoing the animation also lost the previous round's doc write-back commits (CONTEXT.md pitfall list + ADR intrusion-bill updates).
+- **Lesson**: before resetting, check whether non-functional commits (docs/config) exist after the reset point; merge doc write-backs into a stable baseline ASAP instead of leaving them dangling at the tip of a feature branch where a reset can wipe them.
+
+### Vue multi-arg emit cannot be unpacked via `$event[0]/$event[1]` (real bug caught in T6 code review)
+- **Wrong**: `@change-priority="emit('changePriority', $event[0], $event[1])"`
+- **Why**: the Vue 3.5+ compiler treats `emit(...)` as an inline statement and compiles the handler into a **single-argument** arrow `$event => ...`; `$event` binds only the **first** emit argument (the id string), so `$event[0]/$event[1]` index into string characters → clicking the ink dot to cycle priority silently breaks (updateTodo can't find the id).
+- **Correct**: `@change-priority="(id, priority) => emit('changePriority', id, priority)"` (named arrow, multiple parameters declared explicitly)
+- **Lesson**: always forward multi-arg emits with a named arrow; never use `$event` array indexing.
+
+### Reliable workaround for eslint --fix segfaults on Windows
+- `pnpm lint` / `npx eslint` occasionally segfault on Windows with large directory trees (exit 0xC0000005).
+- **Reliable workaround**: `node --max-old-space-size=4096 ./node_modules/eslint/bin/eslint.js <path>` (no `--fix`; edit manually).
+- More stable than `npx eslint <file>` (npx itself also crashes).
+
+### Upstream release.yml's Node version is outdated (fixed in T-CI; do not revert)
+- **Problem**: upstream `release.yml` uses `setup-node@v4` + `node-version: 20`. GitHub runners now default to Node 24, crashing `pnpm install` (`ERR_UNKNOWN_BUILTIN_MODULE`). **This is an upstream workflow bug — upstream itself cannot pass it right now**.
+- **Fix** (`ee93b40`): `setup-node@v4→@v5`, `node 20→24`, 6 replacements total, structure unchanged.
+- **Do not revert**: future upstream merges will conflict on these lines — **keep ours per the versioning policy** (upstream's is broken too).
+
+### No direct development on master; every commit goes through a branch + no-ff merge (repeatedly hit!)
+- **Happened twice**: the T-CI session and the Phase 1 wrap-up both committed directly on master (violating the AGENTS.md branch strategy).
+- **Lesson**: for **any** commit — even a one-parameter or one-line doc change — first `git checkout -b <branch>`, commit on the branch, then `git checkout master && git merge --no-ff <branch>`.
+- **Fixing pushed violations is costly** (requires force-pushing origin back). Before committing, check `git branch --show-current`; if it's master, **stop and create a branch first**.
+
+### Changing the identifier moves the tauri-store data directory (data-"loss" illusion)
+- tauri-store/pinia's persistence path is based on the app identifier (`identifier` in `tauri.conf.json`).
+- After T-CI changed the identifier from `com.ayangweb.BongoCat` to `com.chhsiching.bongocat-todo`, the storage directory moved from `%APPDATA%/com.ayangweb.BongoCat/` to `%APPDATA%/com.chhsiching.bongocat-todo/`.
+- **Symptom**: persistence data written manually into the old directory isn't read (empty panel), because the app actually reads the new directory.
+- **Diagnosis**: after an identifier change, look for data files in the directory matching the **new identifier**, not the old upstream one.
+- **Windows path**: `%APPDATA%/<identifier>/tauri-plugin-pinia/<store-id>.dev.json` (`.dev` suffix in dev mode).
+
+### Phase 2 mail module pitfalls (T1 implementation; required reading)
+
+> The 8 pitfalls below were each discovered only at debugging cost during T1 implementation; ADR 0002 D1/D2/D3 have recorded the corresponding decision updates.
+
+#### native-tls/SChannel revocation checks break the TLS handshake → use rustls
+- **Problem**: `tokio-native-tls` uses SChannel on Windows, which performs certificate revocation checks (OCSP/CRL) by default. On the user's network the revocation servers are unreachable → `CRYPT_E_REVOCATION_OFFLINE` → TLS handshake failure. curl (also SChannel-based) reproduces it.
+- **Fix**: switch to `tokio-rustls` + `rustls` (no revocation checks) + `webpki-roots` (bundled Mozilla root CAs, not the system store).
+- **Details**: the T1 correction section of ADR 0002 D1.
+
+#### The rustls 0.23 crypto provider must be installed explicitly (or it deadlocks forever)
+- **Pitfall**: rustls 0.23 requires a process-wide crypto provider on the first `ClientConfig::builder()` call. **Without it the process deadlocks permanently** — no panic, no timeout; even `tokio::time::timeout` cannot save it (stuck on an internal lock in provider initialization).
+- **Fix**: in the plugin init setup, `rustls::crypto::ring::default_provider().install_default()`. Idempotent; ignore the Err returned by repeated calls.
+
+#### async-imap IDLE `wait()` hangs under the Tauri runtime → `wait_with_timeout(10s)`
+- **Pitfall**: `Handle::wait()` defaults to a 29-minute timeout, but under Tauri's tokio runtime it **never returns Timeout** (the timer future stays Pending forever). The `NewData` path works; the `Timeout` path is completely broken.
+- **Fix**: use `handle.wait_with_timeout(Duration::from_secs(10))` in a short 10-second loop. The Timeout branch runs a fallback `fetch_new_envelopes` to catch mail missed in IDLE push gaps (QQ Mail's IDLE push is unreliable; the 10-second fallback keeps perceived latency bounded).
+- **Details**: the T1 correction section of ADR 0002 D3.
+
+#### The keyring v4 delete API is `delete_credential` (not `delete_password`)
+- **Pitfall**: ADR 0002 D2 originally said `delete_password()`; the actual keyring v4 v1-feature API is `delete_credential()`. Writing the wrong one fails to compile.
+
+#### Tauri 2 capability permissions must be explicitly allowed
+- **Pitfall**: Tauri 2's permission model requires plugin commands to be explicitly allowed in `src-tauri/capabilities/default.json`. We missed it when creating the plugin, resulting in `mail_test_connection not allowed`.
+- **Fix**: add `mail:allow-*` permissions to `capabilities/default.json`. **Always add capability permissions when creating a Tauri plugin**.
+
+#### `@` must be literal-escaped in vue-i18n
+- **Pitfall**: vue-i18n treats `@` in messages as linked-message syntax (`@:key`). `alice@gmail.com` in `addressPlaceholder` broke compilation, with `SyntaxError: Invalid linked format` at startup.
+- **Fix**: change `@` to `{'@'}` in locale files.
+
+#### TUN transparent proxies are unstable for port 993 → the app needs built-in HTTP CONNECT proxy support
+- **Problem**: users in China need a proxy for overseas mailboxes (Gmail etc.). TUN transparent proxies forward port 993 unreliably (a known `stack: system` issue).
+- **Fix**: built-in HTTP CONNECT proxy support (`async-http-proxy` crate) with a proxy input in the settings page. See ADR 0002 D10.
+
+#### WebView2 console.log is not forwarded to Tauri stdout (T2 pitfall)
+- **Problem**: Windows WebView2's `console.log` **never** appears in `pnpm tauri dev`'s Rust stdout. During frontend debugging it looks like logging is missing; WebView2 actually swallows it.
+- **Fix**: for frontend debugging use `@tauri-apps/plugin-log`'s `info()` / `error()`; those are forwarded to the Tauri logging system and are visible.
+
+#### Rust serde snake_case/camelCase mismatch is a silent bug (T2 fixed a T1 leftover)
+- **Pitfall**: Rust struct fields default to snake_case (`account_id`) while frontend JS reads camelCase (`accountId`). If the struct lacks `#[serde(rename_all = "camelCase")]`, frontend `payload.accountId` gets **`undefined`** — **no error, no crash, silent failure**.
+- **Fix**: add `#[serde(rename_all = "camelCase")]` to `NewMailPayload` / `ConnectionStatusPayload`.
+- **Rule**: **every new Rust → frontend event payload struct must carry this attribute**.
+
+#### Hard-coded SVG path coordinates are a layout bomb (T2 pitfall)
+- **Pitfall**: the bubble SVG path in the `bubble.html` mockup has hard-coded coordinates (fixed height). When content grows taller, the bubble shape doesn't follow and text overflows outside. `preserveAspectRatio="none"` would force ugly stretching.
+- **Fix**: added `genBubbleShape(textHeight)` in `bubbleShape.ts` to generate the path d dynamically from content height.
+- **Rule**: **hand-drawn SVG shapes cannot use hard-coded coordinates**; the path must be generated dynamically from content size. The T5 mail list/archive panels are also hand-drawn; the same applies.
+
+#### Not awaiting Tauri listen is a race-condition bomb (T5 pitfall)
+- **Pitfall**: the 4 `listen()` calls in `setupMailPlugin` weren't awaited; Rust replayed `mail://new-mail` before the listeners finished registering, so offline-backfill mails were dropped. Regular IDLE pushes (10 seconds later) don't expose this; offline backfill emits 'immediately after connect', a much tighter window.
+- **Fix**: await them all, ensuring registration completes before `mailConnect`.
+- **Rule**: **Tauri `listen` is asynchronous (returns a Promise)**; whenever a scenario emits 'immediately after connect', await all listens before establishing the connection.
+
+#### Adding new fields to a store requires data migration (T5 pitfall)
+- **Pitfall**: T5 added `lastSeenUid` to the mailAccount store, but accounts created before T5 lack the field in their persisted JSON (`undefined`). In `setLastSeenUid`, `uid > undefined` is `false` (NaN comparison), so it never updates → offline backfill never triggers.
+- **Fix**: `migrateLastSeenUid()` backfills `lastSeenUid: 0` for old accounts; `setLastSeenUid` falls back with `?? 0`.
+- **Rule**: **when adding fields to an existing persisted store, write a migrate function to backfill defaults for old data**; otherwise undefined silently evaluates false in comparisons.
+
+#### Closure leak of `m` in `monitors.find(m => ...)` (T5 pitfall)
+- **Pitfall**: in `mail-list/index.vue`'s clamp positioning code, the `monitors.find(m => ...)` parameter `m` was mistakenly referenced outside the find callback's scope → `ReferenceError`, crashing the whole listener callback so the mail-list window never opens. The archive window used the parameter name `monitor` and was unaffected.
+- **Fix**: `m` → `monitor`.
+- **Lesson**: ESLint cannot catch this 'find-callback parameter leaking across scopes'; only a runtime ReferenceError exposes it. **Use semantic names for find/filter callback parameters and never shadow outer variables**.
+
+#### Inline double-confirmation needs a mandatory reaction dead zone (T5a pitfall)
+- **Pitfall**: an inline double-confirmation (button morph, not a dialog) without a dead zone lets a fast double-click delete instantly — equivalent to no confirmation at all.
+- **Fix**: after entering the confirm state there is a **700ms dead zone** first (button greyed out and disabled + `cursor: not-allowed` + clicks ignored); only after the dead zone does it turn red-highlighted and clickable, and it auto-reverts after another 3.3 seconds without a click.
+- **Rule**: **inline double-confirmation must pair with a dead zone**, otherwise accidental double-clicks get through. During the dead zone the button must look clearly disabled (grey + not-allowed), not merely 'logically ignoring clicks while looking normal'.
+
+#### Bubble layout must expand upward (T6 pitfall)
+- **Pitfall**: with multi-line content or stacked bubbles, expanding downward intrudes into the pet sprite area (covering the cat). The original design had a 'flip below the cat' branch, but flipping below necessarily crosses the cat — worse.
+- **Fix**: anchor the window bottom at `catY - 8px`; multiple bubbles/lines of content **stack upward**; drop the flip-below branch and clamp the top to the screen top when space runs out. Width is adaptive (`genBubbleShape` takes a width parameter, `max(360, natural width of children)`), so long links widen without overflow.
+- **Rule**: **bubbles only expand upward — never downward, never flip below**.
+
+#### `ReturnType<typeof useXxxStore>` in index.ts needs `import type` (T3 pitfall; also fixed a T1 leftover)
+- **Pitfall**: the `SetupMailPluginArgs` / `removeAccount` signatures in `src/plugins/mail/index.ts` use `ReturnType<typeof useMailNotificationStore>`, but that store is only `export {}`-ed (runtime re-export) without `import type`. tsc reports `Cannot find name 'useMailNotificationStore'` (**silently passes vite but fails vue-tsc/tsc**). T1 planted this mine (the notification/settings fields of SetupMailPluginArgs kept erroring); it surfaced when T3 added the removeAccount signature.
+- **Fix**: add `import type { useMailNotificationStore } from './stores/mailNotification'` at the top of the file (same for settings). `useMailAccountStore` always had `import type`, so it was unaffected.
+- **Rule**: **in aggregate files like index.ts that 're-export + reference in their own signatures', every store referenced by `ReturnType<typeof X>` must be `import type { X }`-ed at the top**; a re-export alone is insufficient (re-exporting doesn't bring the name into the current module scope).
+
+#### Static assets (logos/images) belong in public/, not src/assets (T3 decision)
+- **Decision**: the 10 mailbox logos live in `public/mail-logos/` (absolute paths `/mail-logos/xxx`), consistent with the project fonts (`public/fonts/`). **Not `src/assets/`** — the latter requires `import logo from '@/assets/...'` + vite-hashed filenames, which is worse for domain-based dynamic logo matching (`matchProviderLogo` returns string paths; imports must be statically analyzable and can't assemble paths at runtime).
+- **public is copied verbatim**: during dev `/mail-logos/...` is directly accessible; production builds keep the same path without hashing, so both ends of `matchProviderLogo`'s string path (store + img src) agree.
+
+#### PNG logo 'white-background to transparent' kills internal whites (QQ logo pitfall)
+- **Pitfall**: naive white-to-transparent conversion (`r>235 && g>235 && b>235 → alpha=0`) also makes the logo's internal whites transparent. The QQ penguin's white belly/eye whites are close in RGB to the background white, so the naive threshold wiped the belly too → hollow penguin outline.
+- **Correct approach**: **flood-fill alpha reconstruction** — start from non-logo-colored background at the four corners, mark 'background connected to the edges' as transparent, and keep the internal whites surrounded by the logo's dominant colors (black/red) opaque. Do it per-pixel with the browser canvas `getImageData` (don't hand-write a node PNG codec).
+- **Rule**: when a logo has internal white regions, naive thresholding doesn't work; flood fill must separate background from internal whites by connectivity.
+
+#### Account-card logo size deviates from the mockup (T3 user decision)
+- **Mockup** `mail-settings.html`: container 36×36, logo 22×22.
+- **User adjustment**: enlarge to container 48×48 (`h-12 w-12`), logo 32×32 (`h-8 w-8`), `object-contain` to keep aspect, vertically centered. **Not `h-full w-full` filling the container** (the user explicitly rejected 'it's ugly filled to the container').
+- **IMAP detail row** uses `pl-15` (60px = 48 container + 12 gap) to align with the text start.
+- **The mockup was not updated** (still the original 36×36); the implemented 48×48 is authoritative.
+
+#### Coremail servers don't support IDLE → polling fallback (T4 pitfall)
+- **Pitfall**: Coremail servers reply `BAD command not support` to the IDLE command — the IMAP IDLE extension is not implemented. Educational mailboxes (e.g. `.edu.cn`) are mostly hosted by Coremail's education SaaS.
+- **Fix**: added the pure function `classify_idle_error(err_msg) -> IdleSupport` (Unsupported vs Transient) in `logic.rs` plus `poll_loop` in `manager.rs`: when IDLE init fails and is classified Unsupported, rebuild the session and switch to pure polling (`POLL_INTERVAL` 5-second sleep + fetch loop).
+- **Technical detail**: `session.idle()` consumes the session into a handle; after init failure async-imap has no safe API to recover the session (`done()` triggers BAD again), so the fallback **rebuilds a new connection via `build_imap_session`**.
+
+#### NetEase mailboxes (163/126) require the IMAP ID command (fixed in 1.3.1)
+- **Pitfall**: NetEase mailboxes (163/126/yeah.net) require third-party clients to send the IMAP ID command (RFC 2971) identifying themselves (name/version/vendor etc.) after LOGIN and before SELECT and other operations; otherwise subsequent operations return `Unsafe Login`. `build_imap_session` previously skipped the ID command and selected INBOX directly, so all 163/126 users were rejected.
+- **Fix**: `build_imap_session` now calls `session.id([("name", ...), ("version", ...), ...])` after login and before select. The return value is ignored with `let _ =` — servers without ID support return BAD without breaking the flow.
+- **ID command ordering**: 163 requires **LOGIN first, then ID** (not before LOGIN). LOGIN itself returns OK, but SELECT is rejected unless ID was sent. Reference: [NetEase help](https://help.mail.163.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac2eda07326646e6eb0).
+- The `Session::id()` signature in **async-imap 0.11.3**: `id(identification: impl IntoIterator<Item = (&str, Option<&str>)>) -> Result<Option<HashMap<String, String>>>`.
+
+#### build_imap_session proxy-override bug (T4 fixed a pre-existing one)
+- **Pitfall**: `manager.rs` had a duplicated `let tcp = TcpStream::connect(...)` that overwrote the tunnel TCP stream established by the proxy branch — **the proxy path never worked**.
+- **Fix**: remove the duplicate code. Note the user doesn't actually use a proxy (domestic mailboxes connect directly); this bug was latent.
+
+#### antdv-next Input type="number" still binds a string (T4 pitfall)
+- **Pitfall**: `<Input type="number">`'s `v-model:value` binds a **string** (HTML input values are always strings); passing it to a Rust `u16` fails with `invalid type: string "993", expected u16`.
+- **Fix**: `handleTestAndSave` explicitly does `Number(imapPort.value)` + range validation (1-65535).
+- **Rule**: **antdv-next Input type="number" binds a string, not a number**; convert explicitly before passing to strongly-typed Rust parameters.
+
+#### Educational mailbox IMAP addresses don't resolve on public DNS (T4 pitfall)
+- **Pitfall**: school-provided IMAP addresses (e.g. `imap.s.ytu.edu.cn`) **don't resolve via public DNS** (records exist only on the school's internal DNS). The actually usable address is `edu.icoremail.net` (the generic Coremail education-SaaS access point).
+- **Fix**: added `SUFFIX_PATTERNS` to `providers.ts` (`.edu.cn` / `.edu` → `edu.icoremail.net`) + `extractEduAbbr` (extracts the school abbreviation from the domain for displayName).
+- **Rule**: school-provided addresses aren't necessarily usable off-campus; educational-mailbox users need the `edu.icoremail.net` fallback.
+
+#### Context menu intermittently fails (unresolved, shelved)
+- **Symptom**: right-clicking the pet pops the native menu, which sometimes can't be clicked with the mouse (no highlight, no selection), but **keyboard arrow keys can select**. Fully random, no clear trigger.
+- **6 directions already ruled out (don't retry)**: (1) `setAlwaysOnTop` not awaited; (2) Win32 `SetForegroundWindow` foreground-lock hack; (3) startDragging vs menu.popup race in `handleMouseDown`; (4) alwaysOnTop polling thread 16ms race; (5) mouse-hover hide setIgnoreCursorEvents; (6) mouse pass-through toggle.
+- **Established facts**: the menu pops (visible) + keyboard works (has focus) + mouse doesn't (events intercepted/passing through) + unrelated to alwaysOnTop + unrelated to pass-through + no other windows interfering.
+- **Conclusion**: a low-level Tauri/WebView2 interaction problem on Windows; diagnosis at the fork level is exhausted. Wait for an upstream Tauri fix or more clues.
+
+## todo plugin component inventory (Phase 1 complete; all T1-T6 components)
+
+> Located in `src/plugins/todo/components/`, flat directories `<Name>/index.vue`. Import directly when reusing.
+
+| Component | Origin | Description |
 |------|------|------|
-| `PaperPanel` | T2 | 纸张容器 + 极淡灰颗粒纹理，面板主容器 |
-| `PawLogo` | T2 | SVG 4 圆 + 椭圆真爪印 |
-| `HandCheckbox` | T2 | 手绘不规则方形 + 粉色填充 + 手绘对勾 |
-| `InkDot` | T2（T6 加 clickable） | 三层 path 墨点，按 priority 变色；`clickable` 模式渲染 button 可点击切换 |
-| `HandClock` | T2 | Q 曲线外圈 + 弧度时分针 + 中心点 |
-| `WaveDivider` | T2 | 手绘波浪分隔线（`Q 25 1 50 3 T 98 3`） |
-| `TodoItem` | T2（T6 增强） | 单条 todo：checkbox + title + 可点击墨点切换优先级 + dueLabel 含时分。T6 改动：isOverdue/dueLabel 从整天比较改为精确到分钟（今天 10:15 到期、10:16 即显示红色「已逾期 10:15」）；删除按钮 ×叉号 → 手绘垃圾桶（复刻 MailItem） |
-| `TodoPanel` | T2（T6 增强） | 主面板：标题 + 新建区（标题+优先级+日期+确认取消）+ 列表 + footer |
-| `MiniInput` | T5（T6 复用共享组件） | 迷你快速新建窗（380px 宽），复用 HandDateInput/PriorityPicker |
-| `HandDateInput` | T6（共享） | 5 个手写数字框（年/月/日 + 时:分），focus 自动填充当前系统时间，迷你窗 + 主面板复用 |
-| `PriorityPicker` | T6 | 三档墨点横排选择器（low=蓝/medium=橙/high=红），v-model，选中加波浪下划线 |
+| `PaperPanel` | T2 | Paper container + very light gray grain texture; the panel's main container |
+| `PawLogo` | T2 | SVG 4 circles + ellipse, a true paw print |
+| `HandCheckbox` | T2 | Hand-drawn irregular square + pink fill + hand-drawn checkmark |
+| `InkDot` | T2 (clickable added in T6) | Three-layer path ink dot, recolored by priority; `clickable` mode renders a button for click-to-toggle |
+| `HandClock` | T2 | Q-curve outer ring + curved hour/minute hands + center dot |
+| `WaveDivider` | T2 | Hand-drawn wavy divider (`Q 25 1 50 3 T 98 3`) |
+| `TodoItem` | T2 (enhanced in T6) | Single todo: checkbox + title + clickable ink dot to toggle priority + dueLabel including hour:minute. T6 changes: isOverdue/dueLabel moved from whole-day comparison to minute precision (due today 10:15 shows red 'Overdue 10:15' at 10:16); delete button × mark → hand-drawn trash can (mirroring MailItem) |
+| `TodoPanel` | T2 (enhanced in T6) | Main panel: header + compose area (title + priority + date + confirm/cancel) + list + footer |
+| `MiniInput` | T5 (reuses shared components in T6) | Mini quick-add window (380px wide), reusing HandDateInput/PriorityPicker |
+| `HandDateInput` | T6 (shared) | 5 hand-written digit inputs (year/month/day + hour:minute); auto-fills current system time on focus; shared by the mini window and the main panel |
+| `PriorityPicker` | T6 | Three-level ink-dot row selector (low=blue/medium=orange/high=red), v-model, selected gets a wavy underline |
 
-工具函数（`src/plugins/todo/utils/`）：
-- `priority.ts`：`PRIORITIES` 数组 + `priorityIndex` + `nextPriority`（循环切换）
+Utility functions (`src/plugins/todo/utils/`):
+- `priority.ts`: `PRIORITIES` array + `priorityIndex` + `nextPriority` (cycle toggle)
 
-## mail 插件组件清单（Phase 2 T1-T3 完成，T4-T6 进行中）
+## mail plugin component inventory (Phase 2 T1-T3 complete; T4-T6 in progress)
 
-> 位于 `src/plugins/mail/`。Rust 后端在 `src-tauri/src/plugins/mail/`（独立 Tauri plugin crate）。
+> Located in `src/plugins/mail/`. The Rust backend lives in `src-tauri/src/plugins/mail/` (a standalone Tauri plugin crate).
 
-### Rust 后端（`src-tauri/src/plugins/mail/`）
-| 文件 | 说明 |
+### Rust backend (`src-tauri/src/plugins/mail/`)
+| File | Description |
 |------|------|
 | `src/lib.rs` | init() + rustls crypto provider install_default + ConnectionManager state |
 | `src/commands.rs` | `mail_test_connection` / `mail_connect` / `mail_disconnect` / `mail_store_password` / `mail_delete_password` |
-| `src/manager.rs` | ConnectionManager + idle_loop + idle_wait_loop + **poll_loop（T4：Coremail 降级轮询）** + build_imap_session（含 HTTP CONNECT 代理，**T4 修复代理覆盖 bug**）+ fetch_max_uid + fetch_new_envelopes + decode_mime_words + **has_connection / connection_count（T4 多账号查询）** |
-| `src/logic.rs` | `should_reset_idle` / `backoff_delay` / **`classify_idle_error`（T4：IDLE 不支持判定）** + `IdleSupport` 枚举 + **`POLL_INTERVAL`(5s)** + `#[cfg(test)]` 测试 |
+| `src/manager.rs` | ConnectionManager + idle_loop + idle_wait_loop + **poll_loop (T4: Coremail polling fallback)** + build_imap_session (with HTTP CONNECT proxy; **T4 fixed the proxy-override bug**) + fetch_max_uid + fetch_new_envelopes + decode_mime_words + **has_connection / connection_count (T4 multi-account queries)** |
+| `src/logic.rs` | `should_reset_idle` / `backoff_delay` / **`classify_idle_error` (T4: IDLE-unsupported detection)** + `IdleSupport` enum + **`POLL_INTERVAL`(5s)** + `#[cfg(test)]` tests |
 
-### 前端（`src/plugins/mail/`）
-| 文件 | 说明 |
+### Frontend (`src/plugins/mail/`)
+| File | Description |
 |------|------|
-| `commands.ts` | Rust 命令的 TS 封装 |
-| `index.ts` | setupMailPlugin（listen events，**T3：气泡受设置开关控制 bubbleEnabled/unreadOnly**）+ testAndSaveAccount + removeAccount（**T3：级联清 mailNotification**）+ toggleAccountEnabled（**T3 新增**：开关账号建/断连接） |
-| `stores/mailAccount.ts` | 账号配置 store（数组，长度限制 1，T4 放开）+ setEnabled（**T3 新增**，开关切换）+ vitest 测试 |
-| `stores/mailSettings.ts` | 代理设置 + **T3 通知三开关**（bubbleEnabled 默认 true / bubbleAutoDismiss 默认 false / unreadOnly 默认 false） |
-| `utils/providers.ts` | `matchProvider()` provider 识别（含 displayName + webmailUrl + logo 路径）+ `matchProviderLogo()` + `DEFAULT_MAIL_LOGO` + vitest 测试。**T3**：拆 foxmail 独立预设 + 新增 proton / yahoo。**T4**：`SUFFIX_PATTERNS`（`.edu.cn`/`.edu`→`edu.icoremail.net`）+ `extractEduAbbr`（教育邮箱后缀模式匹配） |
-| `utils/errors.ts` | `formatConnectionError(rawErr, t)` 纯函数（**T4 新增**）：Rust 技术错误分类为友好提示（TLS/auth/timeout/unsafe login/domain not local/network），只翻译不写长文 + vitest 测试 |
-| `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` 按内容高度动态生成气泡 SVG path d（T2 新增） |
-| `components/Bubble/index.vue` | **手绘风气泡**（T2 完成，T6 增强）：圆胖 SVG 形状 + 荆南波波黑字体 + 粉墨配色 + 常驻手动关闭 + max 3 折入列表。payload 升级为判别联合 `BubblePayload`（mail/todo），type='todo' 渲染红墨手绘时钟 + 红墨波浪 +「已到期」副标题，点击打开 todo 面板 |
-| `components/MailPanel/index.vue` | 邮件面板纸张容器（T5 新增，复刻 PaperPanel，viewBox 400×560） |
-| `components/MailItem/index.vue` | 邮件项（T5 新增，T5a 增强）：三态 unread 红墨点 / read 信封+淡化 / archived 半透明+标签 + 归档按钮(手绘箱) + 删除按钮(手绘垃圾桶) + inline 二次确认(700ms 死区+3.3s 确认窗口) + meta 两列网格 + 绝对日期 |
-| `stores/mailNotification.ts` | 本地通知历史 store（T5 新增）：unread→read→archived 状态机 + removeByAccount（**T3 新增**，删除账号级联清理）+ vitest 测试 |
-| `utils/retention.ts` | 留存规则纯函数（T5 新增）：24h 归档 / 5min 归档 / 30 天清理 + vitest 测试 |
-| `utils/timeFormat.ts` | 相对时间格式化（T5）：「2 分钟前」/「昨天」+ `absoluteDate(ts)` 绝对日期 `年.月.日`（T5a 新增） |
+| `commands.ts` | TS wrappers for the Rust commands |
+| `index.ts` | setupMailPlugin (listen events; **T3: bubbles gated by the settings toggles bubbleEnabled/unreadOnly**) + testAndSaveAccount + removeAccount (**T3: cascades a mailNotification cleanup**) + toggleAccountEnabled (**added in T3**: toggling an account connects/disconnects) |
+| `stores/mailAccount.ts` | Account config store (array, length capped at 1, lifted in T4) + setEnabled (**added in T3**, enable toggle) + vitest tests |
+| `stores/mailSettings.ts` | Proxy settings + **the T3 three notification toggles** (bubbleEnabled default true / bubbleAutoDismiss default false / unreadOnly default false) |
+| `utils/providers.ts` | `matchProvider()` provider detection (with displayName + webmailUrl + logo path) + `matchProviderLogo()` + `DEFAULT_MAIL_LOGO` + vitest tests. **T3**: split foxmail into its own preset + added proton / yahoo. **T4**: `SUFFIX_PATTERNS` (`.edu.cn`/`.edu`→`edu.icoremail.net`) + `extractEduAbbr` (educational-mailbox suffix pattern matching) |
+| `utils/errors.ts` | `formatConnectionError(rawErr, t)` pure function (**added in T4**): classifies Rust technical errors into friendly hints (TLS/auth/timeout/unsafe login/domain not local/network), translation only, no long copy + vitest tests |
+| `utils/bubbleShape.ts` | `genBubbleShape(textHeight)` generates the bubble SVG path d dynamically from content height (added in T2) |
+| `components/Bubble/index.vue` | **Hand-drawn bubble** (T2 done, T6 enhanced): chubby SVG shape + Jingnan Bobo Hei font + pink-ink palette + persistent until manually closed + overflow beyond 3 folds into the list. Payload upgraded to the discriminated union `BubblePayload` (mail/todo); type='todo' renders a red-ink hand-drawn clock + red-ink waves + an 'Overdue' subtitle, and clicking opens the todo panel |
+| `components/MailPanel/index.vue` | Mail panel paper container (added in T5, a PaperPanel replica, viewBox 400×560) |
+| `components/MailItem/index.vue` | Mail item (added in T5, enhanced in T5a): three states — unread red ink dot / read envelope + faded / archived translucent + tag — plus archive button (hand-drawn box) + delete button (hand-drawn trash can) + inline double-confirmation (700ms dead zone + 3.3s confirm window) + two-column meta grid + absolute date |
+| `stores/mailNotification.ts` | Local notification history store (added in T5): unread→read→archived state machine + removeByAccount (**added in T3**, cascading cleanup on account deletion) + vitest tests |
+| `utils/retention.ts` | Retention rule pure functions (added in T5): 24h archive / 5min archive / 30-day cleanup + vitest tests |
+| `utils/timeFormat.ts` | Relative time formatting (T5): '2 minutes ago' / 'yesterday' + `absoluteDate(ts)` absolute date `year.month.day` (added in T5a) |
 
-> **字体变更（T2，用户口头要求）**：手写字体从 851 换成**荆南波波黑**。font-family 名仍叫 `'Handwriting851'`（历史命名，只换了 `@font-face` src）。气泡 `bubble.css` 和 todo `handdrawn.css` 各自定义 `@font-face`，改字体要改两处。
+> **Font change (T2, user's verbal request)**: the handwriting font switched from 851 to **Jingnan Bobo Hei**. The font-family name is still `'Handwriting851'` (historical naming; only the `@font-face` src changed). `bubble.css` (bubble) and `handdrawn.css` (todo) each define their own `@font-face`, so a font change means editing both.
 >
-> **新需求备忘（不在现有 ticket 里）**：用户计划设置页加「字体切换」功能，内置多种字体。Phase 2 范围外，暂不建 ticket。
+> **Requirement memo (not in existing tickets)**: the user plans a 'font switcher' in the settings page with several bundled fonts. Out of Phase 2 scope; no ticket yet.
 
-### 接入点
-- `src/constants/index.ts`：`WINDOW_LABEL.BUBBLE` / `MAIL_LIST` / `MAIL_ARCHIVE` + `LISTEN_KEY.SHOW_BUBBLE` / `SHOW_MAIL_LIST` / `SHOW_MAIL_ARCHIVE`
-- `src/router/index.ts`：`/bubble` / `/mail-list` / `/mail-archive` 路由
-- `src/pages/bubble/index.vue`：气泡窗口（独立伴随窗口，定位照抄 todo 面板 clamp+翻边）
-- `src/pages/mail-list/index.vue`：邮件列表窗口（T5 新增）
-- `src/pages/mail-archive/index.vue`：归档邮件窗口（T5 新增）
-- `src/pages/preference/components/mail/index.vue`：邮件设置页（**T3 重写**：账号列表 logo+地址+状态点+IMAP+启用开关+删除 / 添加表单 input-with-icon logo 联动 + 提示区自制 SVG 感叹号三角 + 通知设置三开关，遵循 ProList+ProListItem+Switch）+ 代理）
-- `public/mail-logos/`：11 个邮箱 logo（**T3 新增** 10 个 + **T4 新增** `logo-edu.svg` 毕业帽，全 RGBA 透明，域名→logo 映射见 `utils/providers.ts` 的 `logo` 字段）
-- `src-tauri/tauri.conf.json`：bubble / mail-list / mail-archive 窗口 + preference minHeight 720
-- `src-tauri/capabilities/default.json`：`mail:allow-*` 权限（新建 Tauri plugin 必须加 capability）
-- 5 个 locale 文件：`plugins.mail.labels.*` + `providers.*`
+### Integration points
+- `src/constants/index.ts`: `WINDOW_LABEL.BUBBLE` / `MAIL_LIST` / `MAIL_ARCHIVE` + `LISTEN_KEY.SHOW_BUBBLE` / `SHOW_MAIL_LIST` / `SHOW_MAIL_ARCHIVE`
+- `src/router/index.ts`: `/bubble` / `/mail-list` / `/mail-archive` routes
+- `src/pages/bubble/index.vue`: bubble window (standalone companion window; positioning copies the todo panel's clamp + edge flip)
+- `src/pages/mail-list/index.vue`: mail list window (added in T5)
+- `src/pages/mail-archive/index.vue`: archived mail window (added in T5)
+- `src/pages/preference/components/mail/index.vue`: mail settings page (**rewritten in T3**: account list with logo + address + status dot + IMAP + enable toggle + delete / add-account form with input-with-icon logo linkage + hint area with a hand-made SVG exclamation triangle + the three notification toggles, following ProList+ProListItem+Switch) + proxy
+- `public/mail-logos/`: 11 mailbox logos (**10 added in T3** + **`logo-edu.svg` graduation cap added in T4**, all RGBA-transparent; domain→logo mapping in the `logo` field of `utils/providers.ts`)
+- `src-tauri/tauri.conf.json`: bubble / mail-list / mail-archive windows + preference minHeight 720
+- `src-tauri/capabilities/default.json`: `mail:allow-*` permissions (capabilities are mandatory for new Tauri plugins)
+- 5 locale files: `plugins.mail.labels.*` + `providers.*`
 
-> **气泡窗口方案（T1 回填）**：用独立伴随窗口 `WINDOW_LABEL.BUBBLE`（非 main 内渲染）。main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域与 main 交互冲突。详见 ADR 0002 D7.1。
+> **Bubble window approach (backfilled at T1)**: a standalone companion window `WINDOW_LABEL.BUBBLE` (not rendered inside main). main is transparent pass-through and sized tightly to the sprite; the bubble's clickable area would conflict with main's interactions. See ADR 0002 D7.1.
 
-## 设计探索决策（已定稿）
+## Design exploration decisions (finalized)
 
-### todo 伴随面板视觉方向 — 已定稿 ✅
+### todo companion panel visual direction — finalized ✅
 
-经过 v0/v1/v2/v3 四轮迭代，视觉方向**已定稿**。设计稿存于 `docs/designs/todo-panel-exploration/`，定稿版本为 `v3-white-pink-851.html`。
+After four iterations (v0/v1/v2/v3), the visual direction **is finalized**. Mockups live in `docs/designs/todo-panel-exploration/`; the final version is `v3-white-pink-851.html`.
 
-**定稿视觉规范**：
-- **整体风格**：整体手绘插画风。所有「形状」走 SVG（边框/checkbox/分隔线/墨点/时钟/爪印），HTML 只做布局和文字。**严禁用 CSS border 表现线条**。
-- **纸张**：纯白（`#ffffff`）+ 极淡灰色颗粒纹理。
-- **字体**：851 手写杂字体（`851手写杂字体.ttf`，已复制到 `docs/designs/todo-panel-exploration/851.ttf`）。全局应用，标题/正文/标签都用。
-- **配色（粉墨水系）**：主墨色 `#4a3a2e`（棕墨），强调色 `#f4a8a0`（桌宠脸颊粉），优先级红 `#d4654a` / 橙 `#f5c26b` / 蓝 `#9bc4e0`。
-- **优先级标记**：墨点（不是正圆）。SVG 三层 path：外圈不规则淡色光晕 + 内部涂黑核心 + 笔触高光，模拟「毛笔画小圈涂黑」。
-- **checkbox**：手绘不规则方形（四角弧度各不相同，模拟手画），已勾选用粉色填充 + 手绘对勾（带弧度曲线）。
-- **时钟**：手绘风。外圈不规则圆（Q 曲线，非 `<circle>`），时针分针带弧度，加中心实心点。
-- **分隔线**：手绘波浪（`Q 25 1 50 3 T 98 3`），不是直线。
-- **爪印 logo**：SVG 画的 4 圆 + 椭圆（真爪印形状），不用 emoji。
-- **文字粗细**：todo title `font-weight: 700 / 17px`（851 在小字号下显细，必须加粗）。**全局基线 `font-weight: 600`**，标题 700。**主次用颜色弱化**（`--ink-soft`/`--ink-faint`），**不要用细字重区分主次**——851 默认 normal 太细特别丑。
+**Finalized visual spec**:
+- **Overall style**: fully hand-drawn illustration. All 'shapes' are SVG (borders/checkboxes/dividers/ink dots/clock/paw); HTML only does layout and text. **Never use CSS borders for strokes**.
+- **Paper**: pure white (`#ffffff`) + a very light gray grain texture.
+- **Font**: the 851 handwriting font (`851手写杂字体.ttf`, copied to `docs/designs/todo-panel-exploration/851.ttf`). Applied globally to titles/body/labels.
+- **Palette (pink ink family)**: main ink `#4a3a2e` (brown ink), accent `#f4a8a0` (the pet's cheek pink), priority red `#d4654a` / orange `#f5c26b` / blue `#9bc4e0`.
+- **Priority marker**: an ink dot (not a perfect circle). SVG three-layer path: irregular pale outer halo + solid black core + brush-stroke highlight, simulating 'a brush drawing a small filled circle'.
+- **Checkbox**: hand-drawn irregular square (each corner's radius differs, like hand drawing); checked state uses a pink fill + hand-drawn checkmark (a curved stroke).
+- **Clock**: hand-drawn style. Irregular outer circle (Q curves, not `<circle>`), curved hour/minute hands, plus a solid center dot.
+- **Dividers**: hand-drawn waves (`Q 25 1 50 3 T 98 3`), not straight lines.
+- **Paw logo**: 4 circles + ellipse drawn in SVG (a true paw shape), no emoji.
+- **Font weight**: todo title `font-weight: 700 / 17px` (851 looks thin at small sizes; bold is required). **Global baseline `font-weight: 600`**, headings 700. **De-emphasize hierarchy with color** (`--ink-soft`/`--ink-faint`), **not with thin weights** — 851's default normal is too thin and looks awful.
 
-### 工程实现路径
+### Engineering implementation path
 
-- todo 组件**局部自定义样式**，所有视觉元素用 SVG/手写字体。
-- **不动 antd 全局 token**（避免污染 preference 页面）。
-- antd 组件**只用于功能性交互逻辑**（如果用到的话），视觉皮肤必须自定义覆盖。
+- todo components use **locally scoped custom styles**; all visual elements use SVG/the handwriting font.
+- **Don't touch antd global tokens** (avoid polluting the preference page).
+- antd components are **only for functional interaction logic** (if used at all); visual skins must be custom overrides.
 
-### 设计稿文件清单
+### Mockup file inventory
 
-定稿文件存放于 `docs/designs/todo-panel-exploration/`：
+Final files live in `docs/designs/todo-panel-exploration/`:
 
-| 文件 | 说明 |
+| File | Description |
 |------|------|
-| `panel.html` | **伴随面板主体**：纯白纸 + 851 手写 + 墨点优先级 + 手绘时钟/checkbox/分隔线/爪印 |
-| `mini-input.html` | **迷你输入窗**（快速新建）：跟随光标，三状态（空/输入中/保存成功） |
-| `tuck-pop-animation.html` | ~~缩回-蹦出动效~~ **已废弃**（tuck-and-pop 方案被用户否决，改为简单渐隐渐显，见 ADR D3）。保留作历史参考。 |
-| `851.ttf` | 851 手写杂字体（设计稿用，implement 时按 vite 字体打包流程处理） |
+| `panel.html` | **Companion panel body**: pure white paper + 851 handwriting + ink-dot priorities + hand-drawn clock/checkbox/dividers/paw |
+| `mini-input.html` | **Mini input window** (quick add): follows the cursor, three states (empty/typing/saved) |
+| `tuck-pop-animation.html` | ~~Tuck-and-pop animation~~ **Deprecated** (the tuck-and-pop proposal was rejected by the user in favor of simple fade in/out; see ADR D3). Kept as a historical reference. |
+| `851.ttf` | The 851 handwriting font (for mockups; handle via vite's font pipeline when implementing) |
 
-迭代过程中的废弃版本（v0 antd 版 / v1 CSS border 版 / v2 米白纸版）已删除。
+Deprecated iterations (v0 antd version / v1 CSS border version / v2 off-white paper version) have been deleted.
 
-**窗口动效** — ❌ tuck-and-pop 已否决，✅ 简单渐隐渐显（实际实现）
-- **tuck-and-pop（已废弃）**：原方案过复杂、调试代价高（3 个回归：右键猫面板消失 / 面板定位到屏外 / 透明窗口冒原生滚动条），用户明确否决（"不想要这个动效了，只需要最普通最简单的渐隐渐显"）。设计稿 `tuck-pop-animation.html` 保留作历史参考，**不要重新提议恢复**。
-- **渐隐渐显（实际实现，T3）**：opacity 过渡 200ms ease。打开渐显、关闭渐隐（关闭先跑 200ms 渐隐再 hideWindow）。两个窗口（待办面板 + 快速新建）共用同一套 fade 状态。
-- **面板定位**：以猫为锚点（待办面板 = 猫正上方居中；快速新建 = 猫上方偏右），边缘 clamp + 翻边，不超出屏幕。
+**Window animation** — ❌ tuck-and-pop rejected, ✅ simple fade in/out (actual implementation)
+- **Tuck-and-pop (deprecated)**: the original proposal was overcomplicated with a high debugging cost (3 regressions: panel vanishing on right-click of the cat / panel positioned off-screen / native scrollbars appearing in the transparent window); the user rejected it explicitly ('I don't want this animation anymore, just the plainest, simplest fade in/out'). The mockup `tuck-pop-animation.html` is kept as a historical reference; **do not propose restoring it**.
+- **Fade in/out (actual implementation, T3)**: opacity transition 200ms ease. Fade in on open, fade out on close (close runs the 200ms fade before hideWindow). The two windows (todo panel + quick add) share the same fade state.
+- **Panel positioning**: anchored to the cat (todo panel = centered above the cat; quick add = above-right of the cat), with edge clamp + edge flip so it never leaves the screen.
 
-### Phase 2 设计稿 — 已定稿 ✅
+### Phase 2 mockups — finalized ✅
 
-设计稿存于 `docs/designs/phase2-exploration/`，三份 HTML 均已定稿，作为 `/to-spec` 的 UI 输入：
+Mockups live in `docs/designs/phase2-exploration/`; all three HTML files are finalized as UI input for `/to-spec`:
 
-| 文件 | 说明 |
+| File | Description |
 |------|------|
-| `bubble.html` | **桌宠气泡**：圆胖手绘气泡，贴桌宠正上方，**常驻 + 手动关闭**（非自动消失），最多 3 条 + 溢出折成「还有 N 条，查看邮件列表」，纯渐入渐出，360px 宽，font-weight 600 基线 |
-| `mail-list.html` | **邮件列表 + 归档邮件**：两个伴随面板，手绘风 + 右上角关闭按钮。邮件列表（未读/已读）+ 归档邮件（样式更淡），font-weight 600 基线 |
-| `mail-settings.html` | **邮件设置页**（preference 侧边栏）：720px 高（侧边栏不滚动），账号列表（provider logo 自动识别）+ 添加账号表单（域名→logo/IMAP 联动）+ 通知设置。遵循 antdv-next preference 规则 |
-| `851.ttf` | 851 手写杂字体（复用 todo 设计稿的同款） |
+| `bubble.html` | **Desktop pet bubble**: chubby hand-drawn bubble pinned right above the pet, **persistent + manually closed** (no auto-dismiss), at most 3 + overflow folded into 'N more, view the mail list', pure fade in/out, 360px wide, font-weight 600 baseline |
+| `mail-list.html` | **Mail list + archived mail**: two companion panels, hand-drawn style + top-right close buttons. Mail list (unread/read) + archived mail (faded style), font-weight 600 baseline |
+| `mail-settings.html` | **Mail settings page** (preference sidebar): 720px tall (sidebar doesn't scroll), account list (auto-detected provider logos) + add-account form (domain→logo/IMAP linkage) + notification settings. Follows the antdv-next preference rules |
+| `851.ttf` | The 851 handwriting font (same as the todo mockups) |
 
-**邮箱 logo 清单**（全部 **RGBA 透明背景**，适配暗色模式；provider 自动识别按邮箱域名映射）：
+**Mailbox logo inventory** (all **RGBA transparent backgrounds**, dark-mode friendly; provider auto-detection maps by mailbox domain):
 
-| 文件 | 适用域名 | 来源 |
+| File | Applicable domains | Source |
 |------|---------|------|
-| `logo-gmail.svg` | gmail.com / googlemail.com | Iconify logos 集（Google 原色 M） |
-| `logo-qq.png` | qq.com | QQ 邮箱官网真实企鹅 |
-| `logo-foxmail-icon.png` | foxmail.com | foxmail.com 官网 logo 裁剪，**只留红色 G 图标**（去掉右侧文字） |
-| `logo-163-icon.png` | 163.com / yeah.net | mail.163.com 登录页 `.header-163logo` 裁剪出左侧图标 |
-| `logo-126-icon.png` | 126.com | mail.126.com 登录页 `.header-126logo` 裁剪出左侧图标 |
-| `logo-outlook.svg` | outlook.com / hotmail.com / live.com | simple-icons + 品牌蓝 |
-| `logo-icloud.svg` | icloud.com / me.com / mac.com | simple-icons + 品牌蓝 |
-| `logo-proton.png` | proton.me / protonmail.com | proton.me favicon（白底转透明） |
-| `logo-yahoo.svg` | yahoo.com | simple-icons + 品牌紫 |
-| `logo-mail-default.svg` | 未识别域名 | 中性灰信封图标 |
+| `logo-gmail.svg` | gmail.com / googlemail.com | Iconify logos set (Google's original-color M) |
+| `logo-qq.png` | qq.com | The real penguin from QQ Mail's official site |
+| `logo-foxmail-icon.png` | foxmail.com | Cropped from foxmail.com's official logo, **keeping only the red G icon** (dropping the text on the right) |
+| `logo-163-icon.png` | 163.com / yeah.net | Left icon cropped from `.header-163logo` on mail.163.com's login page |
+| `logo-126-icon.png` | 126.com | Left icon cropped from `.header-126logo` on mail.126.com's login page |
+| `logo-outlook.svg` | outlook.com / hotmail.com / live.com | simple-icons + brand blue |
+| `logo-icloud.svg` | icloud.com / me.com / mac.com | simple-icons + brand blue |
+| `logo-proton.png` | proton.me / protonmail.com | proton.me favicon (white background made transparent) |
+| `logo-yahoo.svg` | yahoo.com | simple-icons + brand purple |
+| `logo-mail-default.svg` | Unrecognized domains | Neutral gray envelope icon |
 
-> ⚠️ **logo 处理踩坑**：所有 PNG 必须 RGBA 透明（暗色模式下白底会很难看）。裁剪横长 logo（如 foxmail/163/126 官网 logo 都是「图标+文字」banner）时只取左侧图标部分。**不要手写 node PNG 编解码器**处理像素——filter 逻辑极易出错导致马赛克，改用浏览器 canvas `toDataURL`。
+> ⚠️ **Logo processing pitfalls**: every PNG must be RGBA-transparent (white backgrounds look terrible in dark mode). When cropping wide logos (foxmail/163/126 official logos are all 'icon + text' banners), keep only the left icon. **Do not hand-write a node PNG codec** for pixel work — filter logic is error-prone and produces mosaics; use the browser canvas `toDataURL` instead.

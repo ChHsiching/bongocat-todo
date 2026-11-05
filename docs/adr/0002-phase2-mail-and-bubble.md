@@ -1,61 +1,61 @@
-# ADR 0002: Phase 2 邮件提醒器与桌宠气泡通知
+# ADR 0002: Phase 2 Mail Notifier and Desktop Pet Bubble Notifications
 
 - **Status**: Accepted
 - **Date**: 2026-07-30
 - **Decision driver**: @ChHsiching
-- **Supersedes**: —（修正 ADR 0001 / CONTEXT.md 中 Phase 2 的旧定义「轮盘菜单 UI + Android 局域网同步」，轮盘已 D7 rejected，Android 同步推迟独立仓库）
+- **Supersedes**: — (corrects the old Phase 2 definition in ADR 0001 / CONTEXT.md — "radial menu UI + Android LAN sync"; the radial menu was rejected in D7, Android sync postponed to a separate repo)
 
 ## Context
 
-Phase 1（v1.2.0）已发版。Phase 2 原候选方向（轮盘菜单 / Android 同步）经 grilling 后调整为：
+Phase 1 (v1.2.0) has shipped. After grilling, the original Phase 2 candidates (radial menu / Android sync) were adjusted to:
 
-- **轮盘菜单** — 已取消（ADR 0001 D7 rejected）。
-- **Android 同步** — 推迟到独立仓库。桌宠本体是桌面概念（透明置顶窗口/穿透/托盘），Android 客户端只能是一个独立的 todo app，是从零开始的新工程，不该塞进本 Phase。
-- **面板拖拽 + 位置记忆** — Phase 1 末已完成。
+- **Radial menu** — cancelled (ADR 0001 D7 rejected).
+- **Android sync** — postponed to a separate repository. The pet itself is a desktop concept (transparent always-on-top window / pass-through / tray); an Android client could only be a standalone todo app, a from-scratch project that doesn't belong in this phase.
+- **Panel dragging + position memory** — completed at the end of Phase 1.
 
-确定下来的 Phase 2 真实范围是**邮件提醒器 + 桌宠气泡通知 + todo 提醒双发**。本 ADR 记录该范围的所有架构决策、tradeoff 与技术方案。
+The settled Phase 2 scope is **mail notifier + desktop pet bubble notifications + dual delivery of todo reminders**. This ADR records all architecture decisions, tradeoffs, and the technical design for that scope.
 
 ## Decision
 
-### D1. 邮件协议走通用 IMAP IDLE 长连接
+### D1. Mail protocol uses generic IMAP IDLE long connections
 
-**决策**：Rust 后端用 `async-imap` crate（`runtime-tokio` feature）+ tokio 异步运行时，对每个账号的 INBOX 建立 IMAP IDLE 长连接，新邮件到达时服务端推送（`IdleResponse::NewData`）。
+**Decision**: the Rust backend uses the `async-imap` crate (`runtime-tokio` feature) + the tokio async runtime, establishing an IMAP IDLE long connection per account INBOX; the server pushes on new mail arrival (`IdleResponse::NewData`).
 
-**理由**：
-- 通用性覆盖 Gmail / QQ / 163 / Outlook 等所有支持 IMAP 的邮箱，符合「绑定邮箱」泛指需求。
-- IDLE 兼顾实时与省资源（服务端推送，无需轮询）。
-- 配合各家「专用密码/授权码」，绕开 Gmail OAuth 应用注册与审核（单人 fork 搞不动 consent screen）。
+**Rationale**:
+- Generic coverage of every IMAP-capable mailbox — Gmail / QQ / 163 / Outlook etc. — matching the generic "bind a mailbox" requirement.
+- IDLE balances latency and resource use (server push, no polling).
+- Combined with each provider's "app-specific password/authorization code", it bypasses Gmail OAuth app registration and review (a solo fork can't get through the consent screen).
 
-**被否决的方案**：
-- **Gmail API push（只做 Gmail）**：实时性最好但只支持一家；需注册 Google Cloud OAuth 应用 + 审核，单人 fork 维护负担重；扩展到第二家要重做。
-- **通用 IMAP + 轮询**：工程量小但延迟最高（最多 60s）、最耗资源，违背选 IDLE 的初衷。
+**Rejected alternatives**:
+- **Gmail API push (Gmail only)**: best latency but single-provider; requires registering a Google Cloud OAuth app + review, a heavy maintenance burden for a solo fork; extending to a second provider means a redo.
+- **Generic IMAP + polling**: less work but the highest latency (up to 60s) and most resource-hungry, defeating the point of choosing IDLE.
 
-**验证（2026-07-30，docs.rs 权威）**：`async-imap` 的 `extensions::idle` 模块提供 `Handle` / `IdleStream` / `IdleResponse`（`NewData` | `Timeout` | `ManualInterrupt`），API 完全匹配本场景；支持 `runtime-tokio` feature 与 Tauri 2 的 tokio 运行时兼容。
+**Verification (2026-07-30, docs.rs authoritative)**: `async-imap`'s `extensions::idle` module provides `Handle` / `IdleStream` / `IdleResponse` (`NewData` | `Timeout` | `ManualInterrupt`); the API matches this scenario exactly, and the `runtime-tokio` feature is compatible with Tauri 2's tokio runtime.
 
-**新依赖（侵入账单）**：
-- `async-imap`（IMAP 协议，features: `runtime-tokio`）
-- `tokio-rustls` + `rustls` + `webpki-roots`（TLS 加密）—— async-imap 自身不处理 TLS，需先建立加密连接再传给 `Client::new()`。
+**New dependencies (intrusion bill)**:
+- `async-imap` (IMAP protocol, features: `runtime-tokio`)
+- `tokio-rustls` + `rustls` + `webpki-roots` (TLS encryption) — async-imap doesn't handle TLS itself; establish the encrypted connection first, then hand it to `Client::new()`.
 
-> ⚠️ **T1 实现纠正（2026-07-31）**：原计划用 `tokio-native-tls`，**实际改用 `tokio-rustls`**。原因：native-tls 在 Windows 上走 SChannel，默认做证书吊销检查（OCSP/CRL），用户网络下吊销服务器不可达 → `CRYPT_E_REVOCATION_OFFLINE` → TLS 握手失败。**rustls 不检查吊销**，规避此问题。用 `webpki-roots`（内置 Mozilla 根 CA）而非系统证书库。
+> ⚠️ **T1 implementation correction (2026-07-31)**: the plan was `tokio-native-tls`; **the implementation switched to `tokio-rustls`**. Reason: native-tls uses SChannel on Windows, which performs certificate revocation checks (OCSP/CRL) by default; on the user's network the revocation servers are unreachable → `CRYPT_E_REVOCATION_OFFLINE` → TLS handshake failure. **rustls doesn't check revocation**, avoiding the problem. `webpki-roots` (bundled Mozilla root CAs) is used instead of the system store.
 >
-> Cargo.toml 依赖（`src-tauri/src/plugins/mail/Cargo.toml`）：
+> Cargo.toml dependencies (`src-tauri/src/plugins/mail/Cargo.toml`):
 > ```toml
 > tokio-rustls = "0.26"
 > rustls = { version = "0.23", default-features = false, features = ["ring"] }
 > webpki-roots = "0.26"
 > ```
 >
-> ⚠️ **rustls 0.23 crypto provider 必须显式安装**：首次调 `ClientConfig::builder()` 时需要进程级 crypto provider。不安装会**永久卡死**（不 panic、不超时、`tokio::time::timeout` 都救不了——卡在 provider 初始化的内部锁上）。修复：插件 init 的 setup 里 `rustls::crypto::ring::default_provider().install_default()`。幂等，重复调用返回 Err 忽略。
+> ⚠️ **The rustls 0.23 crypto provider must be installed explicitly**: the first `ClientConfig::builder()` call needs a process-wide crypto provider. Without it the process **deadlocks permanently** (no panic, no timeout; even `tokio::time::timeout` can't save it — stuck on an internal lock in provider initialization). Fix: `rustls::crypto::ring::default_provider().install_default()` in the plugin init setup. Idempotent; ignore the Err from repeated calls.
 
-### D2. 凭证走 OS keyring，pinia store 不持密码
+### D2. Credentials go to the OS keyring; the pinia store holds no passwords
 
-**决策**：邮箱密码/授权码用 Rust `keyring` crate 存入 OS 密钥库（Windows Credential Manager / macOS Keychain / Linux Secret Service）。pinia store 里只存**非敏感**的 IMAP 配置（host/port/用户名），**绝不存密码**。
+**Decision**: mailbox passwords/authorization codes are stored via the Rust `keyring` crate into the OS keystore (Windows Credential Manager / macOS Keychain / Linux Secret Service). The pinia store keeps only **non-sensitive** IMAP config (host/port/username) and **never passwords**.
 
-**理由**：
-- 现有持久化（`@tauri-store/pinia` 的 `saveOnChange`）落地为**明文 JSON**（`%APPDATA%/com.chhsiching.bongocat-todo/tauri-plugin-pinia/`）。todo 数据明文无碍，但邮箱密码明文落地是安全红线。
-- 「密码不进 store」是贯穿整个邮件模块的约束：连接建立时从 keyring 异步取密码，不常驻内存。
+**Rationale**:
+- The existing persistence (`@tauri-store/pinia`'s `saveOnChange`) lands as **plaintext JSON** (`%APPDATA%/com.chhsiching.bongocat-todo/tauri-plugin-pinia/`). Plaintext todo data is harmless; plaintext mailbox passwords are a security red line.
+- "Passwords never enter the store" is a constraint throughout the mail module: passwords are fetched asynchronously from the keyring when connections are established, not held in memory.
 
-**keyring 用法（验证后）**：
+**keyring usage (verified)**:
 ```toml
 [dependencies]
 keyring = { version = "4", features = ["v1"] }
@@ -65,179 +65,179 @@ use keyring::v1::Entry;
 let entry = Entry::new("bongocat-todo/mail/<accountId>", username)?;
 entry.set_password(password)?;
 entry.get_password()?;
-entry.delete_credential()?;  // ⚠️ 不是 delete_password
+entry.delete_credential()?;  // ⚠️ not delete_password
 ```
-> ⚠️ **grill 时曾误说 v3，验证后纠正为 v4 + `v1` feature flag**（API 路径是 `keyring::v1::Entry`，非顶层 `keyring::Entry`）。spec/implement 必须按 v4 写。
+> ⚠️ **During grilling I misstated v3; verified as v4 + the `v1` feature flag** (the API path is `keyring::v1::Entry`, not top-level `keyring::Entry`). spec/implement must target v4.
 >
-> ⚠️ **T1 实现纠正（2026-07-31）**：删除凭证的 API 是 `delete_credential()`，**不是** `delete_password()`。写错会编译失败。
+> ⚠️ **T1 implementation correction (2026-07-31)**: the credential-deletion API is `delete_credential()`, **not** `delete_password()`. The wrong one fails to compile.
 
-**被否决的方案**：
-- **手滚 AES + 主密码**：单人项目自搞加密几乎必然出错，且要用户记主密码。
-- **tauri-plugin-stronghold**：官方强加密库，但对「存几个邮箱密码」过重（加密 vault 文件 + 启动解锁）。
+**Rejected alternatives**:
+- **Hand-rolled AES + master password**: a solo project rolling its own crypto is almost guaranteed to get it wrong, and users would have to remember a master password.
+- **tauri-plugin-stronghold**: the official strong-crypto library, but overkill for "storing a few mailbox passwords" (encrypted vault file + unlock at startup).
 
-### D3. IDLE 连接生命周期绑 app 进程（非窗口）
+### D3. IDLE connection lifecycle binds to the app process (not windows)
 
-**决策**：IMAP IDLE 长连接在 Rust 后端以 tokio task 运行，生命周期 = app 进程生命周期。不绑定任何具体窗口——桌宠（main）是 app 主窗口、常驻，app 进程在跑就有连接；设置窗/面板的开关不影响。
+**Decision**: IMAP IDLE long connections run as tokio tasks in the Rust backend; their lifecycle = the app process lifecycle. They bind to no specific window — the pet (main) is the app's primary, always-present window, so connections exist as long as the process runs; toggles in the settings window/panels don't affect them.
 
-**理由**：
-- Tauri 2 是「Vue 前端 + Rust 后端」同进程。Rust task 是 app 进程的一部分，窗口只是事件投递目标，不是 task 存活条件。
-- 桌宠常驻 ⇒ app 进程常驻 ⇒ 连接常驻。用户无需开任何子窗口即有邮件推送。
+**Rationale**:
+- Tauri 2 is a "Vue frontend + Rust backend" single process. Rust tasks are part of the app process; windows are just event-delivery targets, not conditions for task survival.
+- The pet is always present ⇒ the app process is always present ⇒ connections are always present. Users get mail push without opening any sub-window.
 
-**保活**：~~IDLE 每 29 分钟自动重置（RFC 2177 建议 30 分钟内，防服务端超时）~~；网络断开后指数退避重连。多账号后是 N 条独立连接，一条断了不影响其他。
+**Keep-alive**: ~~IDLE auto-resets every 29 minutes (RFC 2177 recommends within 30 minutes to avoid server timeouts)~~; exponential-backoff reconnect after network loss. With multi-account there will be N independent connections; one dropping doesn't affect the others.
 
-> ⚠️ **T1 实现纠正（2026-07-31）**：原计划的「29 分钟 `wait()` 超时」在实际中不可行——async-imap 的 `Handle::wait()` 默认超时在 Tauri 的 tokio runtime 下**永远不返回 Timeout**（29 分钟的 timer future 永久 Pending，`NewData` 路径正常但 `Timeout` 路径完全失效）。
+> ⚠️ **T1 implementation correction (2026-07-31)**: the planned "29-minute `wait()` timeout" turned out to be unworkable — under Tauri's tokio runtime, `Handle::wait()`'s default timeout **never returns Timeout** (the 29-minute timer future stays Pending forever; the `NewData` path works but the `Timeout` path is completely broken).
 >
-> 实际实现改为 **`handle.wait_with_timeout(Duration::from_secs(10))` 短周期循环**：每 10 秒触发一次 Timeout，Timeout 分支做兜底 `fetch_new_envelopes` 补查 IDLE 推送间隙漏掉的新邮件。这比 29 分钟更积极，且解决了部分邮箱（如 QQ）IDLE 推送不稳定的问题——10 秒兜底保证体感延迟可控。
+> The implementation switched to a **`handle.wait_with_timeout(Duration::from_secs(10))` short-cycle loop**: a Timeout fires every 10 seconds, and the Timeout branch runs a fallback `fetch_new_envelopes` to catch mail missed in IDLE push gaps. This is more aggressive than 29 minutes and also works around unreliable IDLE push on some providers (e.g. QQ) — the 10-second fallback keeps perceived latency bounded.
 >
-> ⚠️ **T4 实现纠正（2026-08-03）**：
-> - **周期从 10s 缩短到 5s**：用户反馈「邮件来得慢」，`wait_with_timeout` 从 `from_secs(10)` 改为 `from_secs(5)`。
-> - **IDLE 降级轮询**：Coremail（论客）服务器不支持 IDLE 扩展（返回 `BAD command not support`），教育邮箱多由 Coremail 托管。新增 `classify_idle_error` 判定 Unsupported vs Transient，Unsupported 时降级为 `poll_loop`（5s sleep + fetch 纯轮询）。降级时需重新 `build_imap_session`（session 被 idle handle 消耗，无法安全拿回）。
+> ⚠️ **T4 implementation correction (2026-08-03)**:
+> - **Cycle shortened from 10s to 5s**: user feedback said "mail arrives slowly"; `wait_with_timeout` changed from `from_secs(10)` to `from_secs(5)`.
+> - **IDLE-to-polling fallback**: Coremail servers don't support the IDLE extension (they return `BAD command not support`), and educational mailboxes are mostly Coremail-hosted. Added `classify_idle_error` to distinguish Unsupported vs Transient; Unsupported degrades to `poll_loop` (5s sleep + fetch, pure polling). The fallback must rebuild via `build_imap_session` (the session was consumed by the idle handle and can't be safely recovered).
 
-**诚实标注的风险**：Rust 侧长生命周期 task 是 Phase 1 未触碰的新复杂度（Phase 1 全是前端 store + 一次性 Rust 命令）。连接池管理、断线重连、IDLE 超时重置需 TDD 覆盖。
+**Honestly-flagged risk**: long-lived Rust tasks are a new complexity Phase 1 never touched (Phase 1 was all frontend stores + one-shot Rust commands). Connection pool management, reconnect, and IDLE timeout resets need TDD coverage.
 
-### D4. 多账号：tracer bullet 先行，Phase 2 内闭环 — ✅ 已完成
+### D4. Multi-account: tracer bullet first, closed within Phase 2 — ✅ done
 
-**决策**：先以单账号 tracer bullet 打通整条链路（绑定 → IDLE → 推送 → 气泡），验证 IMAP 路线在各目标邮箱上是否成立；多账号紧随其后解禁。**两者均为 Phase 2 必交付**（非下个 Phase）。
+**Decision**: first run a single-account tracer bullet through the whole chain (bind → IDLE → push → bubble) to validate the IMAP route on the target mailboxes; multi-account unlocks immediately after. **Both are Phase 2 deliverables** (not next phase).
 
-**理由**：
-- IMAP IDLE 路线是 Phase 2 最大未知数（各家 IDLE 实现是否标准、专用密码流程用户能否走通），必须最早验证。
-- 数据结构从一开始设计为**数组**（`accounts: MailAccount[]`），单账号阶段数组长度限制为 1，多账号阶段只放开限制 + 列表 UI + 多连接池，**不返工数据模型**。
-- 多连接池管理（一条断不影响其他）是独立复杂度，单独成 ticket 可 TDD 覆盖。
+**Rationale**:
+- The IMAP IDLE route is Phase 2's biggest unknown (whether each provider's IDLE implementation is standard; whether users can get through the app-specific-password flow) and must be validated earliest.
+- The data structure is designed as an **array** from day one (`accounts: MailAccount[]`); the single-account stage caps the length at 1, and the multi-account stage just lifts the cap + adds list UI + a connection pool, **without reworking the data model**.
+- Multi-connection pool management (one drop not affecting others) is independent complexity; a separate ticket allows TDD coverage.
 
-### D5. ~~邮件功能边界：严格「INBOX 新邮件通知器」~~ — 🔶 SUPERSEDED（升级为本地通知中心，见 D5-actual）
+### D5. ~~Mail feature boundary: strict "INBOX new-mail notifier"~~ — 🔶 SUPERSEDED (upgraded to a local notification center; see D5-actual)
 
-> **状态变更（2026-07-30）**：原决策的「零写操作」核心守住，但「零历史记录」被用户需求推翻——见 D9（邮件列表）。邮件功能从「瞬时通知器」升级为「本地通知中心」：放开本地通知历史，但已读/归档全是**本地状态**，不碰邮箱服务端。原决策文本保留如下供追溯。
+> **Status change (2026-07-30)**: the original decision's "zero write operations" core held, but "zero history" was overturned by user needs — see D9 (mail list). The mail feature upgraded from "ephemeral notifier" to "local notification center": local notification history is now allowed, but read/archived remain purely **local states** that never touch the mail server. The original decision text is preserved below for traceability.
 
-**原决策（已部分废弃）**：只读、只 INBOX、只信封元数据（发件人 + 主题）。零写操作、零正文读取。点击气泡跳 webmail（浏览器）。
+**Original decision (partially deprecated)**: read-only, INBOX-only, envelope metadata only (sender + subject). Zero write operations, zero body fetch. Clicking the bubble jumps to webmail (browser).
 
-**原排除项（已部分废弃）**：
-- ~~已读/未读标记同步~~（要发 STORE 命令改服务端状态，和 webmail 打架）—— **仍排除**（已读只做本地，不碰服务端）
-- 邮件正文预览（额外 FETCH BODY + MIME/编码深坑）—— **仍排除**
-- 删除/归档（IMAP MOVE/STORE + 状态同步）—— **仍排除**（归档只做本地状态，不碰服务端）
-- ~~历史通知记录（另一套持久化）~~ —— **D9 放开**（本地通知历史，见 D9）
-- 多文件夹监听（每文件夹一条 IDLE，只监听 INBOX）—— **仍排除**
+**Original exclusions (partially deprecated)**:
+- ~~Read/unread flag sync~~ (would send STORE commands changing server state, fighting webmail) — **still excluded** (read stays local, never touching the server)
+- Mail body preview (extra FETCH BODY + the MIME/encoding rabbit hole) — **still excluded**
+- Delete/archive (IMAP MOVE/STORE + state sync) — **still excluded** (archive stays local, never touching the server)
+- ~~Historical notification records (another persistence layer)~~ — **opened up in D9** (local notification history, see D9)
+- Multi-folder monitoring (one IDLE per folder; INBOX only) — **still excluded**
 
-#### D5-actual. 本地通知中心（对邮箱零写，放开本地历史）
+#### D5-actual. Local notification center (zero writes to the mailbox, local history allowed)
 
-**决策**：邮件功能升级为「本地通知中心」。核心约束不变：只读信封元数据、对邮箱**零写操作**、零正文、点击跳 webmail。**放开**本地通知历史——被气泡提醒过的邮件在本地缓存（发件人+主题），已读/归档全是本地状态，不向邮箱服务端发任何命令。详见 D9。
+**Decision**: the mail feature is upgraded to a "local notification center". Core constraints unchanged: read envelope metadata only, **zero write operations** on the mailbox, no body fetch, click jumps to webmail. Local notification history is **allowed** — mail that has been bubble-notified is cached locally (sender + subject); read/archived are purely local states sending no commands to the mail server. See D9.
 
-### D6. 邮件设置入口：preference 设置窗侧边栏新开一页
+### D6. Mail settings entry: a new page in the preference window's sidebar
 
-**决策**：在 preference 设置窗的侧边栏新增一个「邮件」页面，承载账号列表 + 绑定表单 + 连接状态展示。不新建窗口、不新建路由侵入点。
+**Decision**: add a "Mail" page to the preference window's sidebar, hosting the account list + binding form + connection status display. No new window, no new route intrusion.
 
-**理由**：和 todo 的菜单接入方式对齐（todo 也走 preference/菜单，不新建窗口）。
+**Rationale**: aligned with todo's menu integration (todo also goes through preference/menu, no new windows).
 
-### D7. 桌宠气泡通知：邮件与 todo 共用的共享组件（常驻 + 手动关闭）
+### D7. Desktop pet bubble notifications: a shared component for mail and todo (persistent + manually closed)
 
-> **状态变更（2026-07-30）**：「5 秒自动消失 + hover 暂停」被用户推翻，改为「常驻 + 手动关闭」。堆叠策略随之调整（常驻下不能无限堆叠）。
+> **Status change (2026-07-30)**: "auto-dismiss after 5 seconds + pause on hover" was overturned by the user in favor of "persistent + manually closed". The stacking policy was adjusted accordingly (no unlimited stacking while persistent).
 
-**决策**：气泡是主干组件，邮件与 todo 到期共用。交互边界：
-- **位置**：桌宠正上方（复用 todo 面板的 `availableMonitors` + clamp + 翻边锚点逻辑）。
-- **消失**：**常驻显示，用户手动关闭（点 ×）或点击后消失**。不再自动消失，无倒计时。~~5 秒自动消失 + hover 暂停~~（已废弃）。
-- **堆叠**：最多同时显示 **3 条未处理**气泡（未处理 = 用户没点过/没关过）。第 4 条来时，溢出的折成一行提示「还有 N 条，查看邮件列表」，点击进邮件列表（D9）。不再用「未读队列顶替」（常驻模式下无意义）。
-- **点击**：邮件 → 打开 webmail（同时标本地已读 + 5 分钟后归档，见 D9）；todo → 打开 todo 面板。气泡只做提醒 + 入口，不承载内容。
-- **内容**：邮件显示发件人 + 主题；todo 显示标题 + 「已到期」。
-- **动效**：纯渐入渐出（opacity），无位移无缩放。
+**Decision**: the bubble is a first-class component shared by mail and due todos. Interaction boundaries:
+- **Position**: directly above the pet (reusing the todo panel's `availableMonitors` + clamp + edge flip anchor logic).
+- **Dismissal**: **persists on screen until the user closes it (×) or clicks it**. No more auto-dismiss, no countdown. ~~Auto-dismiss after 5 seconds + pause on hover~~ (deprecated).
+- **Stacking**: at most **3 pending** bubbles at once (pending = the user hasn't clicked/closed them). When the 4th arrives, the overflow folds into a one-line hint "N more, view the mail list" that opens the mail list on click (D9). The old "unread queue replaces" approach is dropped (meaningless in persistent mode).
+- **Click**: mail → open webmail (also mark locally read + archive after 5 minutes, see D9); todo → open the todo panel. The bubble only reminds and routes; it hosts no content.
+- **Content**: mail shows sender + subject; todo shows title + "Overdue".
+- **Animation**: pure fade in/out (opacity), no translate, no scale.
 
-**理由**：用户反馈「5 秒太短，没看清就没了」。常驻 + 手动关闭让通知不会被错过；3 条上限 + 折入列表防止常驻气泡刷屏。配合 D9 邮件列表，未处理在气泡、已处理/溢出在列表，逻辑自洽。
+**Rationale**: user feedback: "5 seconds is too short — it's gone before I can read it". Persistent + manually closed means notifications are never missed; the 3-bubble cap + folding into the list prevents persistent bubbles from flooding the screen. Combined with the D9 mail list — pending in bubbles, handled/overflow in the list — the logic is coherent.
 
-#### D7.1. 气泡渲染方案：独立伴随窗口（T1 tracer bullet 验证回填）
+#### D7.1. Bubble rendering approach: a standalone companion window (backfilled after T1 tracer-bullet verification)
 
-> **状态（2026-07-31）**：T1（ticket #11）tracer bullet 验证后回填。原 spec #10 标注此项为「待 tracer bullet 验证后回填决策结论」，现回填为 D7.1。
+> **Status (2026-07-31)**: backfilled after tracer-bullet verification in T1 (ticket #11). The original spec #10 marked this item "decision to be backfilled after tracer-bullet verification"; it is now backfilled as D7.1.
 
-**决策**：气泡用**独立伴随窗口** `WINDOW_LABEL.BUBBLE`（非 main 窗口内渲染），配置照抄 todo 面板（`transparent`/`decorations:false`/`skipTaskbar`/`alwaysOnTop`/`shadow:false`/`visible:false`/`resizable:false`，360×60）。
+**Decision**: bubbles use a **standalone companion window** `WINDOW_LABEL.BUBBLE` (not rendered inside main), configured like the todo panel (`transparent`/`decorations:false`/`skipTaskbar`/`alwaysOnTop`/`shadow:false`/`visible:false`/`resizable:false`, 360×60).
 
-**理由**：main 窗口是透明置顶且尺寸紧贴桌宠 sprite，透明区域会被 hit-test 穿透（点不到），在 main 内渲染气泡需要扩窗口高度 + 处理 `ignoreCursorEvents` 防穿透，复杂度高于独立窗口。独立窗口定位逻辑直接复用 todo 面板的 `availableMonitors` + clamp + 翻边锚点（锚点 main 窗口、水平居中、垂直正上方），无需额外窗口对齐工程。
+**Rationale**: the main window is transparent, always-on-top, and sized tightly to the pet sprite; its transparent areas are hit-test pass-through (unclickable). Rendering bubbles inside main would require extending the window height + handling `ignoreCursorEvents` against pass-through — more complex than a separate window. The separate window's positioning reuses the todo panel's `availableMonitors` + clamp + edge flip anchoring (anchor at the main window, horizontally centered, directly above), needing no extra alignment work.
 
-**被否决的方案**：
-- **main 窗口内渲染**（原 spec 优先项）：main 透明穿透 + 尺寸紧贴 sprite，气泡可点击区域（整气泡 + 右上角 ×）与 main 的拖拽/穿透逻辑冲突，扩窗口尺寸会影响桌宠本身交互。独立窗口隔离干净。
+**Rejected alternatives**:
+- **Render inside the main window** (the original spec's preference): main is transparent pass-through + tightly sized to the sprite; the bubble's clickable area (whole bubble + top-right ×) conflicts with main's drag/pass-through logic, and enlarging the window would affect the pet's own interactions. A separate window isolates cleanly.
 
-**侵入点**：`WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE` + `/bubble` 路由 + `tauri.conf.json` bubble 窗口配置（追加，和 todo 窗口并列）。
+**Intrusion points**: `WINDOW_LABEL.BUBBLE` + `LISTEN_KEY.SHOW_BUBBLE` + `/bubble` route + the bubble window config in `tauri.conf.json` (appended, alongside the todo window).
 
-### D8. todo 提醒双发（系统通知 + 气泡），不拆 D6
+### D8. Dual delivery of todo reminders (system notification + bubble); D6 stays intact
 
-**决策**：todo 到期时同时触发系统通知（`@tauri-apps/plugin-notification`，ADR 0001 D6 保留）+ 桌宠气泡（纯增量）。现有 `reminderStore` 触发点加一行 emit 气泡事件即可，不碰现有逻辑。
+**Decision**: when a todo falls due, fire both the system notification (`@tauri-apps/plugin-notification`, retained from ADR 0001 D6) and the desktop pet bubble (purely additive). The existing `reminderStore` trigger point just adds one line emitting the bubble event; no existing logic is touched.
 
-**被否决的方案**：
-- **气泡替换系统通知**：丢失系统通知的「历史回看 + 声音 + 锁屏显示」能力；要拆 D6 的依赖/权限/Rust 注册，是负向改动；用户关掉桌宠窗口（虽常驻但万一）就完全收不到提醒。
+**Rejected alternatives**:
+- **Bubble replaces system notification**: loses the system notification's "history review + sound + lock-screen display"; requires dismantling D6's dependencies/permissions/Rust registration, a net negative; and if the user closes the pet window (it's persistent, but still), reminders would be missed entirely.
 
-**理由**：纯增量，符合 Surgical Changes；系统通知管「历史+声音」，气泡管「桌宠在场感」，能力互补。
+**Rationale**: purely additive, per Surgical Changes; the system notification handles "history + sound" while the bubble handles "the pet's presence" — complementary capabilities.
 
-### D9. 邮件列表 + 归档邮件：本地通知历史中心
+### D9. Mail list + archived mail: the local notification history center
 
-**决策**：桌宠右键菜单新增**两个独立入口**（在待办/快速新建下面）：「邮件列表」和「归档邮件」。各自打开独立伴随窗口（同 todo 面板的手绘风），都带右上角关闭按钮。
+**Decision**: the pet's context menu gains **two standalone entries** (below todo/quick add): "Mail list" and "Archived mail". Each opens its own companion window (hand-drawn like the todo panel), both with top-right close buttons.
 
-- **邮件列表窗口**：展示所有被气泡提醒过的邮件（本地缓存发件人+主题，不含正文）。点击→跳 webmail（不在 app 内看正文，守住 D5-actual）。
-- **归档邮件窗口**：展示已归档的邮件，样式更淡（opacity 0.7 + 已归档标签），可再次点击跳 webmail。
+- **Mail list window**: shows every bubble-notified mail item (locally cached sender + subject, no body). Click → jump to webmail (no in-app body view, holding the D5-actual line).
+- **Archived mail window**: shows archived mail with a faded style (opacity 0.7 + an archived tag); clicking still jumps to webmail.
 
-**留存规则**：
-- 新邮件到达触发气泡后，自动进入邮件列表（未读状态）。
-- **默认留存 24 小时**后自动归档（转入归档邮件窗口，从邮件列表移除）。
-- **点击后**标记为本地已读 + **5 分钟后**自动归档。
-- **归档超过 30 天**自动清理（从 store 彻底移除）。来源：设计稿 `mail-list.html` footer 写明，T5 落地。
+**Retention rules**:
+- After a new mail arrival triggers a bubble, it automatically enters the mail list (unread state).
+- **Retained 24 hours by default**, then auto-archived (moved to the archived-mail window, removed from the mail list).
+- **After a click**, marked locally read + auto-archived **after 5 minutes**.
+- **Archived over 30 days** is auto-cleaned (fully removed from the store). Source: stated in the `mail-list.html` mockup footer; landed in T5.
 
-**状态模型**（本地，不碰邮箱服务端）：
+**State model** (local, never touching the mail server):
 ```
 MailNotification {
-  id, accountId, uid, from, subject, arrivedAt  // 信封元数据（uid 来自 IMAP，用于去重）
-  status: 'unread' | 'read' | 'archived'  // 纯本地状态
-  readAt?, archivedAt?                      // 本地时间戳
+  id, accountId, uid, from, subject, arrivedAt  // envelope metadata (uid from IMAP, used for dedup)
+  status: 'unread' | 'read' | 'archived'  // purely local state
+  readAt?, archivedAt?                      // local timestamps
 }
 ```
 
-> **T5 实现补充（2026-08-01）**：
-> - `NewMailPayload`（Rust → 前端 event）加了 `uid: u32` 字位，用于前端按 `<accountId>:<uid>` 去重（离线补发 + IDLE 推送可能重复）+ bubble 点击邮件时按 uid 匹配 store 调 `markRead`。
-> - **离线补发链路**（`mail://last-seen-uid` event）：Rust 每批推送新邮件后 emit 当前 last_seen_uid，前端监听后 `setLastSeenUid` 持久化到 mailAccount store。app 启动重连时传持久化的 `initial_last_seen_uid`（而非 fetch_max_uid 跳过），`fetch_new_envelopes` 把离线期间的新邮件补推。**离线补发的关键约束**：前端 `listen` 必须全部 `await` 完成后再 `mailConnect`，否则 Rust emit 的事件被丢弃（竞态）。
+> **T5 implementation addendum (2026-08-01)**:
+> - `NewMailPayload` (Rust → frontend event) gained a `uid: u32` field so the frontend can dedupe by `<accountId>:<uid>` (offline backfill + IDLE push may double-deliver) and, when a mail bubble is clicked, match by uid to call `markRead` on the store.
+> - **Offline backfill path** (`mail://last-seen-uid` event): after each batch of new mail pushes, Rust emits the current last_seen_uid; the frontend listens and persists it via `setLastSeenUid` into the mailAccount store. On app-startup reconnect, the persisted `initial_last_seen_uid` is passed (instead of skipping via fetch_max_uid), and `fetch_new_envelopes` re-pushes mail that arrived offline. **Key constraint for offline backfill**: all frontend `listen`s must be `await`ed before `mailConnect`, otherwise Rust's emitted events are dropped (a race).
 
-**理由**：
-- 常驻气泡（D7 改）让用户「不漏看」，但常驻不等于「记得处理过」。邮件列表补上「历史回看」——用户关掉气泡后还能在列表里找回。
-- 归档作为**独立右键菜单入口**（而非埋在设置页），和邮件列表并列，语义对等：未处理在「邮件列表」，已处理在「归档邮件」。
-- 已读/归档**只做本地状态**：不向邮箱发 STORE 命令，和 webmail/手机的已读状态互不干扰（D5-actual 零写约束守住）。
-- 24 小时 + 5 分钟双时限：未点击的留久点（给用户反应时间），点击过的快速归档（已处理不用久留）。
+**Rationale**:
+- Persistent bubbles (D7 revised) mean users "miss nothing", but persistent isn't "remembered as handled". The mail list fills the "history review" gap — after dismissing a bubble, the item is still findable in the list.
+- Archive as a **standalone context-menu entry** (not buried in settings), parallel to the mail list with equal semantics: pending in "Mail list", handled in "Archived mail".
+- Read/archived are **purely local states**: no STORE commands to the mailbox, never interfering with webmail/phone read states (holding the D5-actual zero-write constraint).
+- The 24-hour + 5-minute dual deadlines: unclicked items stay longer (giving the user reaction time); clicked items archive quickly (handled items needn't linger).
 
-**被否决的方案**：
-- **归档放设置页**：语义错位（归档是高频查看项，不是配置），且和邮件列表入口不对等。改为右键菜单独立入口。
-- **服务端已读**（IMAP STORE 改邮箱已读状态）：和 webmail 打架，违反 D5-actual 零写约束，工程量翻倍。
-- **永久留存**：列表无限增长，违背「轻量通知中心」定位；24h+5min 双时限够用。
+**Rejected alternatives**:
+- **Archive in the settings page**: semantic mismatch (archive is a frequently-viewed list, not configuration) and unequal to the mail-list entry. Moved to a standalone context-menu entry.
+- **Server-side read** (IMAP STORE changing the mailbox read state): fights webmail, violates the D5-actual zero-write constraint, doubles the work.
+- **Keep forever**: the list grows unboundedly, betraying the "lightweight notification center" positioning; the 24h+5min dual deadlines suffice.
 
-**侵入点新增**：
-- `src/composables/useAppMenu.ts`：右键菜单加「邮件列表」「归档邮件」两项（追加，和 todo 菜单项并列）。
-- `src/constants/index.ts`：`WINDOW_LABEL.MAIL_LIST` / `WINDOW_LABEL.MAIL_ARCHIVE`。
-- `src/router/index.ts`：`/mail-list` `/mail-archive` 路由（追加）。
-- `src-tauri/tauri.conf.json`：邮件列表 + 归档窗口配置（照抄 todo 面板的伴随窗口配置）。
-- 新增 `src/plugins/mail/stores/mailNotification.ts`：本地通知历史 store（复用 pinia 持久化）。
+**New intrusion points**:
+- `src/composables/useAppMenu.ts`: "Mail list" and "Archived mail" entries added to the context menu (appended, alongside the todo menu items).
+- `src/constants/index.ts`: `WINDOW_LABEL.MAIL_LIST` / `WINDOW_LABEL.MAIL_ARCHIVE`.
+- `src/router/index.ts`: `/mail-list` `/mail-archive` routes (appended).
+- `src-tauri/tauri.conf.json`: mail list + archive window configs (copying the todo panel's companion window config).
+- New `src/plugins/mail/stores/mailNotification.ts`: the local notification history store (reusing pinia persistence).
 
-### D10. HTTP CONNECT 代理支持（T1 实现中新增，spec 未规划）
+### D10. HTTP CONNECT proxy support (added during T1 implementation; unplanned in the spec)
 
-**决策**：邮件模块内置 HTTP CONNECT 代理支持。`build_imap_session` 的 `proxy: Option<&str>` 参数：有代理时先 TCP 连代理 → HTTP CONNECT 隧道 → rustls TLS → IMAP。代理地址持久化在 `mailSettings` store，设置页提供代理输入框。
+**Decision**: the mail module ships built-in HTTP CONNECT proxy support. `build_imap_session`'s `proxy: Option<&str>` parameter: with a proxy, first TCP-connect to the proxy → HTTP CONNECT tunnel → rustls TLS → IMAP. The proxy address persists in the `mailSettings` store, with a proxy input in the settings page.
 
-**理由**（T1 手动验证发现的必要功能）：
-- 国内用户的境外邮箱（Gmail 等）需通过代理连接 IMAP。TUN 透明代理对 993 端口转发不稳定（`stack: system` 的已知问题），程序需自带代理支持。
-- `async-http-proxy` crate（HTTP CONNECT 隧道）验证通过（QQ 邮箱走代理 127.0.0.1:7890 成功）。
+**Rationale** (a necessary feature discovered during T1 manual verification):
+- Users in China need a proxy for overseas mailboxes (Gmail etc.) to reach IMAP. TUN transparent proxies forward port 993 unreliably (a known `stack: system` issue), so the app needs its own proxy support.
+- The `async-http-proxy` crate (HTTP CONNECT tunnel) verified working (QQ Mail through proxy 127.0.0.1:7890 succeeded).
 
-**依赖**：`async-http-proxy = { version = "1", default-features = false, features = ["runtime-tokio"] }`
+**Dependency**: `async-http-proxy = { version = "1", default-features = false, features = ["runtime-tokio"] }`
 
-**未来扩展（非本 Phase）**：SOCKS5 代理（`fast-socks5` 已在 Cargo.toml 但未实现）、自动检测系统代理设置。
+**Future extensions (not this phase)**: SOCKS5 proxy (`fast-socks5` is in Cargo.toml but unimplemented), auto-detecting system proxy settings.
 
-## 设计稿时机
+## Design mockup timing
 
-UI 部分（气泡 UI + 邮件列表 + 邮件设置界面）需设计稿，**在 spec 之前做**（作为 spec 的 UI 输入）。后端（IMAP/keyring/连接管理）靠 TDD 自闭环，不依赖设计稿。
+The UI parts (bubble UI + mail list + mail settings UI) need mockups, **done before the spec** (as the spec's UI input). The backend (IMAP/keyring/connection management) is TDD self-contained and doesn't depend on mockups.
 
-> ✅ **已完成（2026-07-31）**：三份设计稿全部定稿，存于 `docs/designs/phase2-exploration/`：
-> - `bubble.html` — 桌宠气泡（常驻 + 手动关闭 + 3 条上限折入列表）
-> - `mail-list.html` — 邮件列表 + 归档邮件（两个伴随面板）
-> - `mail-settings.html` — 邮件设置页（preference 侧边栏，provider logo 自动识别）
+> ✅ **Done (2026-07-31)**: all three mockups are finalized in `docs/designs/phase2-exploration/`:
+> - `bubble.html` — desktop pet bubble (persistent + manually closed + overflow beyond the 3-cap folds into the list)
+> - `mail-list.html` — mail list + archived mail (two companion panels)
+> - `mail-settings.html` — mail settings page (preference sidebar, auto-detected provider logos)
 >
-> 邮箱 logo 文件（10 个，全 RGBA 透明）同目录，清单见 CONTEXT.md「Phase 2 设计稿」段。设计稿完成意味着 `/to-spec` 的 UI 输入已就绪，可进入 spec 环节。
+> The mailbox logo files (10, all RGBA-transparent) are in the same directory; see the "Phase 2 mockups" section of CONTEXT.md for the inventory. With the mockups done, the UI input for `/to-spec` is ready and the spec stage can begin.
 
 ## Consequences
 
-- **正向**：气泡常驻 + 邮件列表形成完整的「通知中心」——未处理在气泡、历史在列表、已处理在归档，逻辑自洽；已读/归档纯本地状态，对邮箱零写，不和服务端打架；气泡共享让 todo 改造近乎零成本；凭证不落地明文，安全基线达标。
-- **负向**：Rust 侧新增 `async-imap` + TLS 库 + `keyring` 三项依赖 + 长生命周期 task 管理（断线重连/IDLE 超时/多连接池），是 Phase 1 未有的复杂度；多账号的连接池管理是独立 ticket；邮件列表 + 归档新增一个 store + 列表 UI + 右键菜单项 + 路由/窗口侵入（相比原 Phase 2 多 2-3 个 ticket 量级）。
-- **风险**：IMAP IDLE 路线是最大未知数，靠 D4 的 tracer bullet 最早验证；Rust 长连接 task 在窗口销毁/进程异常时的清理需小心处理；本地通知历史的留存时限（24h/5min）需实际使用后调参。
+- **Positive**: persistent bubbles + the mail list form a complete "notification center" — pending in bubbles, history in the list, handled in archive, a coherent loop; read/archived are purely local with zero mailbox writes, never fighting the server; sharing the bubble made the todo integration nearly free; credentials never land in plaintext, meeting the security baseline.
+- **Negative**: the Rust side gains three dependencies (`async-imap` + TLS libraries + `keyring`) plus long-lived task management (reconnect/IDLE timeouts/multi-connection pool), a complexity Phase 1 never had; the multi-account connection pool is its own ticket; the mail list + archive add a store + list UI + context-menu entries + route/window intrusions (2-3 tickets' worth more than the original Phase 2).
+- **Risk**: the IMAP IDLE route is the biggest unknown, validated earliest by D4's tracer bullet; cleanup of long-lived Rust connection tasks on window destruction/process anomalies needs care; the local notification history retention deadlines (24h/5min) need tuning after real use.
 
-### 实现约定：邮箱 logo 与 provider 自动识别（设计稿产出）
+### Implementation conventions: mailbox logos and provider auto-detection (mockup outputs)
 
-- **provider 自动识别**：用户在添加账号表单输入邮箱后，按域名（`@` 后部分）映射到 `{ logo, imap }`。设计稿 `mail-settings.html` 内置一份域名→logo+IMAP 映射表（gmail/qq/foxmail/163/126/outlook/icloud/proton/yahoo 等），未命中域名用通用信封图标 +「自动识别」。
-- **logo 全部 RGBA 透明背景**：暗色模式下白底方块会很难看，所有 PNG logo（foxmail/163/126/qq/proton）必须处理成透明背景。来源均为官方登录页或官网 logo 裁剪，不用 favicon（favicon 常指向错误图标，如 163 favicon 实为网易「易」字、QQ favicon 指向腾讯新闻）。详见 CONTEXT.md「Phase 2 设计稿」段 logo 清单。
-- **踩坑警示**：裁剪横长 logo（官网 banner 都是「图标+文字」）只取左侧图标部分；**不要手写 node PNG 编解码器**处理像素（filter 逻辑出错导致马赛克），改用浏览器 canvas `toDataURL`。
+- **Provider auto-detection**: after the user types an address in the add-account form, the domain (the part after `@`) maps to `{ logo, imap }`. The `mail-settings.html` mockup bundles a domain→logo+IMAP table (gmail/qq/foxmail/163/126/outlook/icloud/proton/yahoo etc.); unmatched domains get the generic envelope icon + "auto-detected".
+- **All logos have RGBA-transparent backgrounds**: white background squares look terrible in dark mode, so every PNG logo (foxmail/163/126/qq/proton) must be made transparent. All are cropped from official login pages or site logos — not favicons (favicons often point at the wrong icon; e.g. 163's favicon is actually NetEase's "Yi" character, and QQ's points at Tencent News). See the logo inventory in the "Phase 2 mockups" section of CONTEXT.md.
+- **Pitfall warning**: when cropping wide logos (site banners are all "icon + text"), keep only the left icon; **do not hand-write a node PNG codec** for pixel work (filter logic errors produce mosaics) — use the browser canvas `toDataURL` instead.

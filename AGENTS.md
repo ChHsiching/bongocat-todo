@@ -1,32 +1,32 @@
 # AGENTS.md
 
-本仓库是 [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat)（Tauri 2 + Vue 3 桌面宠物）的 fork，在此基础上以**插件化方式**扩展 todo list 等模块，并持续接收上游更新。
+This repository is a fork of [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat) (a Tauri 2 + Vue 3 desktop pet). On top of it we extend todo list and other modules in a **plugin-based** way while continuously receiving upstream updates.
 
-## 上游同步约定
+## Upstream sync conventions
 
-- `upstream` → `ayangweb/BongoCat`（只 fetch，用于合并更新）
-- `origin` → `ChHsiching/bongocat-todo`（日常 push/pull）
-- 合并上游：`git fetch upstream && git merge upstream/master`
-- 本仓库的新增代码尽量集中在独立目录（`src/plugins/<module>/`、`src/pages/<module>/`），对上游文件的改动保持最小且集中（详见 `docs/adr/0001-plugin-architecture-for-todo.md`）。
+- `upstream` → `ayangweb/BongoCat` (fetch-only, for merging updates)
+- `origin` → `ChHsiching/bongocat-todo` (day-to-day push/pull)
+- Merge upstream: `git fetch upstream && git merge upstream/master`
+- Keep this repo's new code concentrated in standalone directories (`src/plugins/<module>/`, `src/pages/<module>/`); keep changes to upstream files minimal and concentrated (see `docs/adr/0001-plugin-architecture-for-todo.md`).
 
-## 分支策略
+## Branch strategy
 
-**模块级长期分支**（2026-07-28 定，单人 fork + 持续接收上游）：
+**Module-level long-lived branches** (decided 2026-07-28; solo fork + continuous upstream tracking):
 
-- `master` —— **镜像上游**，只通过 `git merge upstream/master` 更新，**不直接开发**。保持随时能干净同步上游。
-- `<module>`（如 `todo`）—— **模块级长期分支**，承载该模块从始至终的所有 ticket（如 `todo` 分支含 T1-T5 + Phase 2 轮盘 UI 升级，因轮盘替换 todo 菜单呈现、强耦合）。日常开发在此分支上直接 commit。
-- 未来新模块（Android 同步等独立功能）各自开 `<module>` 分支，不堆进 `todo`。
-- 整个模块完成后再考虑 merge 回 `master`（整合点）。
-- **上游同步**：在 `master` 上 `git fetch upstream && git merge upstream/master`，再切到模块分支 `git merge master` 把上游更新带进来（冲突在模块分支解，master 始终干净）。
-- 单人开发，不需要 ticket 级 feature 分支；回滚靠 `git revert <commit>`（commit message 带 `Closes #N` 可追溯）。
+- `master` —— **mirrors upstream**, updated only via `git merge upstream/master`, **no direct development**. It stays cleanly syncable with upstream at all times.
+- `<module>` (e.g. `todo`) —— **module-level long-lived branch** carrying every ticket of that module from start to finish (e.g. the `todo` branch holds T1-T5 + the Phase 2 radial-menu UI upgrade, since the radial menu replaced the todo menu's presentation and is tightly coupled to it). Day-to-day development commits directly on this branch.
+- Future modules (standalone features such as Android sync) each get their own `<module>` branch; don't pile them into `todo`.
+- Consider merging back to `master` (the integration point) only after a whole module is finished.
+- **Upstream sync**: on `master` run `git fetch upstream && git merge upstream/master`, then switch to the module branch and `git merge master` to bring the upstream updates in (resolve conflicts on the module branch; `master` stays clean).
+- Solo development — no ticket-level feature branches; roll back with `git revert <commit>` (commit messages carrying `Closes #N` keep things traceable).
 
-## 版本号策略
+## Versioning policy
 
-- **fork 版本号独立于上游**：本仓库版本号不跟随上游 ayangweb/BongoCat 的 `1.x.x`，按 fork 自己的功能里程碑走。
-- **单一来源**：`package.json` 的 `version` 是唯一真值；`src-tauri/tauri.conf.json` 的 `version` 字段是 `"../package.json"`（引用），改一处即可。
-- **merge 上游时**：`package.json` 的 version 行会冲突（上游可能 bump），**保留 fork 的版本号**，不跟上游走。
-- **minor bump 对应功能里程碑**：`1.2.0` = Phase 1 todo 模块完成；后续大功能（轮盘 UI、Android 同步）各自 minor bump。patch 用于 bugfix。
-- **发版**：`pnpm release`（`.release-it.ts` 打 tag `v${version}`），tag push 触发 `release.yml` 多平台构建。
+- **The fork's version number is independent of upstream**: this repo's version does not follow upstream ayangweb/BongoCat's `1.x.x`; it tracks the fork's own feature milestones.
+- **Single source of truth**: `package.json`'s `version` is the only authority; `src-tauri/tauri.conf.json`'s `version` field is `"../package.json"` (a reference), so editing one place is enough.
+- **When merging upstream**: the `version` line in `package.json` will conflict (upstream may bump it) — **keep the fork's version**; don't follow upstream.
+- **Minor bumps map to feature milestones**: `1.2.0` = Phase 1 todo module complete; later major features (radial-menu UI, Android sync) each get their own minor bump. Patch is for bugfixes.
+- **Release**: `pnpm release` (`.release-it.ts` tags `v${version}`); pushing the tag triggers the multi-platform build in `release.yml`.
 
 
 
@@ -34,15 +34,15 @@
 
 ### Issue tracker
 
-Issues 通过 GitHub Issues 管理（仓库 `ChHsiching/bongocat-todo`），使用 `gh` CLI。详见 `docs/agents/issue-tracker.md`。
+Issues are managed via GitHub Issues (repo `ChHsiching/bongocat-todo`) with the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-使用默认五标签：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。详见 `docs/agents/triage-labels.md`。
+Default five labels: `needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-单上下文（single-context）：根目录一个 `CONTEXT.md` + `docs/adr/`。详见 `docs/agents/domain.md`。
+Single-context: one `CONTEXT.md` at the repo root + `docs/adr/`. See `docs/agents/domain.md`.
 
 ---
 
@@ -109,3 +109,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Language conventions
+
+- Code comments, commit messages, and docs are in English (aligned with upstream ayangweb/BongoCat).
+- UI strings go through i18n locales (src/locales/*.json); locale values stay in their own language.
