@@ -3,7 +3,6 @@
   "type": "module",
   "version": "1.4.0",
   "private": true,
-  "packageManager": "pnpm@11.18.0",
   "author": {
     "name": "ChHsiching"
   },
