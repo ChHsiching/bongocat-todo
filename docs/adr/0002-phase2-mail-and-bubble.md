@@ -130,6 +130,8 @@ entry.delete_credential()?;  // ⚠️ not delete_password
 ### D7. Desktop pet bubble notifications: a shared component for mail and todo (persistent + manually closed)
 
 > **Status change (2026-07-30)**: "auto-dismiss after 5 seconds + pause on hover" was overturned by the user in favor of "persistent + manually closed". The stacking policy was adjusted accordingly (no unlimited stacking while persistent).
+>
+> **Status change (2026-11-05)**: the auto-dismiss design is implemented behind the `bubbleAutoDismiss` setting (default **off**, preserving the 2026-07-30 decision as the default behavior). ON = 5s auto-dismiss with hover pause; the pause shifts deadlines by the paused duration so hover never extends or swallows the countdown (`src/plugins/mail/utils/dismissQueue.ts`).
 
 **Decision**: the bubble is a first-class component shared by mail and due todos. Interaction boundaries:
 - **Position**: directly above the pet (reusing the todo panel's `availableMonitors` + clamp + edge flip anchor logic).

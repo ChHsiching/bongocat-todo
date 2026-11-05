@@ -55,7 +55,7 @@ onMounted(async () => {
   appWindow.setTitle(t('plugins.mail.labels.mailListTitle'))
 
   // Refresh the relative time copy every minute + run the retention rules (mails markRead'd in this window get archived after 5 minutes).
-  // Cross-window sync note: the mailNotification store persists to JSON, but each window's in-memory store does not sync in realtime.
+  // Cross-window sync: @tauri-store/pinia patches started stores in other windows in under a second (verified live); the local tickRetention below stays as an idempotent fallback.
   // The main window's tickRetention runs on its own in-memory copy and cannot see this window's markRead;
   // therefore this window must also run its own tickRetention so read mails are archived after 5 minutes (idempotent, no conflict across windows running simultaneously).
   nowTimer = setInterval(() => {

@@ -38,7 +38,7 @@ export interface MailNotification {
  *
  * Read/written jointly by the "bubble", "mail list" and "archived mail" windows — each window is an independent webview
  * that calls `$tauri.start()` to load the same persisted JSON. After a write is persisted via saveOnChange,
- * other windows need to be reopened or notified via an event to refresh (no cross-window realtime sync for now, acceptable within T5 scope).
+ * started stores in other windows receive patches in under a second (@tauri-store/pinia DEFAULT_SYNC, verified live 2026-11-05).
  *
  * State machine: unread → read (click) → archived (after 5min / 24h timeout). Archived items are purged after 30 days.
  * **Never writes to the mail server** (read/archived are purely local states, D5-actual).

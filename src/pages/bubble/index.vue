@@ -15,6 +15,8 @@ import Bubble from '@/plugins/mail/components/Bubble/index.vue'
 import FoldHint from '@/plugins/mail/components/FoldHint/index.vue'
 import { useMailAccountStore } from '@/plugins/mail/stores/mailAccount'
 import { useMailNotificationStore } from '@/plugins/mail/stores/mailNotification'
+import { useMailSettingsStore } from '@/plugins/mail/stores/mailSettings'
+import { createDismissScheduler } from '@/plugins/mail/utils/dismissQueue'
 import { computeBubbleOverflow } from '@/plugins/mail/utils/overflow'
 import { matchProvider, resolveWebmailUrl } from '@/plugins/mail/utils/providers'
 import { hideWindow, showWindow } from '@/plugins/window'
@@ -57,6 +59,12 @@ const bubbleWidth = computed(() => {
 
 const mailAccountStore = useMailAccountStore()
 const mailNotificationStore = useMailNotificationStore()
+
+const mailSettingsStore = useMailSettingsStore()
+
+/** ADR 0002's original design, resurrected behind the setting: auto-dismiss 5s, hover pauses. */
+const AUTO_DISMISS_MS = 5000
+const dismiss = createDismissScheduler({ onDismiss: closeItem, delayMs: AUTO_DISMISS_MS })
 const { t } = useI18n()
 
 // bubble is an independent webview; its store instances are separate from the main window's. This window must also call
@@ -67,6 +75,10 @@ const { t } = useI18n()
 onMounted(async () => {
   await mailAccountStore.$tauri.start()
   await mailNotificationStore.$tauri.start()
+  // Loads the persisted bubbleAutoDismiss at mount; later toggles arrive via
+  // @tauri-store/pinia's cross-window sync (verified live: patches land in
+  // well under a second).
+  await mailSettingsStore.$tauri.start()
 })
 
 function sourceLabel(payload: BubblePayload): string {
@@ -104,8 +116,11 @@ async function measureHeight(): Promise<number> {
 
 useTauriListen<BubblePayload>(LISTEN_KEY.SHOW_BUBBLE, async ({ payload }) => {
   const arriveTs = payload.type === 'mail' ? payload.arrivedAt : payload.dueDate
-  queue.value.push({ key: `${arriveTs}-${seq++}`, payload })
+  const key = `${arriveTs}-${seq++}`
+  queue.value.push({ key, payload })
   shown.value = true
+  if (mailSettingsStore.bubbleAutoDismiss)
+    dismiss.schedule(key)
 
   await layoutAndShow()
 })
@@ -193,6 +208,7 @@ async function handleAction(item: BubbleItem) {
 }
 
 function closeItem(key: string) {
+  dismiss.cancel(key)
   queue.value = queue.value.filter(i => i.key !== key)
   delete naturalWidths.value[key]
   if (queue.value.length === 0) {
@@ -225,6 +241,8 @@ function scheduleHide() {
     class="bubble-handdrawn bubble-window fade w-screen flex flex-col items-center overflow-hidden"
     :class="{ 'fade-shown': shown }"
     :style="{ gap: `${STACK_GAP}px`, paddingTop: `${PADDING_Y}px`, paddingBottom: `${PADDING_Y}px` }"
+    @mouseenter="dismiss.pause()"
+    @mouseleave="dismiss.resume()"
   >
     <Bubble
       v-for="item in shownItems"

@@ -317,7 +317,7 @@
         "notificationTitle": "Cài đặt thông báo",
         "bubbleEnabledTitle": "Bong bóng thư mới",
         "bubbleAutoDismissTitle": "Bong bóng tự ẩn",
-        "bubbleAutoDismissDesc": "Tắt để bong bóng lưu cho đến khi nhấp",
+        "bubbleAutoDismissDesc": "Bật: bóng thông báo tự ẩn sau 5 giây (di chuột để tạm dừng)",
         "unreadOnlyTitle": "Chỉ thư chưa đọc",
         "unreadOnlyDesc": "Bỏ qua thư đã đọc (thường bật)",
         "invalidPort": "Cổng phải là số nguyên từ 1 đến 65535"

@@ -19,8 +19,9 @@
  */
 import { execFileSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const CONF = resolve(ROOT, 'src-tauri/tauri.conf.json')
@@ -51,18 +52,30 @@ function restore() {
   try {
     execFileSync('git', ['checkout', '--', 'src-tauri/tauri.conf.json'], { cwd: ROOT })
     console.log('\n[qa:dev] tauri.conf.json restored')
-  }
-  catch (e) {
+  } catch {
     console.error('\n[qa:dev] FAILED to restore tauri.conf.json, run manually: git checkout -- src-tauri/tauri.conf.json')
   }
 }
 
+// The wrapper itself can be killed (task runners kill the parent, not the
+// child), so restoration must live on the wrapper's own exit paths — a bare
+// child.on('close') never fires when the parent dies first.
+let restored = false
+function restoreOnce() {
+  if (!restored) {
+    restored = true
+    restore()
+  }
+}
 for (const sig of ['SIGINT', 'SIGTERM']) {
-  child.on(sig, () => {
+  process.on(sig, () => {
     child.kill(sig)
+    restoreOnce()
+    process.exit(0)
   })
 }
+process.on('exit', restoreOnce)
 child.on('close', (code) => {
-  restore()
+  restoreOnce()
   process.exit(code ?? 0)
 })

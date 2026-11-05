@@ -20,6 +20,11 @@ export const useMailSettingsStore = defineStore('mailSettings', () => {
    * - false (default): stays until the user manually closes/clicks it (finalized design behavior).
    * - true: auto-dismisses (future T7 will wire the auto-dismiss timer; currently just the switch state).
    */
+  /**
+   * Whether the bubble auto-dismisses.
+   * - false (default): persists until the user closes/clicks it (the behavior settled on 2026-07-30).
+   * - true: auto-dismisses after 5s; hovering the bubble pauses the countdown (ADR 0002's original design, wired 2026-11-05).
+   */
   const bubbleAutoDismiss = ref(false)
 
   const unreadOnly = ref(false)

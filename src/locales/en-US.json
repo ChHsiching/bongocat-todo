@@ -317,7 +317,7 @@
         "notificationTitle": "Notification Settings",
         "bubbleEnabledTitle": "New mail bubble alert",
         "bubbleAutoDismissTitle": "Bubble auto-dismiss",
-        "bubbleAutoDismissDesc": "When off, bubble stays until clicked",
+        "bubbleAutoDismissDesc": "On: bubbles auto-dismiss after 5s (hover pauses)",
         "unreadOnlyTitle": "Unread mail only",
         "unreadOnlyDesc": "Ignore read mail (usually on)",
         "invalidPort": "Port must be an integer between 1 and 65535"
