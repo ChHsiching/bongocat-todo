@@ -14,11 +14,13 @@
     "build:icon": "tsx scripts/buildIcon.ts",
     "preview": "vite preview",
     "tauri": "tauri",
-    "lint": "eslint --fix src",
+    "lint": "eslint --fix src scripts",
     "test": "vitest run",
     "preinstall": "npx only-allow pnpm",
     "prepare": "simple-git-hooks",
-    "release": "release-it"
+    "release": "release-it",
+    "lint:check": "eslint src scripts",
+    "qa:dev": "node scripts/qa/dev.mjs"
   },
   "dependencies": {
     "@antdv-next/happy-work-theme": "^1.0.0",

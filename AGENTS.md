@@ -30,6 +30,10 @@ This repository is a fork of [ayangweb/BongoCat](https://github.com/ayangweb/Bon
 
 
 
+## Runtime data location
+
+Persisted store files live at `%APPDATA%/<identifier>/tauri-plugin-pinia/*.json` (Windows) — the identifier comes from `src-tauri/tauri.conf.json` and the directory moves with it. When debugging persistence, read the directory matching the CURRENT identifier, not a remembered path. QA note: `*.dev.json` files are written in dev builds.
+
 ## Agent skills
 
 ### Issue tracker
