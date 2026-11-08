@@ -1,45 +1,45 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 
 PackageIdentifier: ChHsiching.BongoCatTodo
-PackageVersion: 1.3.1
+PackageVersion: 1.4.0
 InstallerType: nullsoft
 ProductCode: BongoCat Todo
-ReleaseDate: 2026-08-04
+ReleaseDate: 2026-11-08
 Installers:
 - Architecture: x86
   Scope: user
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_x86-setup.exe
-  InstallerSha256: DFC42A1F6060100D502F16D9B2EA66157314C6A00807BC09649A3B2C02A87D59
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_x86-setup.exe
+  InstallerSha256: 11C6A4706A80BF9E256682F2CB3C997B21FBE132FCB82EE6B1D900DADCEC48D7
   InstallerSwitches:
     Custom: /CurrentUser
 - Architecture: x86
   Scope: machine
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_x86-setup.exe
-  InstallerSha256: DFC42A1F6060100D502F16D9B2EA66157314C6A00807BC09649A3B2C02A87D59
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_x86-setup.exe
+  InstallerSha256: 11C6A4706A80BF9E256682F2CB3C997B21FBE132FCB82EE6B1D900DADCEC48D7
   InstallerSwitches:
     Custom: /AllUsers
 - Architecture: x64
   Scope: user
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_x64-setup.exe
-  InstallerSha256: 77B7CF1EFEA2E9A53C82021C3C23331B057B117D39D4FF03A0FFB2D37ED54012
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_x64-setup.exe
+  InstallerSha256: 9920E66220D0369E51921E4A294F3D7EF95FD1F3312DAED5C8ECA1BFD8155C97
   InstallerSwitches:
     Custom: /CurrentUser
 - Architecture: x64
   Scope: machine
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_x64-setup.exe
-  InstallerSha256: 77B7CF1EFEA2E9A53C82021C3C23331B057B117D39D4FF03A0FFB2D37ED54012
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_x64-setup.exe
+  InstallerSha256: 9920E66220D0369E51921E4A294F3D7EF95FD1F3312DAED5C8ECA1BFD8155C97
   InstallerSwitches:
     Custom: /AllUsers
 - Architecture: arm64
   Scope: user
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_arm64-setup.exe
-  InstallerSha256: D334A9493BE9253549158E34E1C765AE3D2C436C89A13244E147D1FB2362181C
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_arm64-setup.exe
+  InstallerSha256: E449E86C51BAFCACA13800BD259D0002054404CAACF7BFED01857B375A71BBFB
   InstallerSwitches:
     Custom: /CurrentUser
 - Architecture: arm64
   Scope: machine
-  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.3.1/BongoCat.Todo_1.3.1_arm64-setup.exe
-  InstallerSha256: D334A9493BE9253549158E34E1C765AE3D2C436C89A13244E147D1FB2362181C
+  InstallerUrl: https://github.com/ChHsiching/bongocat-todo/releases/download/v1.4.0/BongoCat.Todo_1.4.0_arm64-setup.exe
+  InstallerSha256: E449E86C51BAFCACA13800BD259D0002054404CAACF7BFED01857B375A71BBFB
   InstallerSwitches:
     Custom: /AllUsers
 ManifestType: installer
